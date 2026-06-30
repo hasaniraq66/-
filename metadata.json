@@ -1,0 +1,6 @@
+{
+  "name": "مدير الديون والميزانية الشخصية",
+  "description": "تطبيق ويب شخصي متكامل لإدارة الديون (لك وعليك)، وتتبع المصاريف والميزانية، مع تقارير رسومية تفاعلية ونظام تنبيهات ذكي لمواعيد السداد.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
