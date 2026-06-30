@@ -78,6 +78,13 @@ export default function DebtsManager({
   // Expand installment logs
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
 
+  // Custom confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   const categories = ['شخصي', 'عائلي', 'عمل', 'تجاري', 'سلفة', 'أخرى'];
 
   // Handle open add modal
@@ -534,9 +541,11 @@ export default function DebtsManager({
                     <button
                       id={`btn-delete-debt-${debt.id}`}
                       onClick={() => {
-                        if (confirm(`هل أنت متأكد من رغبتك في حذف الدين المسجل باسم "${debt.personName}"؟`)) {
-                          onDeleteDebt(debt.id);
-                        }
+                        setConfirmModal({
+                          title: 'تأكيد حذف الدين',
+                          message: `هل أنت متأكد من رغبتك في حذف الدين المسجل باسم "${debt.personName}"؟`,
+                          onConfirm: () => onDeleteDebt(debt.id)
+                        });
                       }}
                       className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-slate-50 transition-colors"
                       title="حذف الدين"
@@ -999,6 +1008,48 @@ export default function DebtsManager({
           </div>
         </div>
       )}
+      {/* Custom Confirmation Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full shadow-xl overflow-hidden border border-slate-100 text-right">
+            <div className="bg-slate-950 p-5 text-white flex justify-between items-center">
+              <button 
+                onClick={() => setConfirmModal(null)}
+                className="text-slate-400 hover:text-white font-extrabold text-sm"
+              >
+                ✕
+              </button>
+              <h3 className="font-extrabold text-sm flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                <span>{confirmModal.title}</span>
+              </h3>
+            </div>
+            <div className="p-6 space-y-4 text-slate-700 font-bold text-xs">
+              <p className="leading-relaxed">{confirmModal.message}</p>
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    confirmModal.onConfirm();
+                    setConfirmModal(null);
+                  }}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-50 text-white rounded-xl transition-all cursor-pointer"
+                >
+                  تأكيد الحذف
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

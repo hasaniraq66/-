@@ -147,6 +147,13 @@ export default function ProjectManager({
   const [instNotes, setInstNotes] = useState('');
   const [instLinkToBudget, setInstLinkToBudget] = useState(true);
 
+  // Custom confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   // Open modals with defaults
   const openAddProject = () => {
     setEditingProject(null);
@@ -649,9 +656,11 @@ export default function ProjectManager({
                             </button>
                             <button
                               onClick={() => {
-                                if (window.confirm('هل أنت متأكد من حذف هذا المشروع؟ سيتم فك ارتباط الموظفين والديون به.')) {
-                                  onDeleteProject(proj.id);
-                                }
+                                setConfirmModal({
+                                  title: 'تأكيد حذف المشروع',
+                                  message: `هل أنت متأكد من حذف هذا المشروع (${proj.name})؟ سيتم فك ارتباط الموظفين والديون به.`,
+                                  onConfirm: () => onDeleteProject(proj.id)
+                                });
                               }}
                               className="p-1.5 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
                               title="حذف المشروع"
@@ -770,9 +779,11 @@ export default function ProjectManager({
                                         </button>
                                         <button
                                           onClick={() => {
-                                            if (window.confirm('هل أنت متأكد من حذف هذا الموظف؟ سيتم حذف سجل مدفوعات الرواتب المرتبطة به أيضاً.')) {
-                                              onDeleteEmployee(emp.id);
-                                            }
+                                            setConfirmModal({
+                                              title: 'تأكيد حذف الموظف',
+                                              message: `هل أنت متأكد من حذف هذا الموظف (${emp.name})؟ سيتم حذف سجل مدفوعات الرواتب المرتبطة به أيضاً.`,
+                                              onConfirm: () => onDeleteEmployee(emp.id)
+                                            });
                                           }}
                                           className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
                                           title="حذف الموظف"
@@ -976,9 +987,11 @@ export default function ProjectManager({
                                   </button>
                                   <button
                                     onClick={() => {
-                                      if (confirm('هل أنت متأكد من رغبتك في حذف هذا المصروف؟')) {
-                                        onDeleteExpense(exp.id);
-                                      }
+                                      setConfirmModal({
+                                        title: 'تأكيد حذف المصروف',
+                                        message: `هل أنت متأكد من رغبتك في حذف هذا المصروف بقيمة (${formatCurrency(exp.amount, currency)})؟`,
+                                        onConfirm: () => onDeleteExpense(exp.id)
+                                      });
                                     }}
                                     className="p-1.5 bg-white hover:bg-rose-50 text-rose-600 rounded-lg border border-slate-100 transition-colors cursor-pointer"
                                     title="حذف"
@@ -1066,9 +1079,11 @@ export default function ProjectManager({
                                     </button>
                                     <button
                                       onClick={() => {
-                                        if (confirm('هل أنت متأكد من حذف هذا الدين؟ جميع الدفعات المرتبطة به ستُحذف أيضاً.')) {
-                                          onDeleteDebt(debt.id);
-                                        }
+                                        setConfirmModal({
+                                          title: 'تأكيد حذف الدين',
+                                          message: `هل أنت متأكد من حذف هذا الدين المسجل لـ (${debt.personName})؟ جميع الدفعات المرتبطة به ستُحذف أيضاً.`,
+                                          onConfirm: () => onDeleteDebt(debt.id)
+                                        });
                                       }}
                                       className="p-1.5 bg-white hover:bg-rose-50 text-rose-600 rounded-lg border border-slate-100 transition-colors cursor-pointer"
                                       title="حذف"
@@ -1121,9 +1136,11 @@ export default function ProjectManager({
                                         <div key={inst.id} className="flex justify-between items-center p-1.5 bg-white/50 border border-slate-100 rounded-lg text-[9px] font-bold text-slate-600">
                                           <button
                                             onClick={() => {
-                                              if (confirm('هل ترغب في حذف دفعة السداد هذه؟')) {
-                                                onDeleteInstallment(debt.id, inst.id);
-                                              }
+                                              setConfirmModal({
+                                                title: 'تأكيد حذف الدفعة',
+                                                message: `هل ترغب في حذف دفعة السداد هذه بقيمة (${formatCurrency(inst.amount, currency)})؟`,
+                                                onConfirm: () => onDeleteInstallment(debt.id, inst.id)
+                                              });
                                             }}
                                             className="text-rose-500 hover:text-rose-700 transition-colors"
                                             title="حذف الدفعة"
@@ -2232,6 +2249,50 @@ export default function ProjectManager({
               </div>
 
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl max-w-sm w-full shadow-xl overflow-hidden border border-slate-100 text-right"
+          >
+            <div className="bg-slate-950 p-5 text-white flex justify-between items-center">
+              <button 
+                onClick={() => setConfirmModal(null)}
+                className="text-slate-400 hover:text-white font-extrabold text-sm"
+              >
+                ✕
+              </button>
+              <h3 className="font-extrabold text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400" />
+                <span>{confirmModal.title}</span>
+              </h3>
+            </div>
+            <div className="p-6 space-y-4 text-slate-700 font-bold text-xs">
+              <p className="leading-relaxed">{confirmModal.message}</p>
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => {
+                    confirmModal.onConfirm();
+                    setConfirmModal(null);
+                  }}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition-all cursor-pointer"
+                >
+                  تأكيد الحذف
+                </button>
+              </div>
+            </div>
           </motion.div>
         </div>
       )}
