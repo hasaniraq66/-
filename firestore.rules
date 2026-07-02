@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth validation helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // User Document and User-Specific Subcollections
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // Nested user documents (Debts, Expenses, Budgets, Projects, Employees, Payments)
+      match /debts/{debtId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /expenses/{expenseId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /budgets/{budgetId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /projects/{projectId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /employees/{employeeId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /salaryPayments/{paymentId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

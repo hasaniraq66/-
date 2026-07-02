@@ -18,8 +18,20 @@ import {
   Unlock,
   ShieldAlert,
   Briefcase,
-  Users
+  Users,
+  Loader2
 } from 'lucide-react';
+
+import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { 
+  auth, 
+  fetchUserProfile, 
+  saveUserProfile, 
+  fetchCollection, 
+  saveDocument, 
+  deleteDocument 
+} from './utils/firebaseService';
+import AuthScreen from './components/AuthScreen';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
@@ -102,7 +114,11 @@ const initialBudgets: Budget[] = [
 ];
 
 export default function App() {
-  // Load State from LocalStorage
+  // Authentication states
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  // Load State from LocalStorage Fallbacks
   const [debts, setDebts] = useState<Debt[]>(() => {
     const saved = localStorage.getItem('personal_debts');
     return saved ? JSON.parse(saved) : initialDebts;
@@ -176,43 +192,141 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Synchronize localStorage with state edits
+  // Auth state listener and initial data loader
   useEffect(() => {
-    localStorage.setItem('personal_debts', JSON.stringify(debts));
-  }, [debts]);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setCurrentUser(firebaseUser);
+        setIsAuthLoading(true);
+        try {
+          // Fetch user profile and preferences
+          const profile = await fetchUserProfile(firebaseUser.uid);
+          if (profile) {
+            setUserName(profile.displayName);
+            setCurrency(profile.currency);
+          } else {
+            // Register profile for new users
+            const newProfile = {
+              userId: firebaseUser.uid,
+              displayName: firebaseUser.displayName || userName || 'مستثمر جديد',
+              email: firebaseUser.email || undefined,
+              currency: currency,
+              createdAt: new Date().toISOString()
+            };
+            await saveUserProfile(newProfile);
+          }
+
+          // Fetch user-isolated cloud collections from Firestore
+          const [loadedDebts, loadedExpenses, loadedBudgets, loadedProjects, loadedEmployees, loadedPayments] = await Promise.all([
+            fetchCollection<Debt>(firebaseUser.uid, 'debts'),
+            fetchCollection<Expense>(firebaseUser.uid, 'expenses'),
+            fetchCollection<Budget>(firebaseUser.uid, 'budgets'),
+            fetchCollection<Project>(firebaseUser.uid, 'projects'),
+            fetchCollection<Employee>(firebaseUser.uid, 'employees'),
+            fetchCollection<SalaryPayment>(firebaseUser.uid, 'salaryPayments')
+          ]);
+
+          // Migrate previous non-logged-in local state to Firestore if cloud is completely empty
+          if (
+            loadedDebts.length === 0 && 
+            loadedExpenses.length === 0 && 
+            loadedProjects.length === 0 && 
+            debts.length > 0 && 
+            debts !== initialDebts
+          ) {
+            await Promise.all([
+              ...debts.map(d => saveDocument(firebaseUser.uid, 'debts', d.id, d)),
+              ...expenses.map(e => saveDocument(firebaseUser.uid, 'expenses', e.id, e)),
+              ...budgets.map(b => saveDocument(firebaseUser.uid, 'budgets', b.month, b)),
+              ...projects.map(p => saveDocument(firebaseUser.uid, 'projects', p.id, p)),
+              ...employees.map(emp => saveDocument(firebaseUser.uid, 'employees', emp.id, emp)),
+              ...salaryPayments.map(sp => saveDocument(firebaseUser.uid, 'salaryPayments', sp.id, sp))
+            ]);
+          } else {
+            // Load cloud values
+            setDebts(loadedDebts);
+            setExpenses(loadedExpenses);
+            setBudgets(loadedBudgets);
+            setProjects(loadedProjects);
+            setEmployees(loadedEmployees);
+            setSalaryPayments(loadedPayments);
+          }
+        } catch (err) {
+          console.error('Error fetching user collections:', err);
+        } finally {
+          setIsAuthLoading(false);
+        }
+      } else {
+        setCurrentUser(null);
+        setIsAuthLoading(false);
+        // Clear sensitive states on logout
+        setDebts([]);
+        setExpenses([]);
+        setBudgets([]);
+        setProjects([]);
+        setEmployees([]);
+        setSalaryPayments([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Synchronize dynamic, user-isolated localStorage with state edits
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(`personal_debts_${currentUser.uid}`, JSON.stringify(debts));
+    }
+  }, [debts, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_expenses', JSON.stringify(expenses));
-  }, [expenses]);
+    if (currentUser) {
+      localStorage.setItem(`personal_expenses_${currentUser.uid}`, JSON.stringify(expenses));
+    }
+  }, [expenses, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_budgets', JSON.stringify(budgets));
-  }, [budgets]);
+    if (currentUser) {
+      localStorage.setItem(`personal_budgets_${currentUser.uid}`, JSON.stringify(budgets));
+    }
+  }, [budgets, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_projects', JSON.stringify(projects));
-  }, [projects]);
+    if (currentUser) {
+      localStorage.setItem(`personal_projects_${currentUser.uid}`, JSON.stringify(projects));
+    }
+  }, [projects, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_employees_list', JSON.stringify(employees));
-  }, [employees]);
+    if (currentUser) {
+      localStorage.setItem(`personal_employees_list_${currentUser.uid}`, JSON.stringify(employees));
+    }
+  }, [employees, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_salary_payments', JSON.stringify(salaryPayments));
-  }, [salaryPayments]);
+    if (currentUser) {
+      localStorage.setItem(`personal_salary_payments_${currentUser.uid}`, JSON.stringify(salaryPayments));
+    }
+  }, [salaryPayments, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_currency', currency);
-  }, [currency]);
+    if (currentUser) {
+      localStorage.setItem(`personal_currency_${currentUser.uid}`, currency);
+    }
+  }, [currency, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_username', userName);
-  }, [userName]);
+    if (currentUser) {
+      localStorage.setItem(`personal_username_${currentUser.uid}`, userName);
+    }
+  }, [userName, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('personal_read_alerts', JSON.stringify(readAlertIds));
-  }, [readAlertIds]);
+    if (currentUser) {
+      localStorage.setItem(`personal_read_alerts_${currentUser.uid}`, JSON.stringify(readAlertIds));
+    }
+  }, [readAlertIds, currentUser]);
 
+  // Synchronize general PIN security setting
   useEffect(() => {
     localStorage.setItem('app_pin_enabled', String(pinEnabled));
   }, [pinEnabled]);
@@ -220,6 +334,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('app_pin_code', savedPin);
   }, [savedPin]);
+
+  // Save changes to username & currency to Firestore profile
+  useEffect(() => {
+    if (currentUser && !isAuthLoading) {
+      saveUserProfile({
+        userId: currentUser.uid,
+        displayName: userName,
+        currency: currency,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }, [userName, currency, currentUser, isAuthLoading]);
 
   // Generate Alerts in Real-time from Debts
   const alerts: SystemAlert[] = useMemo(() => {
@@ -350,20 +476,36 @@ export default function App() {
       installments: [],
     };
     setDebts((prev) => [newDebt, ...prev]);
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'debts', newDebt.id, newDebt);
+    }
   };
 
   const handleEditDebt = (editedDebt: Debt) => {
     setDebts((prev) => prev.map((d) => (d.id === editedDebt.id ? editedDebt : d)));
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'debts', editedDebt.id, editedDebt);
+    }
   };
 
   const handleDeleteDebt = (id: string) => {
     setDebts((prev) => prev.filter((d) => d.id !== id));
+    if (currentUser) {
+      deleteDocument(currentUser.uid, 'debts', id);
+    }
     // Remove linked expenses if any
+    const expensesToDelete = expenses.filter((e) => e.linkedDebtId === id);
     setExpenses((prev) => prev.filter((e) => e.linkedDebtId !== id));
+    if (currentUser) {
+      expensesToDelete.forEach((e) => {
+        deleteDocument(currentUser.uid, 'expenses', e.id);
+      });
+    }
   };
 
   const handleAddInstallment = (debtId: string, amount: number, date: string, notes: string, linkToBudget: boolean) => {
     const installmentId = `inst-${generateId()}`;
+    let updatedDebtItem: Debt | null = null;
 
     setDebts((prev) => 
       prev.map((debt) => {
@@ -379,12 +521,14 @@ export default function App() {
           newStatus = 'partial';
         }
 
-        return {
+        const updated = {
           ...debt,
           paidAmount: Math.min(newPaidAmount, debt.amount),
           status: newStatus,
           installments: updatedInstallments,
         };
+        updatedDebtItem = updated;
+        return updated;
       })
     );
 
@@ -402,10 +546,20 @@ export default function App() {
         linkedDebtId: debtId,
       };
       setExpenses((prev) => [newExpense, ...prev]);
+      if (currentUser) {
+        saveDocument(currentUser.uid, 'expenses', newExpense.id, newExpense);
+      }
     }
+
+    setTimeout(() => {
+      if (currentUser && updatedDebtItem) {
+        saveDocument(currentUser.uid, 'debts', debtId, updatedDebtItem);
+      }
+    }, 150);
   };
 
   const handleDeleteInstallment = (debtId: string, installmentId: string) => {
+    let updatedDebtItem: Debt | null = null;
     setDebts((prev) => 
       prev.map((debt) => {
         if (debt.id !== debtId) return debt;
@@ -423,29 +577,46 @@ export default function App() {
           newStatus = 'partial';
         }
 
-        return {
+        const updated = {
           ...debt,
           paidAmount: newPaidAmount,
           status: newStatus,
           installments: updatedInstallments,
         };
+        updatedDebtItem = updated;
+        return updated;
       })
     );
 
     // Delete linked expense if exists
+    const expenseToDelete = expenses.find(e => e.linkedDebtId === debtId && e.amount === expenses.find(ex => ex.linkedDebtId === debtId)?.amount);
     setExpenses((prev) => prev.filter((e) => !(e.linkedDebtId === debtId && e.amount === expenses.find(ex => ex.linkedDebtId === debtId)?.amount)));
+    
+    if (currentUser && expenseToDelete) {
+      deleteDocument(currentUser.uid, 'expenses', expenseToDelete.id);
+    }
+
+    setTimeout(() => {
+      if (currentUser && updatedDebtItem) {
+        saveDocument(currentUser.uid, 'debts', debtId, updatedDebtItem);
+      }
+    }, 150);
   };
 
   // 2. Budget and expenses
   const handleSetBudget = (month: string, limit: number, categoryLimits?: { [category: string]: number }) => {
+    const updatedBudget: Budget = { month, monthlyLimit: limit, categoryLimits };
     setBudgets((prev) => {
       const exists = prev.some((b) => b.month === month);
       if (exists) {
-        return prev.map((b) => (b.month === month ? { ...b, monthlyLimit: limit, categoryLimits } : b));
+        return prev.map((b) => (b.month === month ? updatedBudget : b));
       } else {
-        return [...prev, { month, monthlyLimit: limit, categoryLimits }];
+        return [...prev, updatedBudget];
       }
     });
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'budgets', month, updatedBudget);
+    }
   };
 
   const handleAddExpense = (newExpenseData: Omit<Expense, 'id'>) => {
@@ -454,14 +625,23 @@ export default function App() {
       id: `exp-${generateId()}`,
     };
     setExpenses((prev) => [newExpense, ...prev]);
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'expenses', newExpense.id, newExpense);
+    }
   };
 
   const handleEditExpense = (editedExpense: Expense) => {
     setExpenses((prev) => prev.map((e) => (e.id === editedExpense.id ? editedExpense : e)));
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'expenses', editedExpense.id, editedExpense);
+    }
   };
 
   const handleDeleteExpense = (id: string) => {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
+    if (currentUser) {
+      deleteDocument(currentUser.uid, 'expenses', id);
+    }
   };
 
   // 3. Alerts Clearance
@@ -478,7 +658,6 @@ export default function App() {
   };
 
   const handleClearReadAlerts = () => {
-    // Keep only read markers of alerts that actually exist, or just clear read state
     const currentActiveAlertIds = alerts.map(a => a.id);
     setReadAlertIds((prev) => prev.filter(id => !currentActiveAlertIds.includes(id)));
   };
@@ -490,20 +669,66 @@ export default function App() {
       id: `project-${generateId()}`,
     };
     setProjects((prev) => [...prev, newProj]);
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'projects', newProj.id, newProj);
+    }
   };
 
   const handleEditProject = (editedProj: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === editedProj.id ? editedProj : p)));
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'projects', editedProj.id, editedProj);
+    }
   };
 
   const handleDeleteProject = (projectId: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    if (currentUser) {
+      deleteDocument(currentUser.uid, 'projects', projectId);
+    }
+
     // Remove references
+    const employeesToDelete = employees.filter((e) => e.projectId === projectId);
     setEmployees((prev) => prev.filter((e) => e.projectId !== projectId));
+    if (currentUser) {
+      employeesToDelete.forEach((e) => {
+        deleteDocument(currentUser.uid, 'employees', e.id);
+      });
+    }
+
+    const salaryPaymentsToDelete = salaryPayments.filter((sp) => sp.projectId === projectId);
     setSalaryPayments((prev) => prev.filter((sp) => sp.projectId !== projectId));
+    if (currentUser) {
+      salaryPaymentsToDelete.forEach((sp) => {
+        deleteDocument(currentUser.uid, 'salaryPayments', sp.id);
+        deleteDocument(currentUser.uid, 'expenses', `salary-exp-${sp.id}`);
+      });
+    }
+
     // Nullify or delete linked debts and expenses
-    setDebts((prev) => prev.map((d) => d.projectId === projectId ? { ...d, projectId: undefined } : d));
-    setExpenses((prev) => prev.map((e) => e.projectId === projectId ? { ...e, projectId: undefined } : e));
+    setDebts((prev) => {
+      const updated = prev.map((d) => d.projectId === projectId ? { ...d, projectId: undefined } : d);
+      if (currentUser) {
+        prev.forEach((d) => {
+          if (d.projectId === projectId) {
+            saveDocument(currentUser.uid, 'debts', d.id, { ...d, projectId: undefined });
+          }
+        });
+      }
+      return updated;
+    });
+
+    setExpenses((prev) => {
+      const updated = prev.map((e) => e.projectId === projectId ? { ...e, projectId: undefined } : e);
+      if (currentUser) {
+        prev.forEach((e) => {
+          if (e.projectId === projectId) {
+            saveDocument(currentUser.uid, 'expenses', e.id, { ...e, projectId: undefined });
+          }
+        });
+      }
+      return updated;
+    });
   };
 
   const handleAddEmployee = (newEmpData: Omit<Employee, 'id'>) => {
@@ -512,20 +737,41 @@ export default function App() {
       id: `employee-${generateId()}`,
     };
     setEmployees((prev) => [...prev, newEmp]);
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'employees', newEmp.id, newEmp);
+    }
   };
 
   const handleEditEmployee = (editedEmp: Employee) => {
     setEmployees((prev) => prev.map((e) => (e.id === editedEmp.id ? editedEmp : e)));
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'employees', editedEmp.id, editedEmp);
+    }
   };
 
   const handleDeleteEmployee = (employeeId: string) => {
     setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
+    if (currentUser) {
+      deleteDocument(currentUser.uid, 'employees', employeeId);
+    }
     // Remove salary payments
     setSalaryPayments((prev) => {
       const paymentsToRemove = prev.filter((sp) => sp.employeeId === employeeId);
-      // Remove corresponding auto-generated expenses
       const expenseIdsToRemove = paymentsToRemove.map(p => `salary-exp-${p.id}`);
-      setExpenses((exPrev) => exPrev.filter(e => !expenseIdsToRemove.includes(e.id)));
+      setExpenses((exPrev) => {
+        const updated = exPrev.filter(e => !expenseIdsToRemove.includes(e.id));
+        if (currentUser) {
+          expenseIdsToRemove.forEach((id) => {
+            deleteDocument(currentUser.uid, 'expenses', id);
+          });
+        }
+        return updated;
+      });
+      if (currentUser) {
+        paymentsToRemove.forEach((p) => {
+          deleteDocument(currentUser.uid, 'salaryPayments', p.id);
+        });
+      }
       return prev.filter((sp) => sp.employeeId !== employeeId);
     });
   };
@@ -538,6 +784,9 @@ export default function App() {
     };
     
     setSalaryPayments((prev) => [...prev, newPayment]);
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'salaryPayments', newPayment.id, newPayment);
+    }
 
     // Automatically create a linked expense
     const emp = employees.find(e => e.id === newPaymentData.employeeId);
@@ -554,40 +803,80 @@ export default function App() {
     };
     
     setExpenses((prev) => [newExpense, ...prev]);
+    if (currentUser) {
+      saveDocument(currentUser.uid, 'expenses', newExpense.id, newExpense);
+    }
   };
 
   const handleDeleteSalaryPayment = (paymentId: string) => {
     setSalaryPayments((prev) => prev.filter((sp) => sp.id !== paymentId));
+    if (currentUser) {
+      deleteDocument(currentUser.uid, 'salaryPayments', paymentId);
+    }
     // Delete auto-generated expense
     setExpenses((prev) => prev.filter((e) => e.id !== `salary-exp-${paymentId}`));
+    if (currentUser) {
+      deleteDocument(currentUser.uid, 'expenses', `salary-exp-${paymentId}`);
+    }
   };
 
   // 5. Backup & Restore
   const handleImportBackupData = (parsedData: any): boolean => {
     if (!parsedData || typeof parsedData !== 'object') return false;
     
-    // Simple validation of fields
     const hasDebts = Array.isArray(parsedData.personal_debts || parsedData.debts);
     const hasExpenses = Array.isArray(parsedData.personal_expenses || parsedData.expenses);
     
     if (hasDebts || hasExpenses || parsedData.personal_projects) {
-      if (parsedData.personal_debts) setDebts(parsedData.personal_debts);
-      if (parsedData.debts) setDebts(parsedData.debts);
-      if (parsedData.personal_expenses) setExpenses(parsedData.personal_expenses);
-      if (parsedData.expenses) setExpenses(parsedData.expenses);
-      if (parsedData.personal_budgets) setBudgets(parsedData.personal_budgets);
-      if (parsedData.budgets) setBudgets(parsedData.budgets);
-      if (parsedData.personal_projects) setProjects(parsedData.personal_projects);
-      if (parsedData.personal_employees_list) setEmployees(parsedData.personal_employees_list);
-      if (parsedData.personal_salary_payments) setSalaryPayments(parsedData.personal_salary_payments);
+      const dbt = parsedData.personal_debts || parsedData.debts || [];
+      const exp = parsedData.personal_expenses || parsedData.expenses || [];
+      const bdg = parsedData.personal_budgets || parsedData.budgets || [];
+      const prj = parsedData.personal_projects || [];
+      const emp = parsedData.personal_employees_list || [];
+      const sal = parsedData.personal_salary_payments || [];
+      const cur = parsedData.currency || currency;
+      const usr = parsedData.username || userName;
+
+      setDebts(dbt);
+      setExpenses(exp);
+      setBudgets(bdg);
+      setProjects(prj);
+      setEmployees(emp);
+      setSalaryPayments(sal);
       if (parsedData.currency) setCurrency(parsedData.currency);
       if (parsedData.username) setUserName(parsedData.username);
+
+      if (currentUser) {
+        Promise.all([
+          ...dbt.map((d: any) => saveDocument(currentUser.uid, 'debts', d.id, d)),
+          ...exp.map((e: any) => saveDocument(currentUser.uid, 'expenses', e.id, e)),
+          ...bdg.map((b: any) => saveDocument(currentUser.uid, 'budgets', b.month, b)),
+          ...prj.map((p: any) => saveDocument(currentUser.uid, 'projects', p.id, p)),
+          ...emp.map((em: any) => saveDocument(currentUser.uid, 'employees', em.id, em)),
+          ...sal.map((s: any) => saveDocument(currentUser.uid, 'salaryPayments', s.id, s)),
+          saveUserProfile({
+            userId: currentUser.uid,
+            displayName: usr,
+            currency: cur,
+            createdAt: new Date().toISOString()
+          })
+        ]);
+      }
       return true;
     }
     return false;
   };
 
   const handleResetAllData = () => {
+    if (currentUser && confirm('هل أنت متأكد من رغبتك في مسح جميع البيانات نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) {
+      debts.forEach((d) => deleteDocument(currentUser.uid, 'debts', d.id));
+      expenses.forEach((e) => deleteDocument(currentUser.uid, 'expenses', e.id));
+      budgets.forEach((b) => deleteDocument(currentUser.uid, 'budgets', b.month));
+      projects.forEach((p) => deleteDocument(currentUser.uid, 'projects', p.id));
+      employees.forEach((em) => deleteDocument(currentUser.uid, 'employees', em.id));
+      salaryPayments.forEach((sp) => deleteDocument(currentUser.uid, 'salaryPayments', sp.id));
+    }
+
     setDebts([]);
     setExpenses([]);
     setBudgets([]);
@@ -611,6 +900,26 @@ export default function App() {
     currency,
     username: userName,
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4 text-slate-300 font-sans" id="auth-loading-screen">
+        <Loader2 className="w-10 h-10 animate-spin text-sky-500" />
+        <span className="text-xs font-bold tracking-wider">جاري تحميل بياناتك الآمنة...</span>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <AuthScreen 
+        onAuthSuccess={(userId, displayName, userCurrency) => {
+          setUserName(displayName);
+          setCurrency(userCurrency);
+        }} 
+      />
+    );
+  }
 
   if (isPinLocked) {
     return (
@@ -690,17 +999,30 @@ export default function App() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md font-extrabold">نشط محلياً</span>
+                <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md font-extrabold">حساب سحابي</span>
               </div>
               <h4 className="font-bold text-white text-xs truncate mt-0.5">{userName}</h4>
             </div>
-            <button 
-              id="settings-trigger-btn"
-              onClick={() => setIsSettingsOpen(true)}
-              className="text-[10px] text-sky-400 hover:text-sky-300 hover:underline font-bold bg-sky-500/10 px-2 py-1 rounded-md transition-all cursor-pointer"
-            >
-              إعدادات
-            </button>
+            <div className="flex flex-col gap-1 shrink-0">
+              <button 
+                id="settings-trigger-btn"
+                onClick={() => setIsSettingsOpen(true)}
+                className="text-[9px] text-sky-400 hover:text-sky-300 hover:underline font-bold bg-sky-500/10 px-2 py-0.5 rounded-md transition-all cursor-pointer text-center"
+              >
+                إعدادات
+              </button>
+              <button 
+                id="logout-btn"
+                onClick={async () => {
+                  if (confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) {
+                    await signOut(auth);
+                  }
+                }}
+                className="text-[9px] text-red-400 hover:text-red-300 hover:underline font-bold bg-red-500/10 px-2 py-0.5 rounded-md transition-all cursor-pointer text-center"
+              >
+                خروج
+              </button>
+            </div>
           </div>
 
           {/* Navigation Links */}

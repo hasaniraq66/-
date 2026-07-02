@@ -1,0 +1,150 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account configurations such as name and preferred currency.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The unique user ID" },
+        "displayName": { "type": "string", "description": "Display name of the user" },
+        "email": { "type": "string", "description": "User email address" },
+        "phoneNumber": { "type": "string", "description": "User phone number if registered with phone" },
+        "currency": { "type": "string", "description": "Preferred currency" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["userId", "displayName"]
+    },
+    "Debt": {
+      "title": "Debt",
+      "description": "Debts and loans recorded by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["to_me", "to_others"] },
+        "personName": { "type": "string" },
+        "amount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "startDate": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["paid", "partial", "unpaid"] },
+        "projectId": { "type": "string" },
+        "installments": {
+          "type": "array",
+          "description": "Repayments for this debt"
+        }
+      },
+      "required": ["id", "userId", "type", "personName", "amount", "paidAmount", "status"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Detailed expenses/payments linked to budget or projects.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "date": { "type": "string" },
+        "description": { "type": "string" },
+        "linkedDebtId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "required": ["id", "userId", "amount", "category", "date"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Monthly budget limits.",
+      "type": "object",
+      "properties": {
+        "month": { "type": "string" },
+        "userId": { "type": "string" },
+        "monthlyLimit": { "type": "number" },
+        "categoryLimits": { "type": "object" }
+      },
+      "required": ["month", "userId", "monthlyLimit"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Business projects tracked by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "clientName": { "type": "string" },
+        "budget": { "type": "number" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "completed", "paused", "draft"] },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "budget", "status"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Employees hired under a project.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "salary": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["id", "userId", "projectId", "name", "salary", "status"]
+    },
+    "SalaryPayment": {
+      "title": "Salary Payment",
+      "description": "Records of salary disbursements to employees.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentDate": { "type": "string" },
+        "month": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "userId", "employeeId", "projectId", "amount", "paymentDate", "month"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles including general preferences."
+    },
+    "/users/{userId}/debts/{debtId}": {
+      "schema": "Debt",
+      "description": "User specific debt documents."
+    },
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "User specific expense documents."
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": "Budget",
+      "description": "User specific budget configurations."
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": "Project",
+      "description": "User specific business projects."
+    },
+    "/users/{userId}/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Employees registered under projects."
+    },
+    "/users/{userId}/salaryPayments/{paymentId}": {
+      "schema": "SalaryPayment",
+      "description": "Disbursed salary payments records."
+    }
+  }
+}
