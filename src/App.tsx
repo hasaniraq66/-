@@ -19,7 +19,8 @@ import {
   ShieldAlert,
   Briefcase,
   Users,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -45,6 +46,7 @@ import AlertsPanel from './components/AlertsPanel';
 import BackupRestore from './components/BackupRestore';
 import LockScreen from './components/LockScreen';
 import ProjectManager from './components/ProjectManager';
+import SmartAdvisor from './components/SmartAdvisor';
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -364,7 +366,7 @@ export default function App() {
   const activeBudget = useMemo(() => {
     const currentMonth = getCurrentMonthString();
     const found = budgets.find((b) => b.month === currentMonth);
-    return found || { monthlyLimit: 6000, month: currentMonth };
+    return found || { monthlyLimit: 0, month: currentMonth };
   }, [budgets]);
 
   // --- ACTIONS ---
@@ -1045,6 +1047,22 @@ export default function App() {
                 </span>
                 {activeTab === 'dashboard' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
               </button>
+
+              <button
+                id="nav-advisor"
+                onClick={() => { setActiveTab('advisor'); setIsSidebarOpen(false); }}
+                className={`w-full px-3.5 py-2 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                  activeTab === 'advisor' 
+                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <Sparkles className="w-4 h-4 shrink-0 text-sky-400" />
+                  <span>المستشار المالي الذكي (AI)</span>
+                </span>
+                {activeTab === 'advisor' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+              </button>
             </div>
 
             {/* Category 2: Core Operations */}
@@ -1268,6 +1286,19 @@ export default function App() {
             onDeleteInstallment={handleDeleteInstallment}
             onEditExpense={handleEditExpense}
             onDeleteExpense={handleDeleteExpense}
+          />
+        )}
+
+        {activeTab === 'advisor' && (
+          <SmartAdvisor
+            debts={debts}
+            expenses={expenses}
+            budgets={budgets}
+            projects={projects}
+            employees={employees}
+            salaryPayments={salaryPayments}
+            currency={currency}
+            userName={userName}
           />
         )}
       </main>
