@@ -45,6 +45,38 @@ interface ReportsProps {
 export default function Reports({ debts, expenses, budgets, currency }: ReportsProps) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthString());
 
+  // Custom interactive Tooltips for professional, high-fidelity UI/UX
+  const CustomPieTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800 shadow-xl text-right text-xs space-y-1 font-bold select-none">
+          <p className="text-slate-400 font-medium">{payload[0].name}</p>
+          <p className="text-emerald-400 font-black text-sm">{formatCurrency(payload[0].value, currency)}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const CustomBarTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800 shadow-xl text-right text-xs space-y-2 font-bold select-none min-w-[140px]">
+          <p className="text-slate-200 border-b border-slate-800 pb-1.5 font-black">{label}</p>
+          <div className="space-y-1.5">
+            {payload.map((pld: any, index: number) => (
+              <div key={index} className="flex items-center justify-between gap-6">
+                <span style={{ color: pld.color }} className="text-[10px] font-semibold">{pld.name}:</span>
+                <span className="font-black text-xs" style={{ color: pld.color }}>{formatCurrency(pld.value, currency)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   // PDF Export state
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportType, setExportType] = useState<'monthly' | 'annual'>('monthly');
@@ -428,7 +460,7 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: any) => [`${value} ${currency}`, '']} />
+                  <Tooltip content={<CustomPieTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -457,7 +489,7 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
                 <BarChart data={debtsByPersonData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                   <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
                   <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
-                  <Tooltip formatter={(value: any) => [`${value} ${currency}`, '']} />
+                  <Tooltip content={<CustomBarTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
                   <Bar dataKey="أطلبهم (لي)" fill="#0284c7" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="يطلبوني (علي)" fill="#ef4444" radius={[4, 4, 0, 0]} />

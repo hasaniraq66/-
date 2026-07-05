@@ -15,6 +15,7 @@ import {
   Compass,
   Lightbulb
 } from 'lucide-react';
+import { User as FirebaseUser } from 'firebase/auth';
 import { Debt, Expense, Budget, Project, Employee, SalaryPayment } from '../types';
 import { formatCurrency } from '../utils';
 import Markdown from 'react-markdown';
@@ -28,6 +29,7 @@ interface SmartAdvisorProps {
   salaryPayments: SalaryPayment[];
   currency: string;
   userName: string;
+  currentUser: FirebaseUser | null;
 }
 
 interface Message {
@@ -45,7 +47,8 @@ export default function SmartAdvisor({
   employees,
   salaryPayments,
   currency,
-  userName
+  userName,
+  currentUser
 }: SmartAdvisorProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -80,6 +83,9 @@ export default function SmartAdvisor({
     setIsLoading(true);
 
     try {
+      // Get the ID token from Firebase to authenticate with the server
+      const token = currentUser ? await currentUser.getIdToken() : '';
+
       // Map message history to simple structure required by server API
       const chatHistory = messages.map(m => ({
         role: m.role,
@@ -89,7 +95,8 @@ export default function SmartAdvisor({
       const response = await fetch('/api/advisor/analyze', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           debts,

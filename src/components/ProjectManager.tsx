@@ -154,6 +154,13 @@ export default function ProjectManager({
     onConfirm: () => void;
   } | null>(null);
 
+  // Safely synchronize selectedProjectId when projects list is loaded
+  React.useEffect(() => {
+    if (!selectedProjectId && projects && projects.length > 0) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
+
   // Open modals with defaults
   const openAddProject = () => {
     setEditingProject(null);

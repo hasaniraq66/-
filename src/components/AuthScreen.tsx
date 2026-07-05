@@ -164,7 +164,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('بيانات الدخول غير صحيحة. يرجى التحقق من البريد أو رقم الهاتف وكلمة المرور.');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('الحساب مسجل بالفعل! جرب تسجيل الدخول بدلاً من ذلك.');
+        if (authMethod === 'email') {
+          setError('البريد الإلكتروني مستخدم بالفعل! البريد الإلكتروني الذي أدخلته مسجل لحساب آخر مسبقاً. يرجى استخدام بريد إلكتروني جديد أو تسجيل الدخول.');
+        } else {
+          setError('رقم الهاتف مستخدم بالفعل! رقم الهاتف الذي أدخلته مسجل لحساب آخر مسبقاً. يرجى استخدام رقم هاتف جديد أو تسجيل الدخول.');
+        }
       } else if (err.code === 'auth/operation-not-allowed') {
         setError(
           <div className="space-y-1.5 leading-relaxed">

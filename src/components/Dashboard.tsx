@@ -323,28 +323,32 @@ export default function Dashboard({
     <div className="space-y-6" id="dashboard-viewport">
       {/* Welcome Banner */}
       <div 
-        className="relative overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] text-white rounded-2xl p-6 md:p-8 shadow-md border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6" 
+        className="relative overflow-hidden bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#0b0f19] text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6" 
         id="welcome-banner"
       >
-        {/* Abstract background shapes for visual depth */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
+        {/* Abstract artistic glowing layers */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         
-        <div className="relative z-10 space-y-2">
-          <span className="text-xs font-black text-sky-400 bg-sky-500/10 px-3 py-1 rounded-full border border-sky-500/20 uppercase tracking-wider">لوحة المتابعة الشاملة</span>
-          <h1 className="text-xl md:text-3xl font-extrabold tracking-tight mt-2 flex items-center gap-2">
+        <div className="relative z-10 space-y-3">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-sky-400 bg-sky-500/10 px-3 py-1 rounded-full border border-sky-500/20 uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-ping"></span>
+            لوحة المتابعة الشاملة
+          </span>
+          <h1 className="text-xl md:text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2 text-white">
             <span>{timeGreeting}</span>
           </h1>
-          <p className="text-slate-300 text-xs md:text-sm max-w-xl leading-relaxed font-medium">
+          <p className="text-slate-400 text-xs md:text-sm max-w-xl leading-relaxed font-semibold">
             مرحباً بك في مركزك المالي الآمن. تتبع الديون والالتزامات مع الآخرين، راقب ميزانية مصاريفك الشهرية بذكاء، وتلقّ التنبيهات اللازمة لمواعيد الاستحقاق.
           </p>
         </div>
         
-        <div className="relative z-10 flex gap-2.5 w-full md:w-auto shrink-0">
+        <div className="relative z-10 flex gap-3 w-full md:w-auto shrink-0">
           <button 
             id="quick-add-debt-btn"
             onClick={() => onNavigate('debts')}
-            className="flex-1 md:flex-none px-4 py-3 bg-sky-600 hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(2,132,199,0.3)] flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 md:flex-none px-5 py-3.5 bg-sky-600 hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(2,132,199,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
           >
             <span>إضافة دين جديد</span>
             <ArrowUpRight className="w-4 h-4 shrink-0" />
@@ -352,7 +356,7 @@ export default function Dashboard({
           <button 
             id="quick-add-expense-btn"
             onClick={() => onNavigate('budget')}
-            className="flex-1 md:flex-none px-4 py-3 bg-emerald-600 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 md:flex-none px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
           >
             <span>تسجيل مصروف</span>
             <ArrowDownLeft className="w-4 h-4 shrink-0" />
@@ -361,94 +365,106 @@ export default function Dashboard({
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-cards-grid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" id="kpi-cards-grid">
         {/* Card 1: Debts to Collect */}
         <div 
-          className="bg-white p-5 rounded-2xl shadow-2xs border border-slate-100 hover:border-sky-200 hover:-translate-y-1 hover:shadow-xs transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-sky-300 hover:-translate-y-1 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-me"
           onClick={() => onNavigate('debts')}
         >
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-bold text-slate-400 block tracking-wide">الديون المستحقة لي (عند الناس) 📥</span>
+          {/* Subtle decorative background blob */}
+          <div className="absolute -left-4 -bottom-4 w-20 h-20 bg-sky-50 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+          
+          <div className="space-y-2 relative z-10">
+            <span className="text-[10px] font-black text-slate-400 block tracking-wide">الديون المستحقة لي (عند الناس) 📥</span>
             <h3 className="text-2xl font-black text-sky-600 tracking-tight">{formatCurrency(activeToMe, currency)}</h3>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-              <span className="bg-sky-50 text-sky-600 font-bold px-1.5 py-0.5 rounded-sm">
+              <span className="bg-sky-50 text-sky-700 font-extrabold px-2 py-0.5 rounded-lg border border-sky-100">
                 تم تحصيل {collectedToMeRatio}%
               </span>
-              <span>من {formatCurrency(totalToMe, currency)}</span>
+              <span className="font-semibold text-slate-400">من {formatCurrency(totalToMe, currency)}</span>
             </div>
           </div>
-          <div className="p-3 bg-sky-50/80 text-sky-600 rounded-2xl group-hover:bg-sky-600 group-hover:text-white transition-all duration-300 shadow-3xs">
+          <div className="p-3 bg-sky-50/80 text-sky-600 rounded-2xl group-hover:bg-sky-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
             <TrendingUp className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 2: Debts to Pay */}
         <div 
-          className="bg-white p-5 rounded-2xl shadow-2xs border border-slate-100 hover:border-rose-200 hover:-translate-y-1 hover:shadow-xs transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-rose-300 hover:-translate-y-1 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-others"
           onClick={() => onNavigate('debts')}
         >
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-bold text-slate-400 block tracking-wide">الديون المطلوبة مني (للناس) 📤</span>
+          {/* Subtle decorative background blob */}
+          <div className="absolute -left-4 -bottom-4 w-20 h-20 bg-rose-50 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+
+          <div className="space-y-2 relative z-10">
+            <span className="text-[10px] font-black text-slate-400 block tracking-wide">الديون المطلوبة مني (للناس) 📤</span>
             <h3 className="text-2xl font-black text-rose-600 tracking-tight">{formatCurrency(activeToOthers, currency)}</h3>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-              <span className="bg-rose-50 text-rose-600 font-bold px-1.5 py-0.5 rounded-sm">
+              <span className="bg-rose-50 text-rose-700 font-extrabold px-2 py-0.5 rounded-lg border border-rose-100">
                 تم سداد {paidToOthersRatio}%
               </span>
-              <span>من {formatCurrency(totalToOthers, currency)}</span>
+              <span className="font-semibold text-slate-400">من {formatCurrency(totalToOthers, currency)}</span>
             </div>
           </div>
-          <div className="p-3 bg-rose-50/80 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-all duration-300 shadow-3xs">
+          <div className="p-3 bg-rose-50/80 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
             <TrendingDown className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 3: Monthly Expenses */}
         <div 
-          className="bg-white p-5 rounded-2xl shadow-2xs border border-slate-100 hover:border-amber-200 hover:-translate-y-1 hover:shadow-xs transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-amber-300 hover:-translate-y-1 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-monthly-expenses"
           onClick={() => onNavigate('budget')}
         >
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-bold text-slate-400 block tracking-wide">مصاريف الشهر الحالي 💳</span>
+          {/* Subtle decorative background blob */}
+          <div className="absolute -left-4 -bottom-4 w-20 h-20 bg-amber-50 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+
+          <div className="space-y-2 relative z-10">
+            <span className="text-[10px] font-black text-slate-400 block tracking-wide">مصاريف الشهر الحالي 💳</span>
             <h3 className="text-2xl font-black text-slate-800 tracking-tight">{formatCurrency(monthlyExpenses, currency)}</h3>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-              <span className="bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded-sm">
+              <span className="bg-slate-100 text-slate-700 font-extrabold px-2 py-0.5 rounded-lg border border-slate-200">
                 لشهر {formatDate(currentMonthStr + '-01').substring(3)}
               </span>
-              <span>بواقع {expenseCategoriesData.length} فئات</span>
+              <span className="font-semibold text-slate-400">بواقع {expenseCategoriesData.length} فئات</span>
             </div>
           </div>
-          <div className="p-3 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-slate-700 group-hover:text-white transition-all duration-300 shadow-3xs">
+          <div className="p-3 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-slate-700 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
             <CreditCard className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 4: Budget Status */}
         <div 
-          className="bg-white p-5 rounded-2xl shadow-2xs border border-slate-100 hover:border-emerald-200 hover:-translate-y-1 hover:shadow-xs transition-all duration-300 flex flex-col justify-between cursor-pointer" 
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-emerald-300 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer group" 
           id="kpi-budget-progress"
           onClick={() => onNavigate('budget')}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-bold text-slate-400 block tracking-wide">الميزانية المتبقية 💰</span>
+          {/* Subtle decorative background blob */}
+          <div className="absolute -left-4 -bottom-4 w-20 h-20 bg-emerald-50 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500"></div>
+
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <div className="space-y-1">
+              <span className="text-[10px] font-black text-slate-400 block tracking-wide">الميزانية المتبقية 💰</span>
               <h3 className={`text-xl font-black ${remainingBudget < 0 ? 'text-rose-600 animate-pulse' : 'text-emerald-600'}`}>
                 {formatCurrency(remainingBudget, currency)}
               </h3>
             </div>
-            <div className={`p-2 rounded-xl shrink-0 ${remainingBudget < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+            <div className={`p-2.5 rounded-xl shrink-0 relative z-10 ${remainingBudget < 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
               <Wallet className="w-4 h-4" />
             </div>
           </div>
           
-          <div className="space-y-1.5">
+          <div className="space-y-2 relative z-10">
             <div className="flex justify-between text-[10px] text-slate-500">
-              <span>المتاح: {formatCurrency(monthlyBudgetLimit, currency)}</span>
-              <span className="font-bold">{budgetPercentage}% مستهلك</span>
+              <span className="font-semibold text-slate-400">المتاح: {formatCurrency(monthlyBudgetLimit, currency)}</span>
+              <span className="font-extrabold text-slate-600">{budgetPercentage}% مستهلك</span>
             </div>
-            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-500 ${budgetPercentage > 90 ? 'bg-rose-500' : budgetPercentage > 75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                 style={{ width: `${budgetPercentage}%` }}

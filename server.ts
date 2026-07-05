@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -10,6 +11,18 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Load Firebase API key securely on startup
+let firebaseApiKey = "";
+try {
+  const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(firebaseConfigPath)) {
+    const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+    firebaseApiKey = firebaseConfig.apiKey || "";
+  }
+} catch (err) {
+  console.error("Error loading firebase-applet-config.json:", err);
+}
 
 // Initialize GoogleGenAI
 const apiKey = process.env.GEMINI_API_KEY;
@@ -29,6 +42,42 @@ if (apiKey) {
 app.post("/api/advisor/analyze", async (req, res) => {
   try {
     const { debts, expenses, budgets, projects, employees, salaryPayments, currency, userName, userMessage, chatHistory } = req.body;
+
+    // Secure verification: check Firebase User Identity
+    const authHeader = req.headers.authorization;
+    if (firebaseApiKey) {
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "غير مصرح. يرجى تسجيل الدخول أولاً لاستخدام المستشار المالي." });
+      }
+      const idToken = authHeader.split("Bearer ")[1];
+      if (!idToken) {
+        return res.status(401).json({ error: "غير مصرح. رمز التحقق غير صالح." });
+      }
+
+      try {
+        const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseApiKey}`;
+        const verifyRes = await fetch(verifyUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken })
+        });
+
+        if (!verifyRes.ok) {
+          const errData = await verifyRes.json().catch(() => ({}));
+          console.error("Firebase ID Token verification failed:", errData);
+          return res.status(401).json({ error: "جلسة العمل غير صالحة أو منتهية الصلاحية." });
+        }
+
+        const verifyData = await verifyRes.json();
+        const verifiedUid = verifyData.users?.[0]?.localId;
+        if (!verifiedUid) {
+          return res.status(401).json({ error: "المستخدم غير موجود أو غير صالح." });
+        }
+      } catch (authError) {
+        console.error("Authentication check exception:", authError);
+        return res.status(500).json({ error: "حدث خطأ في الخادم أثناء التحقق من هويتك." });
+      }
+    }
 
     if (!apiKey || !ai) {
       return res.status(200).json({ 

@@ -21,6 +21,26 @@ interface CashFlowChartProps {
 export default function CashFlowChart({ debts, currency }: CashFlowChartProps) {
   const [timeframe, setTimeframe] = useState<'6m' | '12m' | 'all'>('6m');
 
+  // Custom interactive Tooltip for professional, high-fidelity UI/UX
+  const CustomFlowTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800 shadow-xl text-right text-xs space-y-2 font-bold select-none min-w-[145px]">
+          <p className="text-slate-200 border-b border-slate-800 pb-1.5 font-black">{label}</p>
+          <div className="space-y-1.5">
+            {payload.map((pld: any, index: number) => (
+              <div key={index} className="flex items-center justify-between gap-6">
+                <span style={{ color: pld.stroke || pld.color }} className="text-[10px] font-semibold">{pld.name}:</span>
+                <span className="font-black text-xs" style={{ color: pld.stroke || pld.color }}>{formatCurrency(pld.value, currency)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   // Process data to calculate monthly outstanding vs paid
   const monthlyData = useMemo(() => {
     const monthMap: Record<string, { outstanding: number; paid: number; total: number }> = {};
@@ -281,17 +301,7 @@ export default function CashFlowChart({ debts, currency }: CashFlowChartProps) {
                 axisLine={false}
                 dx={-6}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  direction: 'rtl', 
-                  textAlign: 'right', 
-                  borderRadius: '12px', 
-                  border: '1px solid #f1f5f9',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-                  fontSize: '11px'
-                }} 
-                formatter={(value: any) => [`${value} ${currency}`, '']}
-              />
+              <Tooltip content={<CustomFlowTooltip />} />
               <Legend 
                 wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} 
                 iconType="circle"

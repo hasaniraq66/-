@@ -51,69 +51,12 @@ import SmartAdvisor from './components/SmartAdvisor';
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
-// Mock starting data for a beautiful first experience
-const initialDebts: Debt[] = [
-  {
-    id: 'default-debt-1',
-    type: 'to_me',
-    personName: 'أحمد العبدالله',
-    amount: 1500,
-    paidAmount: 500,
-    dueDate: '2026-07-15',
-    startDate: '2026-06-01',
-    category: 'سلفة',
-    description: 'سلفة مؤقتة للمساعدة في صيانة السيارة',
-    status: 'partial',
-    installments: [
-      { id: 'inst-default-1', amount: 500, date: '2026-06-15', notes: 'الدفعة الأولى المحولة بنكياً' }
-    ]
-  },
-  {
-    id: 'default-debt-2',
-    type: 'to_others',
-    personName: 'أبو محمد (صاحب السكن)',
-    amount: 4000,
-    paidAmount: 2000,
-    dueDate: '2026-07-05',
-    startDate: '2026-06-01',
-    category: 'سكن',
-    description: 'قسط الإيجار المتبقي لشهر يونيو',
-    status: 'partial',
-    installments: [
-      { id: 'inst-default-2', amount: 2000, date: '2026-06-20', notes: 'سداد نقدي في المكتب' }
-    ]
-  }
-];
+// No starting mock data to ensure a completely clean start for new users
+const initialDebts: Debt[] = [];
 
-const initialExpenses: Expense[] = [
-  {
-    id: 'exp-default-1',
-    amount: 120,
-    category: 'طعام',
-    date: '2026-06-28',
-    description: 'شراء بقالة ومستلزمات منزلية أسبوعية'
-  },
-  {
-    id: 'exp-default-2',
-    amount: 85,
-    category: 'فواتير',
-    date: '2026-06-25',
-    description: 'فاتورة الإنترنت المنزلي فايبر'
-  },
-  {
-    id: 'exp-default-3',
-    amount: 2000,
-    category: 'تسديد ديون',
-    date: '2026-06-20',
-    description: 'تسديد جزء من الإيجار لأبو محمد',
-    linkedDebtId: 'default-debt-2'
-  }
-];
+const initialExpenses: Expense[] = [];
 
-const initialBudgets: Budget[] = [
-  { monthlyLimit: 6000, month: '2026-06' },
-  { monthlyLimit: 6000, month: '2026-07' }
-];
+const initialBudgets: Budget[] = [];
 
 export default function App() {
   // Authentication states
@@ -143,7 +86,7 @@ export default function App() {
 
   const [userName, setUserName] = useState<string>(() => {
     const saved = localStorage.getItem('personal_username');
-    return saved || 'حسن';
+    return saved || 'مستخدم جديد';
   });
 
   // Track read Alert IDs to persist user clearing actions
@@ -1299,6 +1242,7 @@ export default function App() {
             salaryPayments={salaryPayments}
             currency={currency}
             userName={userName}
+            currentUser={currentUser}
           />
         )}
       </main>
