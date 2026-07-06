@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
   Send, 
@@ -236,40 +237,49 @@ export default function SmartAdvisor({
 
           {/* Chat Messages Workspace */}
           <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50/30" id="chat-messages-container">
-            {messages.map((msg) => (
-              <div 
-                key={msg.id}
-                className={`flex gap-3 max-w-[85%] ${
-                  msg.role === 'user' ? 'mr-auto flex-row-reverse text-left' : 'ml-auto text-right'
-                }`}
-              >
-                {/* Avatar */}
-                <div className={`p-2 rounded-xl shrink-0 h-9 w-9 flex items-center justify-center ${
-                  msg.role === 'user' ? 'bg-sky-100 text-sky-700' : 'bg-indigo-600 text-white'
-                }`}>
-                  {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                </div>
-
-                {/* Bubble */}
-                <div className={`rounded-2xl px-4 py-3 text-xs leading-relaxed ${
-                  msg.role === 'user' 
-                    ? 'bg-sky-600 text-white rounded-tl-none font-bold' 
-                    : 'bg-white text-slate-800 border border-slate-100 shadow-3xs rounded-tr-none'
-                }`}>
-                  <div className="markdown-body text-right">
-                    <Markdown>{msg.text}</Markdown>
-                  </div>
-                  <span className={`block text-[8px] mt-1.5 ${
-                    msg.role === 'user' ? 'text-sky-200' : 'text-slate-400'
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div 
+                  key={msg.id}
+                  initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                  className={`flex gap-3 max-w-[85%] ${
+                    msg.role === 'user' ? 'mr-auto flex-row-reverse text-left' : 'ml-auto text-right'
+                  }`}
+                >
+                  {/* Avatar */}
+                  <div className={`p-2 rounded-xl shrink-0 h-9 w-9 flex items-center justify-center ${
+                    msg.role === 'user' ? 'bg-sky-100 text-sky-700' : 'bg-indigo-600 text-white'
                   }`}>
-                    {msg.timestamp.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              </div>
-            ))}
+                    {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                  </div>
+
+                  {/* Bubble */}
+                  <div className={`rounded-2xl px-4 py-3 text-xs leading-relaxed ${
+                    msg.role === 'user' 
+                      ? 'bg-sky-600 text-white rounded-tl-none font-bold' 
+                      : 'bg-white text-slate-800 border border-slate-100 shadow-3xs rounded-tr-none'
+                  }`}>
+                    <div className="markdown-body text-right">
+                      <Markdown>{msg.text}</Markdown>
+                    </div>
+                    <span className={`block text-[8px] mt-1.5 ${
+                      msg.role === 'user' ? 'text-sky-200' : 'text-slate-400'
+                    }`}>
+                      {msg.timestamp.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
             {isLoading && (
-              <div className="flex gap-3 max-w-[85%] ml-auto text-right">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="flex gap-3 max-w-[85%] ml-auto text-right"
+              >
                 <div className="p-2 rounded-xl shrink-0 h-9 w-9 flex items-center justify-center bg-indigo-600 text-white">
                   <Bot className="w-4 h-4" />
                 </div>
@@ -277,7 +287,7 @@ export default function SmartAdvisor({
                   <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
                   <span className="font-bold text-slate-500">جاري تحليل وضعك المالي وتجهيز الاستجابة الذكية...</span>
                 </div>
-              </div>
+              </motion.div>
             )}
             <div ref={chatEndRef} />
           </div>

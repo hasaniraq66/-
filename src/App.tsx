@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   auth, 
   fetchUserProfile, 
@@ -33,6 +34,7 @@ import {
   deleteDocument 
 } from './utils/firebaseService';
 import AuthScreen from './components/AuthScreen';
+import ConfirmModal from './components/ConfirmModal';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
@@ -63,37 +65,17 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-  // Load State from LocalStorage Fallbacks
-  const [debts, setDebts] = useState<Debt[]>(() => {
-    const saved = localStorage.getItem('personal_debts');
-    return saved ? JSON.parse(saved) : initialDebts;
-  });
+  // State variables (will be populated immediately once Auth state loads)
+  const [debts, setDebts] = useState<Debt[]>(initialDebts);
+  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+  const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('personal_expenses');
-    return saved ? JSON.parse(saved) : initialExpenses;
-  });
+  const [currency, setCurrency] = useState<string>('ر.س');
 
-  const [budgets, setBudgets] = useState<Budget[]>(() => {
-    const saved = localStorage.getItem('personal_budgets');
-    return saved ? JSON.parse(saved) : initialBudgets;
-  });
-
-  const [currency, setCurrency] = useState<string>(() => {
-    const saved = localStorage.getItem('personal_currency');
-    return saved || 'ر.س';
-  });
-
-  const [userName, setUserName] = useState<string>(() => {
-    const saved = localStorage.getItem('personal_username');
-    return saved || 'مستخدم جديد';
-  });
+  const [userName, setUserName] = useState<string>('مستخدم جديد');
 
   // Track read Alert IDs to persist user clearing actions
-  const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('personal_read_alerts');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
 
   // PIN security states
   const [pinEnabled, setPinEnabled] = useState<boolean>(() => {
@@ -121,21 +103,19 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Custom confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmText?: string;
+    variant?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  } | null>(null);
+
   // Projects, Employees, and Salary Payments states
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('personal_projects');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [employees, setEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem('personal_employees_list');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(() => {
-    const saved = localStorage.getItem('personal_salary_payments');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>([]);
 
   // Auth state listener and initial data loader
   useEffect(() => {
@@ -171,31 +151,30 @@ export default function App() {
             fetchCollection<SalaryPayment>(firebaseUser.uid, 'salaryPayments')
           ]);
 
-          // Migrate previous non-logged-in local state to Firestore if cloud is completely empty
-          if (
-            loadedDebts.length === 0 && 
-            loadedExpenses.length === 0 && 
-            loadedProjects.length === 0 && 
-            debts.length > 0 && 
-            debts !== initialDebts
-          ) {
-            await Promise.all([
-              ...debts.map(d => saveDocument(firebaseUser.uid, 'debts', d.id, d)),
-              ...expenses.map(e => saveDocument(firebaseUser.uid, 'expenses', e.id, e)),
-              ...budgets.map(b => saveDocument(firebaseUser.uid, 'budgets', b.month, b)),
-              ...projects.map(p => saveDocument(firebaseUser.uid, 'projects', p.id, p)),
-              ...employees.map(emp => saveDocument(firebaseUser.uid, 'employees', emp.id, emp)),
-              ...salaryPayments.map(sp => saveDocument(firebaseUser.uid, 'salaryPayments', sp.id, sp))
-            ]);
-          } else {
-            // Load cloud values
-            setDebts(loadedDebts);
-            setExpenses(loadedExpenses);
-            setBudgets(loadedBudgets);
-            setProjects(loadedProjects);
-            setEmployees(loadedEmployees);
-            setSalaryPayments(loadedPayments);
-          }
+          // Load cloud values, falling back to user-isolated localStorage if offline/empty
+          const localDebtsSaved = localStorage.getItem(`personal_debts_${firebaseUser.uid}`);
+          const localExpensesSaved = localStorage.getItem(`personal_expenses_${firebaseUser.uid}`);
+          const localBudgetsSaved = localStorage.getItem(`personal_budgets_${firebaseUser.uid}`);
+          const localProjectsSaved = localStorage.getItem(`personal_projects_${firebaseUser.uid}`);
+          const localEmployeesSaved = localStorage.getItem(`personal_employees_list_${firebaseUser.uid}`);
+          const localPaymentsSaved = localStorage.getItem(`personal_salary_payments_${firebaseUser.uid}`);
+          const localReadAlertsSaved = localStorage.getItem(`personal_read_alerts_${firebaseUser.uid}`);
+
+          const finalDebts = loadedDebts.length > 0 ? loadedDebts : (localDebtsSaved ? JSON.parse(localDebtsSaved) : []);
+          const finalExpenses = loadedExpenses.length > 0 ? loadedExpenses : (localExpensesSaved ? JSON.parse(localExpensesSaved) : []);
+          const finalBudgets = loadedBudgets.length > 0 ? loadedBudgets : (localBudgetsSaved ? JSON.parse(localBudgetsSaved) : []);
+          const finalProjects = loadedProjects.length > 0 ? loadedProjects : (localProjectsSaved ? JSON.parse(localProjectsSaved) : []);
+          const finalEmployees = loadedEmployees.length > 0 ? loadedEmployees : (localEmployeesSaved ? JSON.parse(localEmployeesSaved) : []);
+          const finalPayments = loadedPayments.length > 0 ? loadedPayments : (localPaymentsSaved ? JSON.parse(localPaymentsSaved) : []);
+          const finalReadAlerts = localReadAlertsSaved ? JSON.parse(localReadAlertsSaved) : [];
+
+          setDebts(finalDebts);
+          setExpenses(finalExpenses);
+          setBudgets(finalBudgets);
+          setProjects(finalProjects);
+          setEmployees(finalEmployees);
+          setSalaryPayments(finalPayments);
+          setReadAlertIds(finalReadAlerts);
         } catch (err) {
           console.error('Error fetching user collections:', err);
         } finally {
@@ -813,7 +792,7 @@ export default function App() {
   };
 
   const handleResetAllData = () => {
-    if (currentUser && confirm('هل أنت متأكد من رغبتك في مسح جميع البيانات نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) {
+    if (currentUser) {
       debts.forEach((d) => deleteDocument(currentUser.uid, 'debts', d.id));
       expenses.forEach((e) => deleteDocument(currentUser.uid, 'expenses', e.id));
       budgets.forEach((b) => deleteDocument(currentUser.uid, 'budgets', b.month));
@@ -830,7 +809,7 @@ export default function App() {
     setEmployees([]);
     setSalaryPayments([]);
     setCurrency('ر.س');
-    setUserName('حسن');
+    setUserName('مستخدم جديد');
     localStorage.clear();
   };
 
@@ -958,10 +937,20 @@ export default function App() {
               </button>
               <button 
                 id="logout-btn"
-                onClick={async () => {
-                  if (confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) {
-                    await signOut(auth);
-                  }
+                onClick={() => {
+                  setConfirmModal({
+                    title: 'تسجيل الخروج 🚪',
+                    message: 'هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟',
+                    confirmText: 'تسجيل الخروج',
+                    variant: 'danger',
+                    onConfirm: async () => {
+                      try {
+                        await signOut(auth);
+                      } catch (err) {
+                        console.error('Error signing out:', err);
+                      }
+                    }
+                  });
                 }}
                 className="text-[9px] text-red-400 hover:text-red-300 hover:underline font-bold bg-red-500/10 px-2 py-0.5 rounded-md transition-all cursor-pointer text-center"
               >
@@ -1137,114 +1126,125 @@ export default function App() {
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-6" id="main-scrollable-content">
         
         {/* Dynamic active view injection */}
-        {activeTab === 'dashboard' && (
-          <Dashboard 
-            debts={debts}
-            expenses={expenses}
-            budget={activeBudget}
-            alerts={alerts}
-            currency={currency}
-            onNavigate={setActiveTab}
-            onMarkAlertAsRead={handleMarkAlertAsRead}
-            projects={projects}
-            employees={employees}
-            salaryPayments={salaryPayments}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="w-full"
+          >
+            {activeTab === 'dashboard' && (
+              <Dashboard 
+                debts={debts}
+                expenses={expenses}
+                budget={activeBudget}
+                alerts={alerts}
+                currency={currency}
+                onNavigate={setActiveTab}
+                onMarkAlertAsRead={handleMarkAlertAsRead}
+                projects={projects}
+                employees={employees}
+                salaryPayments={salaryPayments}
+              />
+            )}
 
-        {activeTab === 'debts' && (
-          <DebtsManager
-            debts={debts}
-            currency={currency}
-            onAddDebt={handleAddDebt}
-            onEditDebt={handleEditDebt}
-            onDeleteDebt={handleDeleteDebt}
-            onAddInstallment={handleAddInstallment}
-            onDeleteInstallment={handleDeleteInstallment}
-          />
-        )}
+            {activeTab === 'debts' && (
+              <DebtsManager
+                debts={debts}
+                currency={currency}
+                onAddDebt={handleAddDebt}
+                onEditDebt={handleEditDebt}
+                onDeleteDebt={handleDeleteDebt}
+                onAddInstallment={handleAddInstallment}
+                onDeleteInstallment={handleDeleteInstallment}
+              />
+            )}
 
-        {activeTab === 'budget' && (
-          <BudgetManager
-            expenses={expenses}
-            budgets={budgets}
-            currency={currency}
-            onSetBudget={handleSetBudget}
-            onAddExpense={handleAddExpense}
-            onEditExpense={handleEditExpense}
-            onDeleteExpense={handleDeleteExpense}
-          />
-        )}
+            {activeTab === 'budget' && (
+              <BudgetManager
+                expenses={expenses}
+                budgets={budgets}
+                currency={currency}
+                onSetBudget={handleSetBudget}
+                onAddExpense={handleAddExpense}
+                onEditExpense={handleEditExpense}
+                onDeleteExpense={handleDeleteExpense}
+              />
+            )}
 
-        {activeTab === 'reports' && (
-          <Reports 
-            debts={debts}
-            expenses={expenses}
-            budgets={budgets}
-            currency={currency}
-          />
-        )}
+            {activeTab === 'reports' && (
+              <Reports 
+                debts={debts}
+                expenses={expenses}
+                budgets={budgets}
+                currency={currency}
+              />
+            )}
 
-        {activeTab === 'alerts' && (
-          <AlertsPanel
-            alerts={alerts}
-            debts={debts}
-            currency={currency}
-            onMarkAlertAsRead={handleMarkAlertAsRead}
-            onMarkAllAsRead={handleMarkAllAlertsAsRead}
-            onClearReadAlerts={handleClearReadAlerts}
-            onNavigate={setActiveTab}
-          />
-        )}
+            {activeTab === 'alerts' && (
+              <AlertsPanel
+                alerts={alerts}
+                debts={debts}
+                currency={currency}
+                onMarkAlertAsRead={handleMarkAlertAsRead}
+                onMarkAllAsRead={handleMarkAllAlertsAsRead}
+                onClearReadAlerts={handleClearReadAlerts}
+                onNavigate={setActiveTab}
+              />
+            )}
 
-        {activeTab === 'backup' && (
-          <BackupRestore
-            onImportData={handleImportBackupData}
-            onResetData={handleResetAllData}
-            exportPayload={exportPayload}
-          />
-        )}
+            {activeTab === 'backup' && (
+              <BackupRestore
+                onImportData={handleImportBackupData}
+                onResetData={handleResetAllData}
+                exportPayload={exportPayload}
+              />
+            )}
 
-        {activeTab === 'projects' && (
-          <ProjectManager
-            projects={projects}
-            employees={employees}
-            salaryPayments={salaryPayments}
-            debts={debts}
-            expenses={expenses}
-            currency={currency}
-            onAddProject={handleAddProject}
-            onEditProject={handleEditProject}
-            onDeleteProject={handleDeleteProject}
-            onAddEmployee={handleAddEmployee}
-            onEditEmployee={handleEditEmployee}
-            onDeleteEmployee={handleDeleteEmployee}
-            onAddSalaryPayment={handleAddSalaryPayment}
-            onDeleteSalaryPayment={handleDeleteSalaryPayment}
-            onAddDebt={handleAddDebt}
-            onAddExpense={handleAddExpense}
-            onEditDebt={handleEditDebt}
-            onDeleteDebt={handleDeleteDebt}
-            onAddInstallment={handleAddInstallment}
-            onDeleteInstallment={handleDeleteInstallment}
-            onEditExpense={handleEditExpense}
-            onDeleteExpense={handleDeleteExpense}
-          />
-        )}
+            {activeTab === 'projects' && (
+              <ProjectManager
+                projects={projects}
+                employees={employees}
+                salaryPayments={salaryPayments}
+                debts={debts}
+                expenses={expenses}
+                currency={currency}
+                onAddProject={handleAddProject}
+                onEditProject={handleEditProject}
+                onDeleteProject={handleDeleteProject}
+                onAddEmployee={handleAddEmployee}
+                onEditEmployee={handleEditEmployee}
+                onDeleteEmployee={handleDeleteEmployee}
+                onAddSalaryPayment={handleAddSalaryPayment}
+                onDeleteSalaryPayment={handleDeleteSalaryPayment}
+                onAddDebt={handleAddDebt}
+                onAddExpense={handleAddExpense}
+                onEditDebt={handleEditDebt}
+                onDeleteDebt={handleDeleteDebt}
+                onAddInstallment={handleAddInstallment}
+                onDeleteInstallment={handleDeleteInstallment}
+                onEditExpense={handleEditExpense}
+                onDeleteExpense={handleDeleteExpense}
+              />
+            )}
 
-        {activeTab === 'advisor' && (
-          <SmartAdvisor
-            debts={debts}
-            expenses={expenses}
-            budgets={budgets}
-            projects={projects}
-            employees={employees}
-            salaryPayments={salaryPayments}
-            currency={currency}
-            userName={userName}
-            currentUser={currentUser}
-          />
-        )}
+            {activeTab === 'advisor' && (
+              <SmartAdvisor
+                debts={debts}
+                expenses={expenses}
+                budgets={budgets}
+                projects={projects}
+                employees={employees}
+                salaryPayments={salaryPayments}
+                currency={currency}
+                userName={userName}
+                currentUser={currentUser}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Quick Settings Overlay/Modal */}
@@ -1645,11 +1645,50 @@ export default function App() {
                   >
                     حفظ وإغلاق
                   </button>
+
+                  <div className="border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSettingsOpen(false);
+                        setConfirmModal({
+                          title: 'تسجيل الخروج 🚪',
+                          message: 'هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟',
+                          confirmText: 'تسجيل الخروج',
+                          variant: 'danger',
+                          onConfirm: async () => {
+                            try {
+                              await signOut(auth);
+                            } catch (err) {
+                              console.error('Error signing out:', err);
+                            }
+                          }
+                        });
+                      }}
+                      className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-xs transition-all cursor-pointer border border-red-100 text-center"
+                    >
+                      تسجيل الخروج من الحساب سحابياً
+                    </button>
+                  </div>
                 </>
               )}
             </div>
           </div>
         </div>
+      )}
+      {confirmModal && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          variant={confirmModal.variant}
+          onConfirm={() => {
+            confirmModal.onConfirm();
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </div>
   );

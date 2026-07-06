@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { motion } from 'motion/react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -345,30 +346,37 @@ export default function Dashboard({
         </div>
         
         <div className="relative z-10 flex gap-3 w-full md:w-auto shrink-0">
-          <button 
+          <motion.button 
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             id="quick-add-debt-btn"
             onClick={() => onNavigate('debts')}
-            className="flex-1 md:flex-none px-5 py-3.5 bg-sky-600 hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(2,132,199,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
+            className="flex-1 md:flex-none px-5 py-3.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(2,132,199,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
           >
             <span>إضافة دين جديد</span>
             <ArrowUpRight className="w-4 h-4 shrink-0" />
-          </button>
-          <button 
+          </motion.button>
+          <motion.button 
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             id="quick-add-expense-btn"
             onClick={() => onNavigate('budget')}
-            className="flex-1 md:flex-none px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
+            className="flex-1 md:flex-none px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
           >
             <span>تسجيل مصروف</span>
             <ArrowDownLeft className="w-4 h-4 shrink-0" />
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" id="kpi-cards-grid">
         {/* Card 1: Debts to Collect */}
-        <div 
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-sky-300 hover:-translate-y-1 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+        <motion.div 
+          whileHover={{ y: -6, scale: 1.015 }}
+          whileTap={{ scale: 0.985 }}
+          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-sky-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-me"
           onClick={() => onNavigate('debts')}
         >
@@ -388,11 +396,14 @@ export default function Dashboard({
           <div className="p-3 bg-sky-50/80 text-sky-600 rounded-2xl group-hover:bg-sky-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
             <TrendingUp className="w-5 h-5" />
           </div>
-        </div>
+        </motion.div>
 
         {/* Card 2: Debts to Pay */}
-        <div 
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-rose-300 hover:-translate-y-1 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+        <motion.div 
+          whileHover={{ y: -6, scale: 1.015 }}
+          whileTap={{ scale: 0.985 }}
+          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-rose-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-others"
           onClick={() => onNavigate('debts')}
         >
@@ -412,11 +423,14 @@ export default function Dashboard({
           <div className="p-3 bg-rose-50/80 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
             <TrendingDown className="w-5 h-5" />
           </div>
-        </div>
+        </motion.div>
 
         {/* Card 3: Monthly Expenses */}
-        <div 
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-amber-300 hover:-translate-y-1 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+        <motion.div 
+          whileHover={{ y: -6, scale: 1.015 }}
+          whileTap={{ scale: 0.985 }}
+          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-amber-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-monthly-expenses"
           onClick={() => onNavigate('budget')}
         >
@@ -436,11 +450,14 @@ export default function Dashboard({
           <div className="p-3 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-slate-700 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
             <CreditCard className="w-5 h-5" />
           </div>
-        </div>
+        </motion.div>
 
         {/* Card 4: Budget Status */}
-        <div 
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 hover:border-emerald-300 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer group" 
+        <motion.div 
+          whileHover={{ y: -6, scale: 1.015 }}
+          whileTap={{ scale: 0.985 }}
+          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between cursor-pointer group" 
           id="kpi-budget-progress"
           onClick={() => onNavigate('budget')}
         >
@@ -471,7 +488,7 @@ export default function Dashboard({
               ></div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Project Performance and Financial Reports Section */}

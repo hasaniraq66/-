@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { exportDataToJson } from '../utils';
 import { User } from 'firebase/auth';
+import ConfirmModal from './ConfirmModal';
 import { 
   initAuth, 
   googleSignIn, 
@@ -36,6 +37,15 @@ interface BackupRestoreProps {
 export default function BackupRestore({ onImportData, onResetData, exportPayload }: BackupRestoreProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Confirmation Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    variant?: 'danger' | 'warning' | 'info';
+  } | null>(null);
+
   // Local Backup State
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -116,56 +126,62 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
   };
 
   // Restore backup from Google Drive
-  const handleCloudRestore = async (fileId: string, fileName: string) => {
-    const isConfirmed = window.confirm(
-      `هل أنت متأكد من استعادة النسخة الاحتياطية (${fileName}) من السحابة؟ سيتم استبدال البيانات الحالية بالبيانات المحفوظة.`
-    );
-    if (!isConfirmed) return;
-
-    setIsLoading(true);
-    setCloudStatus('restoring');
-    try {
-      const data = await downloadBackupFromDrive(fileId);
-      const success = onImportData(data);
-      if (success) {
-        setCloudStatus('success');
-        setCloudMessage(`تمت استعادة البيانات بنجاح من النسخة الاحتياطية "${fileName}"!`);
-        setTimeout(() => setCloudStatus('idle'), 5000);
-      } else {
-        setCloudStatus('error');
-        setCloudMessage('الملف السحابي غير متوافق أو تالف.');
+  const handleCloudRestore = (fileId: string, fileName: string) => {
+    setConfirmModal({
+      title: 'استعادة النسخة الاحتياطية 📥',
+      message: `هل أنت متأكد من استعادة النسخة الاحتياطية (${fileName}) من السحابة؟ سيتم استبدال البيانات الحالية بالبيانات المحفوظة.`,
+      confirmText: 'استعادة البيانات',
+      variant: 'warning',
+      onConfirm: async () => {
+        setIsLoading(true);
+        setCloudStatus('restoring');
+        try {
+          const data = await downloadBackupFromDrive(fileId);
+          const success = onImportData(data);
+          if (success) {
+            setCloudStatus('success');
+            setCloudMessage(`تمت استعادة البيانات بنجاح من النسخة الاحتياطية "${fileName}"!`);
+            setTimeout(() => setCloudStatus('idle'), 5000);
+          } else {
+            setCloudStatus('error');
+            setCloudMessage('الملف السحابي غير متوافق أو تالف.');
+          }
+        } catch (err: any) {
+          console.error(err);
+          setCloudStatus('error');
+          setCloudMessage(err.message || 'فشل استعادة النسخة الاحتياطية من السحابة');
+        } finally {
+          setIsLoading(false);
+        }
       }
-    } catch (err: any) {
-      console.error(err);
-      setCloudStatus('error');
-      setCloudMessage(err.message || 'فشل استعادة النسخة الاحتياطية من السحابة');
-    } finally {
-      setIsLoading(false);
-    }
+    });
   };
 
   // Delete backup from Google Drive
-  const handleCloudDelete = async (fileId: string, fileName: string) => {
-    const isConfirmed = window.confirm(
-      `هل أنت متأكد من رغبتك في حذف النسخة الاحتياطية "${fileName}" نهائياً من حساب Google Drive الخاص بك؟`
-    );
-    if (!isConfirmed) return;
-
-    setIsLoading(true);
-    setCloudStatus('deleting');
-    try {
-      await deleteBackupFromDrive(fileId);
-      setCloudStatus('success');
-      setCloudMessage('تم حذف النسخة الاحتياطية السحابية بنجاح.');
-      await loadCloudBackups();
-      setTimeout(() => setCloudStatus('idle'), 4000);
-    } catch (err: any) {
-      console.error(err);
-      setCloudStatus('error');
-      setCloudMessage(err.message || 'فشل حذف النسخة الاحتياطية من السحابة');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleCloudDelete = (fileId: string, fileName: string) => {
+    setConfirmModal({
+      title: 'حذف النسخة الاحتياطية 🗑️',
+      message: `هل أنت متأكد من رغبتك في حذف النسخة الاحتياطية "${fileName}" نهائياً من حساب Google Drive الخاص بك؟`,
+      confirmText: 'حذف نهائياً',
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsLoading(true);
+        setCloudStatus('deleting');
+        try {
+          await deleteBackupFromDrive(fileId);
+          setCloudStatus('success');
+          setCloudMessage('تم حذف النسخة الاحتياطية السحابية بنجاح.');
+          await loadCloudBackups();
+          setTimeout(() => setCloudStatus('idle'), 4000);
+        } catch (err: any) {
+          console.error(err);
+          setCloudStatus('error');
+          setCloudMessage(err.message || 'فشل حذف النسخة الاحتياطية من السحابة');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    });
   };
 
   // Handle Google Drive Login
@@ -453,15 +469,36 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
         <button
           id="reset-all-data-btn"
           onClick={() => {
-            if (confirm('تحذير نهائي: هل أنت متأكد من حذف وإعادة تهيئة جميع البيانات في التطبيق؟ لا يمكن التراجع عن هذا!')) {
-              onResetData();
-            }
+            setConfirmModal({
+              title: 'حذف وإعادة ضبط كافة البيانات ⚠️',
+              message: 'تحذير نهائي: هل أنت متأكد من حذف وإعادة تهيئة جميع البيانات في التطبيق؟ سيتم مسح كافة الديون والمصاريف والميزانيات نهائياً ولا يمكن التراجع عن هذا الإجراء!',
+              confirmText: 'نعم، احذف كل شيء',
+              variant: 'danger',
+              onConfirm: () => {
+                onResetData();
+              }
+            });
           }}
           className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[11px] font-extrabold transition-colors cursor-pointer"
         >
           حذف وإعادة ضبط كافة البيانات
         </button>
       </div>
+
+      {confirmModal && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          variant={confirmModal.variant}
+          onConfirm={() => {
+            confirmModal.onConfirm();
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   );
 }
