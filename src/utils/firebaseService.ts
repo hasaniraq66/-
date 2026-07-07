@@ -106,6 +106,8 @@ export interface UserProfile {
   phoneNumber?: string;
   currency: string;
   createdAt: string;
+  adminId?: string;
+  allowedTabs?: string[];
 }
 
 export const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {

@@ -31,6 +31,7 @@ import {
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment } from '../types';
 import { formatCurrency, formatDate, generateAlerts, generateWhatsAppLink } from '../utils';
 import CashFlowChart from './CashFlowChart';
+import QuickEntry from './QuickEntry';
 
 interface DashboardProps {
   debts: Debt[];
@@ -43,6 +44,8 @@ interface DashboardProps {
   projects?: Project[];
   employees?: Employee[];
   salaryPayments?: SalaryPayment[];
+  onAddDebt?: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
+  onAddExpense?: (expense: Omit<Expense, 'id'>) => void;
 }
 
 export default function Dashboard({
@@ -56,6 +59,8 @@ export default function Dashboard({
   projects = [],
   employees = [],
   salaryPayments = [],
+  onAddDebt = () => {},
+  onAddExpense = () => {},
 }: DashboardProps) {
   // Calculate project performance metrics & statistics reports
   const projectStats = useMemo(() => {
@@ -490,6 +495,14 @@ export default function Dashboard({
           </div>
         </motion.div>
       </div>
+
+      {/* Quick Entry Form Section */}
+      <QuickEntry 
+        projects={projects} 
+        currency={currency} 
+        onAddDebt={onAddDebt} 
+        onAddExpense={onAddExpense} 
+      />
 
       {/* Project Performance and Financial Reports Section */}
       <div className="bg-slate-50/50 border border-slate-200/60 rounded-3xl p-6 space-y-6" id="dashboard-projects-reports-section">

@@ -16,32 +16,47 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isSubUserOf(userId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(userId)/subUsers/$(request.auth.uid));
+    }
+
+    function canAccessUser(userId) {
+      return isOwner(userId) || isSubUserOf(userId);
+    }
+
     // User Document and User-Specific Subcollections
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if canAccessUser(userId);
+      allow write: if isOwner(userId) || (isSignedIn() && (
+        resource == null ? (request.resource != null && request.resource.data.adminId == request.auth.uid) : resource.data.adminId == request.auth.uid
+      ));
 
-      // Nested user documents (Debts, Expenses, Budgets, Projects, Employees, Payments)
+      // Nested user documents (Debts, Expenses, Budgets, Projects, Employees, Payments, SubUsers)
       match /debts/{debtId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if canAccessUser(userId);
       }
 
       match /expenses/{expenseId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if canAccessUser(userId);
       }
 
       match /budgets/{budgetId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if canAccessUser(userId);
       }
 
       match /projects/{projectId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if canAccessUser(userId);
       }
 
       match /employees/{employeeId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if canAccessUser(userId);
       }
 
       match /salaryPayments/{paymentId} {
+        allow read, write: if canAccessUser(userId);
+      }
+
+      match /subUsers/{subUserId} {
         allow read, write: if isOwner(userId);
       }
     }

@@ -115,6 +115,19 @@
         "notes": { "type": "string" }
       },
       "required": ["id", "userId", "employeeId", "projectId", "amount", "paymentDate", "month"]
+    },
+    "SubUser": {
+      "title": "Sub User",
+      "description": "Secondary accounts created by the main user (Admin) with specific permissions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The sub-user's unique Auth UID" },
+        "displayName": { "type": "string", "description": "The display name of the sub-user" },
+        "email": { "type": "string", "description": "The email address of the sub-user" },
+        "allowedTabs": { "type": "array", "description": "List of tabs/features the sub-user has permission to access" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["id", "displayName", "email", "allowedTabs"]
     }
   },
   "firestore": {
@@ -145,6 +158,10 @@
     "/users/{userId}/salaryPayments/{paymentId}": {
       "schema": "SalaryPayment",
       "description": "Disbursed salary payments records."
+    },
+    "/users/{userId}/subUsers/{subUserId}": {
+      "schema": "SubUser",
+      "description": "Sub-user secondary accounts and permissions."
     }
   }
 }

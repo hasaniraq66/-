@@ -404,8 +404,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           <span>تسجيل الدخول باستخدام Google</span>
         </button>
 
-        <div className="text-center font-bold text-[10px] text-slate-500" id="auth-encryption-badge">
-          🛡️ جميع اتصالاتك وبياناتك مشفرة بالكامل عبر بروتوكول SSL آمن.
+        <div className="text-center font-bold text-[10px] text-slate-500 space-y-2 pt-2 border-t border-slate-900/60" id="auth-encryption-badge">
+          <p>🛡️ جميع اتصالاتك وبياناتك مشفرة بالكامل عبر بروتوكول SSL آمن.</p>
+          <div className="text-slate-400 text-[10px] font-bold">
+            <p>تطوير وبرمجة النظام: <span className="text-sky-400">حسن الشمري</span></p>
+            <p className="font-mono text-[9px] mt-0.5 text-slate-500">📱 الدعم الفني: 07812149176</p>
+          </div>
         </div>
       </div>
     </div>

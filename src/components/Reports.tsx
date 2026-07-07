@@ -44,14 +44,22 @@ interface ReportsProps {
 
 export default function Reports({ debts, expenses, budgets, currency }: ReportsProps) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthString());
+  const [activePieIndex, setActivePieIndex] = useState<number | null>(null);
+  const [activeBarIndex, setActiveBarIndex] = useState<number | null>(null);
 
   // Custom interactive Tooltips for professional, high-fidelity UI/UX
   const CustomPieTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
+      const value = payload[0].value;
+      const total = expensesCategoryData.reduce((sum, item) => sum + item.value, 0);
+      const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
       return (
-        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800 shadow-xl text-right text-xs space-y-1 font-bold select-none">
-          <p className="text-slate-400 font-medium">{payload[0].name}</p>
-          <p className="text-emerald-400 font-black text-sm">{formatCurrency(payload[0].value, currency)}</p>
+        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800/80 shadow-2xl text-right text-xs space-y-1.5 font-bold select-none min-w-[150px] transition-all duration-150">
+          <p className="text-slate-400 font-semibold text-[10px]">{payload[0].name}</p>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-emerald-400 font-black text-sm">{formatCurrency(value, currency)}</span>
+            <span className="text-sky-400 text-[9px] bg-sky-500/10 px-2 py-0.5 rounded-lg border border-sky-500/20 font-extrabold">{percentage}%</span>
+          </div>
         </div>
       );
     }
@@ -61,13 +69,18 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
   const CustomBarTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800 shadow-xl text-right text-xs space-y-2 font-bold select-none min-w-[140px]">
-          <p className="text-slate-200 border-b border-slate-800 pb-1.5 font-black">{label}</p>
+        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800/80 shadow-2xl text-right text-xs space-y-2.5 font-bold select-none min-w-[170px] transition-all duration-150">
+          <p className="text-slate-200 border-b border-slate-800/60 pb-1.5 font-black text-[11px]">{label}</p>
           <div className="space-y-1.5">
             {payload.map((pld: any, index: number) => (
-              <div key={index} className="flex items-center justify-between gap-6">
-                <span style={{ color: pld.color }} className="text-[10px] font-semibold">{pld.name}:</span>
-                <span className="font-black text-xs" style={{ color: pld.color }}>{formatCurrency(pld.value, currency)}</span>
+              <div key={index} className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0 shadow-xs" style={{ backgroundColor: pld.fill || pld.color }} />
+                  <span className="text-[10px] text-slate-400 font-medium">{pld.name}</span>
+                </div>
+                <span className="font-black text-xs" style={{ color: pld.fill || pld.color }}>
+                  {formatCurrency(pld.value, currency)}
+                </span>
               </div>
             ))}
           </div>
@@ -429,10 +442,10 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="reports-charts-container">
         {/* Card 1: Expense Distribution Pie Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4" id="reports-expenses-pie-card">
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4 shadow-3xs" id="reports-expenses-pie-card">
           <div className="flex items-center justify-between border-b border-slate-50 pb-3">
             <div className="flex items-center gap-2">
-              <PieIcon className="w-5 h-5 text-emerald-600" />
+              <PieIcon className="w-5 h-5 text-emerald-600 animate-pulse" />
               <h3 className="font-bold text-slate-800 text-sm">توزيع المصروفات لشهر {selectedMonth}</h3>
             </div>
             <span className="text-[10px] text-slate-400">إجمالي {formatCurrency(totalSpent, currency)}</span>
@@ -455,9 +468,24 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
                     outerRadius={80}
                     paddingAngle={4}
                     dataKey="value"
+                    isAnimationActive={true}
+                    animationDuration={800}
+                    animationEasing="ease-out"
                   >
                     {expensesCategoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={COLORS[index % COLORS.length]} 
+                        opacity={activePieIndex === null ? 1 : activePieIndex === index ? 1 : 0.65}
+                        onMouseEnter={() => setActivePieIndex(index)}
+                        onMouseLeave={() => setActivePieIndex(null)}
+                        style={{
+                          transform: activePieIndex === index ? 'scale(1.05)' : 'scale(1)',
+                          transformOrigin: '50% 50%',
+                          transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          cursor: 'pointer'
+                        }}
+                      />
                     ))}
                   </Pie>
                   <Tooltip content={<CustomPieTooltip />} />
@@ -469,7 +497,7 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
         </div>
 
         {/* Card 2: Debt Per Person Bar Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4" id="reports-debt-by-person-card">
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4 shadow-3xs" id="reports-debt-by-person-card">
           <div className="flex items-center justify-between border-b border-slate-50 pb-3">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-sky-600" />
@@ -486,13 +514,52 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={debtsByPersonData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
-                  <Tooltip content={<CustomBarTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  <Bar dataKey="أطلبهم (لي)" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="يطلبوني (علي)" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <BarChart 
+                  data={debtsByPersonData} 
+                  margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                  onMouseMove={(state) => {
+                    if (state && typeof state.activeTooltipIndex === 'number') {
+                      setActiveBarIndex(state.activeTooltipIndex);
+                    } else {
+                      setActiveBarIndex(null);
+                    }
+                  }}
+                  onMouseLeave={() => setActiveBarIndex(null)}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dy={4} />
+                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-4} />
+                  <Tooltip 
+                    content={<CustomBarTooltip />} 
+                    cursor={{ fill: 'rgba(148, 163, 184, 0.08)', radius: 6 }} 
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                  <Bar dataKey="أطلبهم (لي)" fill="#0284c7" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
+                    {debtsByPersonData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-to-me-${index}`} 
+                        fill="#0284c7"
+                        opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
+                        style={{
+                          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="يطلبوني (علي)" fill="#ef4444" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
+                    {debtsByPersonData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-to-others-${index}`} 
+                        fill="#ef4444"
+                        opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
+                        style={{
+                          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -83,3 +83,22 @@ export interface SalaryPayment {
   notes: string;
 }
 
+export interface UserProfile {
+  userId: string;
+  displayName: string;
+  email?: string;
+  phoneNumber?: string;
+  currency: string;
+  createdAt: string;
+  adminId?: string; // If this profile belongs to a sub-user, this points to their admin's userId
+  allowedTabs?: string[]; // Allowed navigation tabs for this sub-user
+}
+
+export interface SubUser {
+  id: string; // The sub-user's UID
+  displayName: string;
+  email: string;
+  allowedTabs: string[];
+  createdAt: string;
+}
+

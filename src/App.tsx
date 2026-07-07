@@ -20,7 +20,9 @@ import {
   Briefcase,
   Users,
   Loader2,
-  Sparkles
+  Sparkles,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -36,7 +38,7 @@ import {
 import AuthScreen from './components/AuthScreen';
 import ConfirmModal from './components/ConfirmModal';
 
-import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment } from './types';
+import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
 
 // Import components
@@ -49,6 +51,7 @@ import BackupRestore from './components/BackupRestore';
 import LockScreen from './components/LockScreen';
 import ProjectManager from './components/ProjectManager';
 import SmartAdvisor from './components/SmartAdvisor';
+import PermissionsManager from './components/PermissionsManager';
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -64,6 +67,14 @@ export default function App() {
   // Authentication states
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  
+  // User Profile configuration
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Calculate target database owner ID (adminId for sub-users, or their own uid)
+  const targetUid = useMemo(() => {
+    return (currentUser && userProfile?.adminId) ? userProfile.adminId : (currentUser?.uid || '');
+  }, [currentUser, userProfile]);
 
   // State variables (will be populated immediately once Auth state loads)
   const [debts, setDebts] = useState<Debt[]>(initialDebts);
@@ -103,6 +114,21 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Theme state (light / dark)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('app_theme') as 'light' | 'dark') || 'light';
+  });
+
+  // Synchronize and apply theme changes
+  useEffect(() => {
+    localStorage.setItem('app_theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   // Custom confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
@@ -126,9 +152,19 @@ export default function App() {
         try {
           // Fetch user profile and preferences
           const profile = await fetchUserProfile(firebaseUser.uid);
+          let finalUid = firebaseUser.uid;
           if (profile) {
+            setUserProfile(profile);
             setUserName(profile.displayName);
             setCurrency(profile.currency);
+            if (profile.adminId) {
+              finalUid = profile.adminId;
+              // If current active tab is not in allowedTabs, route to the first allowed tab
+              const allowed = profile.allowedTabs || [];
+              if (allowed.length > 0) {
+                setActiveTab((prevTab) => allowed.includes(prevTab) ? prevTab : allowed[0]);
+              }
+            }
           } else {
             // Register profile for new users
             const newProfile = {
@@ -139,26 +175,27 @@ export default function App() {
               createdAt: new Date().toISOString()
             };
             await saveUserProfile(newProfile);
+            setUserProfile(newProfile);
           }
 
-          // Fetch user-isolated cloud collections from Firestore
+          // Fetch user-isolated cloud collections from Firestore using final database owner ID
           const [loadedDebts, loadedExpenses, loadedBudgets, loadedProjects, loadedEmployees, loadedPayments] = await Promise.all([
-            fetchCollection<Debt>(firebaseUser.uid, 'debts'),
-            fetchCollection<Expense>(firebaseUser.uid, 'expenses'),
-            fetchCollection<Budget>(firebaseUser.uid, 'budgets'),
-            fetchCollection<Project>(firebaseUser.uid, 'projects'),
-            fetchCollection<Employee>(firebaseUser.uid, 'employees'),
-            fetchCollection<SalaryPayment>(firebaseUser.uid, 'salaryPayments')
+            fetchCollection<Debt>(finalUid, 'debts'),
+            fetchCollection<Expense>(finalUid, 'expenses'),
+            fetchCollection<Budget>(finalUid, 'budgets'),
+            fetchCollection<Project>(finalUid, 'projects'),
+            fetchCollection<Employee>(finalUid, 'employees'),
+            fetchCollection<SalaryPayment>(finalUid, 'salaryPayments')
           ]);
 
           // Load cloud values, falling back to user-isolated localStorage if offline/empty
-          const localDebtsSaved = localStorage.getItem(`personal_debts_${firebaseUser.uid}`);
-          const localExpensesSaved = localStorage.getItem(`personal_expenses_${firebaseUser.uid}`);
-          const localBudgetsSaved = localStorage.getItem(`personal_budgets_${firebaseUser.uid}`);
-          const localProjectsSaved = localStorage.getItem(`personal_projects_${firebaseUser.uid}`);
-          const localEmployeesSaved = localStorage.getItem(`personal_employees_list_${firebaseUser.uid}`);
-          const localPaymentsSaved = localStorage.getItem(`personal_salary_payments_${firebaseUser.uid}`);
-          const localReadAlertsSaved = localStorage.getItem(`personal_read_alerts_${firebaseUser.uid}`);
+          const localDebtsSaved = localStorage.getItem(`personal_debts_${finalUid}`);
+          const localExpensesSaved = localStorage.getItem(`personal_expenses_${finalUid}`);
+          const localBudgetsSaved = localStorage.getItem(`personal_budgets_${finalUid}`);
+          const localProjectsSaved = localStorage.getItem(`personal_projects_${finalUid}`);
+          const localEmployeesSaved = localStorage.getItem(`personal_employees_list_${finalUid}`);
+          const localPaymentsSaved = localStorage.getItem(`personal_salary_payments_${finalUid}`);
+          const localReadAlertsSaved = localStorage.getItem(`personal_read_alerts_${finalUid}`);
 
           const finalDebts = loadedDebts.length > 0 ? loadedDebts : (localDebtsSaved ? JSON.parse(localDebtsSaved) : []);
           const finalExpenses = loadedExpenses.length > 0 ? loadedExpenses : (localExpensesSaved ? JSON.parse(localExpensesSaved) : []);
@@ -182,6 +219,7 @@ export default function App() {
         }
       } else {
         setCurrentUser(null);
+        setUserProfile(null);
         setIsAuthLoading(false);
         // Clear sensitive states on logout
         setDebts([]);
@@ -197,58 +235,58 @@ export default function App() {
 
   // Synchronize dynamic, user-isolated localStorage with state edits
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_debts_${currentUser.uid}`, JSON.stringify(debts));
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_debts_${targetUid}`, JSON.stringify(debts));
     }
-  }, [debts, currentUser]);
+  }, [debts, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_expenses_${currentUser.uid}`, JSON.stringify(expenses));
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_expenses_${targetUid}`, JSON.stringify(expenses));
     }
-  }, [expenses, currentUser]);
+  }, [expenses, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_budgets_${currentUser.uid}`, JSON.stringify(budgets));
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_budgets_${targetUid}`, JSON.stringify(budgets));
     }
-  }, [budgets, currentUser]);
+  }, [budgets, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_projects_${currentUser.uid}`, JSON.stringify(projects));
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_projects_${targetUid}`, JSON.stringify(projects));
     }
-  }, [projects, currentUser]);
+  }, [projects, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_employees_list_${currentUser.uid}`, JSON.stringify(employees));
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_employees_list_${targetUid}`, JSON.stringify(employees));
     }
-  }, [employees, currentUser]);
+  }, [employees, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_salary_payments_${currentUser.uid}`, JSON.stringify(salaryPayments));
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_salary_payments_${targetUid}`, JSON.stringify(salaryPayments));
     }
-  }, [salaryPayments, currentUser]);
+  }, [salaryPayments, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_currency_${currentUser.uid}`, currency);
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_currency_${targetUid}`, currency);
     }
-  }, [currency, currentUser]);
+  }, [currency, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_username_${currentUser.uid}`, userName);
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_username_${targetUid}`, userName);
     }
-  }, [userName, currentUser]);
+  }, [userName, currentUser, targetUid]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`personal_read_alerts_${currentUser.uid}`, JSON.stringify(readAlertIds));
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_read_alerts_${targetUid}`, JSON.stringify(readAlertIds));
     }
-  }, [readAlertIds, currentUser]);
+  }, [readAlertIds, currentUser, targetUid]);
 
   // Synchronize general PIN security setting
   useEffect(() => {
@@ -400,29 +438,29 @@ export default function App() {
       installments: [],
     };
     setDebts((prev) => [newDebt, ...prev]);
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'debts', newDebt.id, newDebt);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'debts', newDebt.id, newDebt);
     }
   };
 
   const handleEditDebt = (editedDebt: Debt) => {
     setDebts((prev) => prev.map((d) => (d.id === editedDebt.id ? editedDebt : d)));
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'debts', editedDebt.id, editedDebt);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'debts', editedDebt.id, editedDebt);
     }
   };
 
   const handleDeleteDebt = (id: string) => {
     setDebts((prev) => prev.filter((d) => d.id !== id));
-    if (currentUser) {
-      deleteDocument(currentUser.uid, 'debts', id);
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'debts', id);
     }
     // Remove linked expenses if any
     const expensesToDelete = expenses.filter((e) => e.linkedDebtId === id);
     setExpenses((prev) => prev.filter((e) => e.linkedDebtId !== id));
-    if (currentUser) {
+    if (currentUser && targetUid) {
       expensesToDelete.forEach((e) => {
-        deleteDocument(currentUser.uid, 'expenses', e.id);
+        deleteDocument(targetUid, 'expenses', e.id);
       });
     }
   };
@@ -470,14 +508,14 @@ export default function App() {
         linkedDebtId: debtId,
       };
       setExpenses((prev) => [newExpense, ...prev]);
-      if (currentUser) {
-        saveDocument(currentUser.uid, 'expenses', newExpense.id, newExpense);
+      if (currentUser && targetUid) {
+        saveDocument(targetUid, 'expenses', newExpense.id, newExpense);
       }
     }
 
     setTimeout(() => {
-      if (currentUser && updatedDebtItem) {
-        saveDocument(currentUser.uid, 'debts', debtId, updatedDebtItem);
+      if (currentUser && targetUid && updatedDebtItem) {
+        saveDocument(targetUid, 'debts', debtId, updatedDebtItem);
       }
     }, 150);
   };
@@ -516,13 +554,13 @@ export default function App() {
     const expenseToDelete = expenses.find(e => e.linkedDebtId === debtId && e.amount === expenses.find(ex => ex.linkedDebtId === debtId)?.amount);
     setExpenses((prev) => prev.filter((e) => !(e.linkedDebtId === debtId && e.amount === expenses.find(ex => ex.linkedDebtId === debtId)?.amount)));
     
-    if (currentUser && expenseToDelete) {
-      deleteDocument(currentUser.uid, 'expenses', expenseToDelete.id);
+    if (currentUser && targetUid && expenseToDelete) {
+      deleteDocument(targetUid, 'expenses', expenseToDelete.id);
     }
 
     setTimeout(() => {
-      if (currentUser && updatedDebtItem) {
-        saveDocument(currentUser.uid, 'debts', debtId, updatedDebtItem);
+      if (currentUser && targetUid && updatedDebtItem) {
+        saveDocument(targetUid, 'debts', debtId, updatedDebtItem);
       }
     }, 150);
   };
@@ -538,8 +576,8 @@ export default function App() {
         return [...prev, updatedBudget];
       }
     });
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'budgets', month, updatedBudget);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'budgets', month, updatedBudget);
     }
   };
 
@@ -549,22 +587,22 @@ export default function App() {
       id: `exp-${generateId()}`,
     };
     setExpenses((prev) => [newExpense, ...prev]);
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'expenses', newExpense.id, newExpense);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'expenses', newExpense.id, newExpense);
     }
   };
 
   const handleEditExpense = (editedExpense: Expense) => {
     setExpenses((prev) => prev.map((e) => (e.id === editedExpense.id ? editedExpense : e)));
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'expenses', editedExpense.id, editedExpense);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'expenses', editedExpense.id, editedExpense);
     }
   };
 
   const handleDeleteExpense = (id: string) => {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
-    if (currentUser) {
-      deleteDocument(currentUser.uid, 'expenses', id);
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'expenses', id);
     }
   };
 
@@ -593,49 +631,49 @@ export default function App() {
       id: `project-${generateId()}`,
     };
     setProjects((prev) => [...prev, newProj]);
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'projects', newProj.id, newProj);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'projects', newProj.id, newProj);
     }
   };
 
   const handleEditProject = (editedProj: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === editedProj.id ? editedProj : p)));
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'projects', editedProj.id, editedProj);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'projects', editedProj.id, editedProj);
     }
   };
 
   const handleDeleteProject = (projectId: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
-    if (currentUser) {
-      deleteDocument(currentUser.uid, 'projects', projectId);
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'projects', projectId);
     }
 
     // Remove references
     const employeesToDelete = employees.filter((e) => e.projectId === projectId);
     setEmployees((prev) => prev.filter((e) => e.projectId !== projectId));
-    if (currentUser) {
+    if (currentUser && targetUid) {
       employeesToDelete.forEach((e) => {
-        deleteDocument(currentUser.uid, 'employees', e.id);
+        deleteDocument(targetUid, 'employees', e.id);
       });
     }
 
     const salaryPaymentsToDelete = salaryPayments.filter((sp) => sp.projectId === projectId);
     setSalaryPayments((prev) => prev.filter((sp) => sp.projectId !== projectId));
-    if (currentUser) {
+    if (currentUser && targetUid) {
       salaryPaymentsToDelete.forEach((sp) => {
-        deleteDocument(currentUser.uid, 'salaryPayments', sp.id);
-        deleteDocument(currentUser.uid, 'expenses', `salary-exp-${sp.id}`);
+        deleteDocument(targetUid, 'salaryPayments', sp.id);
+        deleteDocument(targetUid, 'expenses', `salary-exp-${sp.id}`);
       });
     }
 
     // Nullify or delete linked debts and expenses
     setDebts((prev) => {
       const updated = prev.map((d) => d.projectId === projectId ? { ...d, projectId: undefined } : d);
-      if (currentUser) {
+      if (currentUser && targetUid) {
         prev.forEach((d) => {
           if (d.projectId === projectId) {
-            saveDocument(currentUser.uid, 'debts', d.id, { ...d, projectId: undefined });
+            saveDocument(targetUid, 'debts', d.id, { ...d, projectId: undefined });
           }
         });
       }
@@ -644,10 +682,10 @@ export default function App() {
 
     setExpenses((prev) => {
       const updated = prev.map((e) => e.projectId === projectId ? { ...e, projectId: undefined } : e);
-      if (currentUser) {
+      if (currentUser && targetUid) {
         prev.forEach((e) => {
           if (e.projectId === projectId) {
-            saveDocument(currentUser.uid, 'expenses', e.id, { ...e, projectId: undefined });
+            saveDocument(targetUid, 'expenses', e.id, { ...e, projectId: undefined });
           }
         });
       }
@@ -661,22 +699,22 @@ export default function App() {
       id: `employee-${generateId()}`,
     };
     setEmployees((prev) => [...prev, newEmp]);
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'employees', newEmp.id, newEmp);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'employees', newEmp.id, newEmp);
     }
   };
 
   const handleEditEmployee = (editedEmp: Employee) => {
     setEmployees((prev) => prev.map((e) => (e.id === editedEmp.id ? editedEmp : e)));
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'employees', editedEmp.id, editedEmp);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'employees', editedEmp.id, editedEmp);
     }
   };
 
   const handleDeleteEmployee = (employeeId: string) => {
     setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
-    if (currentUser) {
-      deleteDocument(currentUser.uid, 'employees', employeeId);
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'employees', employeeId);
     }
     // Remove salary payments
     setSalaryPayments((prev) => {
@@ -684,16 +722,16 @@ export default function App() {
       const expenseIdsToRemove = paymentsToRemove.map(p => `salary-exp-${p.id}`);
       setExpenses((exPrev) => {
         const updated = exPrev.filter(e => !expenseIdsToRemove.includes(e.id));
-        if (currentUser) {
+        if (currentUser && targetUid) {
           expenseIdsToRemove.forEach((id) => {
-            deleteDocument(currentUser.uid, 'expenses', id);
+            deleteDocument(targetUid, 'expenses', id);
           });
         }
         return updated;
       });
-      if (currentUser) {
+      if (currentUser && targetUid) {
         paymentsToRemove.forEach((p) => {
-          deleteDocument(currentUser.uid, 'salaryPayments', p.id);
+          deleteDocument(targetUid, 'salaryPayments', p.id);
         });
       }
       return prev.filter((sp) => sp.employeeId !== employeeId);
@@ -708,8 +746,8 @@ export default function App() {
     };
     
     setSalaryPayments((prev) => [...prev, newPayment]);
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'salaryPayments', newPayment.id, newPayment);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'salaryPayments', newPayment.id, newPayment);
     }
 
     // Automatically create a linked expense
@@ -727,20 +765,20 @@ export default function App() {
     };
     
     setExpenses((prev) => [newExpense, ...prev]);
-    if (currentUser) {
-      saveDocument(currentUser.uid, 'expenses', newExpense.id, newExpense);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'expenses', newExpense.id, newExpense);
     }
   };
 
   const handleDeleteSalaryPayment = (paymentId: string) => {
     setSalaryPayments((prev) => prev.filter((sp) => sp.id !== paymentId));
-    if (currentUser) {
-      deleteDocument(currentUser.uid, 'salaryPayments', paymentId);
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'salaryPayments', paymentId);
     }
     // Delete auto-generated expense
     setExpenses((prev) => prev.filter((e) => e.id !== `salary-exp-${paymentId}`));
-    if (currentUser) {
-      deleteDocument(currentUser.uid, 'expenses', `salary-exp-${paymentId}`);
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'expenses', `salary-exp-${paymentId}`);
     }
   };
 
@@ -770,19 +808,20 @@ export default function App() {
       if (parsedData.currency) setCurrency(parsedData.currency);
       if (parsedData.username) setUserName(parsedData.username);
 
-      if (currentUser) {
+      if (currentUser && targetUid) {
         Promise.all([
-          ...dbt.map((d: any) => saveDocument(currentUser.uid, 'debts', d.id, d)),
-          ...exp.map((e: any) => saveDocument(currentUser.uid, 'expenses', e.id, e)),
-          ...bdg.map((b: any) => saveDocument(currentUser.uid, 'budgets', b.month, b)),
-          ...prj.map((p: any) => saveDocument(currentUser.uid, 'projects', p.id, p)),
-          ...emp.map((em: any) => saveDocument(currentUser.uid, 'employees', em.id, em)),
-          ...sal.map((s: any) => saveDocument(currentUser.uid, 'salaryPayments', s.id, s)),
+          ...dbt.map((d: any) => saveDocument(targetUid, 'debts', d.id, d)),
+          ...exp.map((e: any) => saveDocument(targetUid, 'expenses', e.id, e)),
+          ...bdg.map((b: any) => saveDocument(targetUid, 'budgets', b.month, b)),
+          ...prj.map((p: any) => saveDocument(targetUid, 'projects', p.id, p)),
+          ...emp.map((em: any) => saveDocument(targetUid, 'employees', em.id, em)),
+          ...sal.map((s: any) => saveDocument(targetUid, 'salaryPayments', s.id, s)),
           saveUserProfile({
             userId: currentUser.uid,
             displayName: usr,
             currency: cur,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            ...(userProfile?.adminId ? { adminId: userProfile.adminId, allowedTabs: userProfile.allowedTabs } : {})
           })
         ]);
       }
@@ -792,13 +831,13 @@ export default function App() {
   };
 
   const handleResetAllData = () => {
-    if (currentUser) {
-      debts.forEach((d) => deleteDocument(currentUser.uid, 'debts', d.id));
-      expenses.forEach((e) => deleteDocument(currentUser.uid, 'expenses', e.id));
-      budgets.forEach((b) => deleteDocument(currentUser.uid, 'budgets', b.month));
-      projects.forEach((p) => deleteDocument(currentUser.uid, 'projects', p.id));
-      employees.forEach((em) => deleteDocument(currentUser.uid, 'employees', em.id));
-      salaryPayments.forEach((sp) => deleteDocument(currentUser.uid, 'salaryPayments', sp.id));
+    if (currentUser && targetUid) {
+      debts.forEach((d) => deleteDocument(targetUid, 'debts', d.id));
+      expenses.forEach((e) => deleteDocument(targetUid, 'expenses', e.id));
+      budgets.forEach((b) => deleteDocument(targetUid, 'budgets', b.month));
+      projects.forEach((p) => deleteDocument(targetUid, 'projects', p.id));
+      employees.forEach((em) => deleteDocument(targetUid, 'employees', em.id));
+      salaryPayments.forEach((sp) => deleteDocument(targetUid, 'salaryPayments', sp.id));
     }
 
     setDebts([]);
@@ -855,6 +894,16 @@ export default function App() {
     );
   }
 
+  const hasTabPermission = (tabId: string): boolean => {
+    if (!currentUser) return false;
+    if (!userProfile?.adminId) return true;
+    return userProfile.allowedTabs?.includes(tabId) || false;
+  };
+
+  const hasCategoryPermission = (tabIds: string[]): boolean => {
+    return tabIds.some(hasTabPermission);
+  };
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f8fafc]" id="app-container">
       
@@ -892,7 +941,7 @@ export default function App() {
           isSidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         }`}
       >
-        <div className="flex flex-col gap-5 p-5 overflow-y-auto max-h-[calc(105vh-70px)] md:max-h-none">
+        <div className="flex flex-col gap-5 p-5 flex-1 overflow-y-auto">
           {/* Brand Logo Header */}
           <div className="flex items-center justify-between border-b border-slate-800/60 pb-4" id="sidebar-logo-header">
             <div className="flex items-center gap-2.5">
@@ -923,7 +972,11 @@ export default function App() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md font-extrabold">حساب سحابي</span>
+                {userProfile?.adminId ? (
+                  <span className="text-[9px] text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded-md font-extrabold">مساعد مخوّل 🛡️</span>
+                ) : (
+                  <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md font-extrabold">حساب سحابي (المدير)</span>
+                )}
               </div>
               <h4 className="font-bold text-white text-xs truncate mt-0.5">{userName}</h4>
             </div>
@@ -962,163 +1015,211 @@ export default function App() {
           {/* Navigation Links */}
           <nav className="space-y-4" id="sidebar-nav">
             {/* Category 1: Overview */}
-            <div className="space-y-1">
-              <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">الرئيسية</span>
-              <button
-                id="nav-dashboard"
-                onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'dashboard' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <LayoutDashboard className="w-4 h-4 shrink-0" />
-                  <span>لوحة التحكم الرئيسية</span>
-                </span>
-                {activeTab === 'dashboard' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-              </button>
+            {hasCategoryPermission(['dashboard', 'advisor']) && (
+              <div className="space-y-1">
+                <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">الرئيسية</span>
+                {hasTabPermission('dashboard') && (
+                  <button
+                    id="nav-dashboard"
+                    onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'dashboard' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <LayoutDashboard className="w-4 h-4 shrink-0" />
+                      <span>لوحة التحكم الرئيسية</span>
+                    </span>
+                    {activeTab === 'dashboard' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
 
-              <button
-                id="nav-advisor"
-                onClick={() => { setActiveTab('advisor'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'advisor' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Sparkles className="w-4 h-4 shrink-0 text-sky-400" />
-                  <span>المستشار المالي الذكي (AI)</span>
-                </span>
-                {activeTab === 'advisor' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-              </button>
-            </div>
+                {hasTabPermission('advisor') && (
+                  <button
+                    id="nav-advisor"
+                    onClick={() => { setActiveTab('advisor'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'advisor' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Sparkles className="w-4 h-4 shrink-0 text-sky-400" />
+                      <span>المستشار المالي الذكي (AI)</span>
+                    </span>
+                    {activeTab === 'advisor' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Category 2: Core Operations */}
-            <div className="space-y-1">
-              <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">المعاملات المالية</span>
-              
-              <button
-                id="nav-debts"
-                onClick={() => { setActiveTab('debts'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'debts' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <CreditCard className="w-4 h-4 shrink-0" />
-                  <span>الديون والالتزامات</span>
-                </span>
-                {activeTab === 'debts' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-              </button>
+            {hasCategoryPermission(['debts', 'budget', 'projects']) && (
+              <div className="space-y-1">
+                <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">المعاملات المالية</span>
+                
+                {hasTabPermission('debts') && (
+                  <button
+                    id="nav-debts"
+                    onClick={() => { setActiveTab('debts'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'debts' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <CreditCard className="w-4 h-4 shrink-0" />
+                      <span>الديون والالتزامات</span>
+                    </span>
+                    {activeTab === 'debts' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
 
-              <button
-                id="nav-budget"
-                onClick={() => { setActiveTab('budget'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'budget' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Wallet className="w-4 h-4 shrink-0" />
-                  <span>الميزانية والمصاريف</span>
-                </span>
-                {activeTab === 'budget' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-              </button>
+                {hasTabPermission('budget') && (
+                  <button
+                    id="nav-budget"
+                    onClick={() => { setActiveTab('budget'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'budget' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Wallet className="w-4 h-4 shrink-0" />
+                      <span>الميزانية والمصاريف</span>
+                    </span>
+                    {activeTab === 'budget' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
 
-              <button
-                id="nav-projects"
-                onClick={() => { setActiveTab('projects'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'projects' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Briefcase className="w-4 h-4 shrink-0" />
-                  <span>مشاريع العمل والرواتب</span>
-                </span>
-                {activeTab === 'projects' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-              </button>
-            </div>
+                {hasTabPermission('projects') && (
+                  <button
+                    id="nav-projects"
+                    onClick={() => { setActiveTab('projects'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'projects' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Briefcase className="w-4 h-4 shrink-0" />
+                      <span>مشاريع العمل والرواتب</span>
+                    </span>
+                    {activeTab === 'projects' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Category 3: Reporting & Alerts */}
-            <div className="space-y-1">
-              <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">التقارير والأدوات</span>
+            {hasCategoryPermission(['reports', 'alerts', 'backup']) && (
+              <div className="space-y-1">
+                <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">التقارير والأدوات</span>
 
-              <button
-                id="nav-reports"
-                onClick={() => { setActiveTab('reports'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'reports' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <BarChart3 className="w-4 h-4 shrink-0" />
-                  <span>التقارير الرسومية</span>
-                </span>
-                {activeTab === 'reports' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-              </button>
-
-              <button
-                id="nav-alerts"
-                onClick={() => { setActiveTab('alerts'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'alerts' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Bell className="w-4 h-4 shrink-0" />
-                  <span>مركز التنبيهات</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  {unreadAlertsCount > 0 && (
-                    <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
-                      {unreadAlertsCount}
+                {hasTabPermission('reports') && (
+                  <button
+                    id="nav-reports"
+                    onClick={() => { setActiveTab('reports'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'reports' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <BarChart3 className="w-4 h-4 shrink-0" />
+                      <span>التقارير الرسومية</span>
                     </span>
-                  )}
-                  {activeTab === 'alerts' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-                </span>
-              </button>
+                    {activeTab === 'reports' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
 
-              <button
-                id="nav-backup"
-                onClick={() => { setActiveTab('backup'); setIsSidebarOpen(false); }}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
-                  activeTab === 'backup' 
-                    ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Database className="w-4 h-4 shrink-0" />
-                  <span>النسخ الاحتياطي والبيانات</span>
-                </span>
-                {activeTab === 'backup' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-              </button>
-            </div>
+                {hasTabPermission('alerts') && (
+                  <button
+                    id="nav-alerts"
+                    onClick={() => { setActiveTab('alerts'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'alerts' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Bell className="w-4 h-4 shrink-0" />
+                      <span>مركز التنبيهات</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      {unreadAlertsCount > 0 && (
+                        <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                          {unreadAlertsCount}
+                        </span>
+                      )}
+                      {activeTab === 'alerts' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                    </span>
+                  </button>
+                )}
+
+                {hasTabPermission('backup') && (
+                  <button
+                    id="nav-backup"
+                    onClick={() => { setActiveTab('backup'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'backup' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Database className="w-4 h-4 shrink-0" />
+                      <span>النسخ الاحتياطي والبيانات</span>
+                    </span>
+                    {activeTab === 'backup' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Category 4: Permissions (Only for Admin / Managers) */}
+            {!userProfile?.adminId && (
+              <div className="space-y-1">
+                <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">التحكم والأمان</span>
+                <button
+                  id="nav-permissions"
+                  onClick={() => { setActiveTab('permissions'); setIsSidebarOpen(false); }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                    activeTab === 'permissions' 
+                      ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                      : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Shield className="w-4 h-4 shrink-0 text-sky-400" />
+                    <span>صلاحيات المساعدين</span>
+                  </span>
+                  {activeTab === 'permissions' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                </button>
+              </div>
+            )}
           </nav>
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-5 border-t border-slate-900 bg-slate-950/40 text-center text-[10px] text-slate-500 space-y-1" id="sidebar-footer">
+        <div className="p-4 border-t border-slate-900 bg-slate-950/40 text-center text-[10px] text-slate-500 space-y-1.5" id="sidebar-footer">
           <p className="flex items-center justify-center gap-1">
             <span>بياناتك مشفرة ومحفوظة محلياً</span>
             <span>🔒</span>
           </p>
-          <p className="font-mono text-[9px]">v2.5.0 • 2026</p>
+          <div className="border-t border-slate-900/60 pt-1.5 mt-1 space-y-0.5">
+            <p className="text-slate-400 font-bold text-[10px]">تطوير وبرمجة: حسن الشمري</p>
+            <p className="font-mono text-[9px] text-slate-500">📞 07812149176</p>
+          </div>
+          <p className="font-mono text-[9px] text-slate-600">v2.5.0 • 2026</p>
         </div>
       </aside>
 
@@ -1147,6 +1248,8 @@ export default function App() {
                 projects={projects}
                 employees={employees}
                 salaryPayments={salaryPayments}
+                onAddDebt={handleAddDebt}
+                onAddExpense={handleAddExpense}
               />
             )}
 
@@ -1243,8 +1346,25 @@ export default function App() {
                 currentUser={currentUser}
               />
             )}
+
+            {activeTab === 'permissions' && !userProfile?.adminId && currentUser && (
+              <PermissionsManager currentUserId={currentUser.uid} currency={currency} />
+            )}
           </motion.div>
         </AnimatePresence>
+
+        {/* Footer with Developer Rights */}
+        <footer className="pt-8 pb-4 mt-12 border-t border-slate-200/60 text-center text-[11px] text-slate-500 space-y-1" id="main-footer-copyright">
+          <p className="font-bold text-slate-700 flex items-center justify-center gap-1.5 flex-wrap">
+            <span>© جميع الحقوق محفوظة لبرنامج ديوني وميزانيتي</span>
+            <span className="text-slate-300">•</span>
+            <span>تطوير وبرمجة: <span className="text-sky-600 font-extrabold">حسن الشمري</span></span>
+          </p>
+          <p className="font-mono text-[10px] text-slate-500 flex items-center justify-center gap-1.5">
+            <span>📱 الدعم الفني والبرمجة:</span>
+            <span className="text-slate-600 font-bold hover:text-sky-600 transition-colors">07812149176</span>
+          </p>
+        </footer>
       </main>
 
       {/* Quick Settings Overlay/Modal */}
@@ -1582,6 +1702,39 @@ export default function App() {
                       <option value="د.أ">دينار أردني (د.أ)</option>
                       <option value="$">دولار أمريكي ($)</option>
                     </select>
+                  </div>
+
+                  {/* Theme Mode Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-500 font-semibold text-right">مظهر التطبيق 🎨</label>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => setTheme('light')}
+                        className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          theme === 'light'
+                            ? 'bg-white text-sky-600 shadow-xs border border-slate-100 font-extrabold'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                        id="theme-light-btn"
+                      >
+                        <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>نهاري (مضيء)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTheme('dark')}
+                        className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          theme === 'dark'
+                            ? 'bg-slate-800 text-sky-400 shadow-xs border border-slate-700 font-extrabold'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                        id="theme-dark-btn"
+                      >
+                        <Moon className="w-4 h-4 text-sky-400 shrink-0" />
+                        <span>ليلي (مريح)</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Interactive PIN Lock Option */}
