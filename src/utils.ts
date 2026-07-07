@@ -9,8 +9,28 @@ export function formatCurrency(amount: number, currency: string = 'د.إ'): stri
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ar-EG', {
+    let date: Date;
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = Number(parts[0]);
+        const month = Number(parts[1]) - 1; // 0-indexed
+        const day = Number(parts[2]);
+        date = new Date(year, month, day);
+      } else {
+        date = new Date(dateStr);
+      }
+    } else {
+      date = new Date(dateStr);
+    }
+
+    if (isNaN(date.getTime())) {
+      return dateStr;
+    }
+
+    // Use ar-EG-u-nu-latn to display beautiful Arabic months/days with Western digits (0-9)
+    // for high legibility and clarity in financial/business reporting.
+    return date.toLocaleDateString('ar-EG-u-nu-latn', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',

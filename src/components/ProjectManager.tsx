@@ -1496,8 +1496,11 @@ export default function ProjectManager({
                     required
                     value={projectStartDate}
                     onChange={(e) => setProjectStartDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                   />
+                  <div className="text-[10px] text-sky-600 font-extrabold text-right mt-1" id="project-start-date-formatted-preview">
+                    {projectStartDate ? formatDate(projectStartDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-slate-500">حالة المشروع</label>
@@ -1699,8 +1702,11 @@ export default function ProjectManager({
                   required
                   value={salaryDate}
                   onChange={(e) => setSalaryDate(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                 />
+                <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="salary-date-formatted-preview">
+                  {salaryDate ? formatDate(salaryDate) : 'لم يتم اختيار تاريخ'}
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -1840,8 +1846,11 @@ export default function ProjectManager({
                   required
                   value={debtDueDate}
                   onChange={(e) => setDebtDueDate(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                 />
+                <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="project-debt-due-date-formatted-preview">
+                  {debtDueDate ? formatDate(debtDueDate) : 'لم يتم اختيار تاريخ'}
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -2026,8 +2035,11 @@ export default function ProjectManager({
                     required
                     value={editDebtDueDate}
                     onChange={(e) => setEditDebtDueDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                   />
+                  <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="project-edit-debt-due-date-formatted-preview">
+                    {editDebtDueDate ? formatDate(editDebtDueDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
               </div>
 
@@ -2120,8 +2132,11 @@ export default function ProjectManager({
                   required
                   value={editExpDate}
                   onChange={(e) => setEditExpDate(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                 />
+                <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="project-edit-expense-date-formatted-preview">
+                  {editExpDate ? formatDate(editExpDate) : 'لم يتم اختيار تاريخ'}
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -2210,8 +2225,11 @@ export default function ProjectManager({
                     required
                     value={instDate}
                     onChange={(e) => setInstDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                   />
+                  <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="project-installment-date-formatted-preview">
+                    {instDate ? formatDate(instDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
               </div>
 

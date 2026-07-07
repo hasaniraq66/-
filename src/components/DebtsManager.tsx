@@ -654,8 +654,11 @@ export default function DebtsManager({
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 dark:text-slate-100"
                   />
+                  <div className="text-[10px] text-sky-600 font-extrabold text-right mt-1" id="add-debt-start-date-formatted-preview">
+                    {startDate ? formatDate(startDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -665,8 +668,11 @@ export default function DebtsManager({
                     required
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 dark:text-slate-100"
                   />
+                  <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="add-debt-due-date-formatted-preview">
+                    {dueDate ? formatDate(dueDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
               </div>
 
@@ -803,8 +809,11 @@ export default function DebtsManager({
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 dark:text-slate-100"
                   />
+                  <div className="text-[10px] text-sky-600 font-extrabold text-right mt-1" id="edit-debt-start-date-formatted-preview">
+                    {startDate ? formatDate(startDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -814,8 +823,11 @@ export default function DebtsManager({
                     required
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 dark:text-slate-100"
                   />
+                  <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="edit-debt-due-date-formatted-preview">
+                    {dueDate ? formatDate(dueDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
               </div>
 
@@ -927,8 +939,11 @@ export default function DebtsManager({
                   required
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 dark:text-slate-100"
                 />
+                <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="installment-date-formatted-preview">
+                  {paymentDate ? formatDate(paymentDate) : 'لم يتم اختيار تاريخ'}
+                </div>
               </div>
 
               {/* Notes */}

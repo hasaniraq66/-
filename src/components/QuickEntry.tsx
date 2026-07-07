@@ -17,7 +17,7 @@ import {
   ArrowDownLeft
 } from 'lucide-react';
 import { Debt, Expense, Project } from '../types';
-import { getLocalDateString } from '../utils';
+import { getLocalDateString, formatDate } from '../utils';
 
 interface QuickEntryProps {
   projects: Project[];
@@ -236,7 +236,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                     value={amount}
                     onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
                     placeholder="مثال: 150"
-                    className="w-full text-left bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-2.5 text-xs font-bold focus:outline-none transition-all"
+                    className="w-full text-left bg-slate-50 border border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-2.5 text-xs font-black focus:outline-none transition-all text-slate-900 placeholder:text-slate-500 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-expense-amount"
                   />
                 </div>
@@ -249,7 +249,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                   <select
                     value={expenseCategory}
                     onChange={(e) => setExpenseCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-bold transition-all text-slate-700"
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-black transition-all text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-expense-category"
                   >
                     {expenseCategories.map((cat) => (
@@ -270,9 +270,12 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                     type="date"
                     value={expenseDate}
                     onChange={(e) => setExpenseDate(e.target.value)}
-                    className="w-full text-left bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition-all"
+                    className="w-full text-left bg-slate-50 border border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-2 text-xs font-black focus:outline-none transition-all text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-expense-date"
                   />
+                  <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="quick-expense-date-formatted-preview">
+                    {expenseDate ? formatDate(expenseDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -283,7 +286,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                   <select
                     value={projectId}
                     onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-bold transition-all text-slate-700"
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-black transition-all text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-expense-project"
                   >
                     <option value="">-- بدون مشروع مرتبط --</option>
@@ -348,7 +351,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                     value={personName}
                     onChange={(e) => setPersonName(e.target.value)}
                     placeholder="مثال: أحمد العلي"
-                    className="w-full text-right bg-slate-50 border border-slate-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2.5 text-xs font-bold focus:outline-none transition-all"
+                    className="w-full text-right bg-slate-50 border border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2.5 text-xs font-black focus:outline-none transition-all text-slate-900 placeholder:text-slate-500 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-debt-person"
                   />
                 </div>
@@ -363,7 +366,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                     value={amount}
                     onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
                     placeholder="مثال: 500"
-                    className="w-full text-left bg-slate-50 border border-slate-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2.5 text-xs font-bold focus:outline-none transition-all"
+                    className="w-full text-left bg-slate-50 border border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2.5 text-xs font-black focus:outline-none transition-all text-slate-900 placeholder:text-slate-500 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-debt-amount"
                   />
                 </div>
@@ -380,9 +383,12 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                     type="date"
                     value={debtStartDate}
                     onChange={(e) => setDebtStartDate(e.target.value)}
-                    className="w-full text-left bg-slate-50 border border-slate-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition-all"
+                    className="w-full text-left bg-slate-50 border border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2 text-xs font-black focus:outline-none transition-all text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-debt-start-date"
                   />
+                  <div className="text-[10px] text-sky-600 font-extrabold text-right mt-1" id="quick-debt-start-date-formatted-preview">
+                    {debtStartDate ? formatDate(debtStartDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -394,9 +400,12 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                     type="date"
                     value={debtDueDate}
                     onChange={(e) => setDebtDueDate(e.target.value)}
-                    className="w-full text-left bg-slate-50 border border-slate-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition-all border-rose-100"
+                    className="w-full text-left bg-slate-50 border border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3 py-2 text-xs font-black focus:outline-none transition-all border-rose-100 text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-debt-due-date"
                   />
+                  <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="quick-debt-due-date-formatted-preview">
+                    {debtDueDate ? formatDate(debtDueDate) : 'لم يتم اختيار تاريخ'}
+                  </div>
                 </div>
               </div>
 
@@ -410,7 +419,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                   <select
                     value={debtCategory}
                     onChange={(e) => setDebtCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-bold transition-all text-slate-700"
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-sky-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-black transition-all text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-debt-category"
                   >
                     {debtCategories.map((cat) => (
@@ -427,7 +436,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                   <select
                     value={projectId}
                     onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-bold transition-all text-slate-700"
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-sky-500 focus:outline-none rounded-xl px-3 py-2.5 text-xs font-black transition-all text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
                     id="quick-debt-project"
                   >
                     <option value="">-- بدون مشروع مرتبط --</option>
@@ -452,7 +461,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={activeForm === 'expense' ? "مثال: غداء عمل مع الفريق" : "مثال: سلفة مستردة لشراء معدات للمكتب"}
-            className="w-full text-right bg-slate-50 border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 rounded-xl px-3 py-2.5 text-xs font-bold focus:outline-none transition-all"
+            className="w-full text-right bg-slate-50 border border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 rounded-xl px-3 py-2.5 text-xs font-black focus:outline-none transition-all text-slate-900 placeholder:text-slate-500 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700"
             id="quick-entry-description"
           />
         </div>
