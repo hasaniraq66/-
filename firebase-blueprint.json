@@ -77,12 +77,13 @@
         "name": { "type": "string" },
         "clientName": { "type": "string" },
         "budget": { "type": "number" },
+        "debtCeiling": { "type": "number" },
         "startDate": { "type": "string" },
         "endDate": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "completed", "paused", "draft"] },
+        "status": { "type": "string", "enum": ["active", "completed", "on_hold"] },
         "description": { "type": "string" }
       },
-      "required": ["id", "userId", "name", "budget", "status"]
+      "required": ["id", "userId", "name", "budget", "debtCeiling", "status"]
     },
     "Employee": {
       "title": "Employee",
@@ -94,11 +95,10 @@
         "projectId": { "type": "string" },
         "name": { "type": "string" },
         "role": { "type": "string" },
-        "salary": { "type": "number" },
-        "currency": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "inactive"] }
+        "salaryAmount": { "type": "number" },
+        "hireDate": { "type": "string" }
       },
-      "required": ["id", "userId", "projectId", "name", "salary", "status"]
+      "required": ["id", "userId", "projectId", "name", "salaryAmount"]
     },
     "SalaryPayment": {
       "title": "Salary Payment",

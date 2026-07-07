@@ -12,16 +12,20 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Load Firebase API key securely on startup
+// Load Firebase API key securely
 let firebaseApiKey = "";
-try {
-  const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(firebaseConfigPath)) {
-    const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
-    firebaseApiKey = firebaseConfig.apiKey || "";
+function getFirebaseApiKey(): string {
+  if (firebaseApiKey) return firebaseApiKey;
+  try {
+    const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(firebaseConfigPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+      firebaseApiKey = firebaseConfig.apiKey || "";
+    }
+  } catch (err) {
+    console.error("Error loading firebase-applet-config.json:", err);
   }
-} catch (err) {
-  console.error("Error loading firebase-applet-config.json:", err);
+  return firebaseApiKey || process.env.FIREBASE_API_KEY || "";
 }
 
 // Initialize GoogleGenAI
@@ -45,7 +49,8 @@ app.post("/api/advisor/analyze", async (req, res) => {
 
     // Secure verification: check Firebase User Identity
     const authHeader = req.headers.authorization;
-    if (firebaseApiKey) {
+    const currentApiKey = getFirebaseApiKey();
+    if (currentApiKey) {
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return res.status(401).json({ error: "غير مصرح. يرجى تسجيل الدخول أولاً لاستخدام المستشار المالي." });
       }
@@ -55,7 +60,7 @@ app.post("/api/advisor/analyze", async (req, res) => {
       }
 
       try {
-        const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseApiKey}`;
+        const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${currentApiKey}`;
         const verifyRes = await fetch(verifyUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
