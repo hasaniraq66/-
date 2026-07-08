@@ -220,6 +220,8 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
     }
   };
 
+  const [isDragging, setIsDragging] = useState(false);
+
   // Handle Export Click (Local JSON)
   const handleExport = () => {
     exportDataToJson(exportPayload, `backup_debts_and_budget_${new Date().toISOString().slice(0, 10)}.json`);
@@ -230,11 +232,8 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
     fileInputRef.current?.click();
   };
 
-  // Handle File Change (Local JSON)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Process selected file
+  const processFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -254,7 +253,33 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
       }
     };
     reader.readAsText(file);
+  };
+
+  // Handle File Change (Local JSON)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processFile(file);
     e.target.value = '';
+  };
+
+  // Drag and drop event handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processFile(file);
+    }
   };
 
   return (
@@ -382,14 +407,29 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
         </div>
 
         {/* Right: Local File Export/Import */}
-        <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-100/70 space-y-4 flex flex-col justify-between shadow-2xs" id="backup-local-box">
+        <div 
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`p-5 rounded-2xl border transition-all duration-200 space-y-4 flex flex-col justify-between shadow-2xs ${
+            isDragging 
+              ? 'border-dashed border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20' 
+              : 'border-slate-100/70 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/40'
+          }`} 
+          id="backup-local-box"
+        >
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-bold text-sm">
               <FileJson className="w-5 h-5 text-slate-500" />
               <span>النسخ الاحتياطي المحلي التقليدي</span>
+              {isDragging && (
+                <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full font-black animate-pulse">
+                  أفلت الملف هنا!
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed font-bold">
-              احفظ نسخة احتياطية بصيغة JSON على جهازك الشخصي واسترجعها يدوياً في أي وقت. هذا الخيار يحفظ البيانات بالكامل كملف تقوم أنت بنقله وتخزينه.
+            <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed font-bold">
+              احفظ نسخة احتياطية بصيغة JSON على جهازك الشخصي واسترجعها يدوياً في أي وقت. هذا الخيار يحفظ البيانات بالكامل كملف تقوم أنت بنقله وتخزينه. يدعم السحب والإفلات مباشرة!
             </p>
           </div>
 
@@ -397,7 +437,7 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
             <button
               id="export-backup-btn"
               onClick={handleExport}
-              className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>تحميل ملف النسخ الاحتياطي (JSON)</span>
@@ -415,10 +455,10 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
               <button
                 id="import-backup-btn"
                 onClick={handleImportClick}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
               >
                 <Upload className="w-4 h-4" />
-                <span>اختر ملف من جهازك واسترجع البيانات</span>
+                <span>اختر ملف من جهازك أو اسحبه هنا</span>
               </button>
             </div>
           </div>

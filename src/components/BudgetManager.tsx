@@ -613,7 +613,7 @@ export default function BudgetManager({
                     placeholder="مثال: 5000"
                     value={budgetLimit}
                     onChange={(e) => setBudgetLimit(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 font-bold text-sm"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-black text-sm"
                   />
                 </div>
                 {modalCategoriesSum > 0 && (
@@ -655,7 +655,7 @@ export default function BudgetManager({
                               [cat]: val,
                             }));
                           }}
-                          className="w-full pl-2 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                          className="w-full pl-2 pr-7 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-black"
                         />
                       </div>
                     </div>
@@ -708,7 +708,7 @@ export default function BudgetManager({
                     placeholder="0.00"
                     value={expenseAmount}
                     onChange={(e) => setExpenseAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 font-bold"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-black"
                   />
                 </div>
               </div>
@@ -721,7 +721,7 @@ export default function BudgetManager({
                   <select
                     value={expenseCategory}
                     onChange={(e) => setExpenseCategory(e.target.value)}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
                   >
                     {expenseCategories.map((c) => (
                       <option key={c} value={c}>{c}</option>
@@ -740,8 +740,11 @@ export default function BudgetManager({
                     required
                     value={expenseDate}
                     onChange={(e) => setExpenseDate(e.target.value)}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-black"
                   />
+                </div>
+                <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="add-expense-date-formatted-preview">
+                  {expenseDate ? formatDate(expenseDate) : 'لم يتم اختيار تاريخ'}
                 </div>
               </div>
 
@@ -755,7 +758,7 @@ export default function BudgetManager({
                     value={expenseDescription}
                     onChange={(e) => setExpenseDescription(e.target.value)}
                     rows={2}
-                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-medium"
                   />
                 </div>
               </div>
@@ -813,7 +816,7 @@ export default function BudgetManager({
                     step="any"
                     value={expenseAmount}
                     onChange={(e) => setExpenseAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 font-bold"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-black"
                   />
                 </div>
               </div>
@@ -826,7 +829,7 @@ export default function BudgetManager({
                   <select
                     value={expenseCategory}
                     onChange={(e) => setExpenseCategory(e.target.value)}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
                   >
                     {expenseCategories.map((c) => (
                       <option key={c} value={c}>{c}</option>
@@ -845,8 +848,11 @@ export default function BudgetManager({
                     required
                     value={expenseDate}
                     onChange={(e) => setExpenseDate(e.target.value)}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-black"
                   />
+                </div>
+                <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="edit-expense-date-formatted-preview">
+                  {expenseDate ? formatDate(expenseDate) : 'لم يتم اختيار تاريخ'}
                 </div>
               </div>
 
@@ -859,7 +865,7 @@ export default function BudgetManager({
                     value={expenseDescription}
                     onChange={(e) => setExpenseDescription(e.target.value)}
                     rows={2}
-                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800"
+                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-medium"
                   />
                 </div>
               </div>

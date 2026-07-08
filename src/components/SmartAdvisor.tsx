@@ -339,7 +339,7 @@ export default function SmartAdvisor({
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="اكتب هنا أي سؤال مالي تريد طرحه للمستشار الذكي..."
               disabled={isLoading}
-              className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 focus:border-sky-500 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-semibold disabled:opacity-75"
+              className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 focus:border-sky-500 rounded-xl text-xs text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-semibold disabled:opacity-75"
             />
             <button
               type="submit"
