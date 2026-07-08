@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { 
   LayoutDashboard, 
   CreditCard, 
@@ -1843,6 +1844,7 @@ export default function App() {
           onCancel={() => setConfirmModal(null)}
         />
       )}
+      <SpeedInsights />
     </div>
   );
 }
