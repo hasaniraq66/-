@@ -22,7 +22,8 @@ import {
   Loader2,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Settings
 } from 'lucide-react';
 
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -1224,7 +1225,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-6" id="main-scrollable-content">
+      <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full space-y-6" id="main-scrollable-content">
         
         {/* Dynamic active view injection */}
         <AnimatePresence mode="wait">
@@ -1366,6 +1367,74 @@ export default function App() {
           </p>
         </footer>
       </main>
+
+      {/* Mobile Bottom Tab Bar */}
+      <div 
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/60 dark:border-slate-800/60 py-2.5 px-3 flex justify-around items-center z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] pb-safe" 
+        id="mobile-bottom-nav"
+      >
+        {/* Tab 1: Dashboard */}
+        {hasTabPermission('dashboard') && (
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+              activeTab === 'dashboard'
+                ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5 transition-transform duration-200" />
+            <span className="text-[10px]">الرئيسية</span>
+            {activeTab === 'dashboard' && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
+          </button>
+        )}
+
+        {/* Tab 2: Debts */}
+        {hasTabPermission('debts') && (
+          <button
+            onClick={() => setActiveTab('debts')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+              activeTab === 'debts'
+                ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
+            }`}
+          >
+            <CreditCard className="w-5 h-5 transition-transform duration-200" />
+            <span className="text-[10px]">الديون</span>
+            {activeTab === 'debts' && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
+          </button>
+        )}
+
+        {/* Tab 3: Budget */}
+        {hasTabPermission('budget') && (
+          <button
+            onClick={() => setActiveTab('budget')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+              activeTab === 'budget'
+                ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
+            }`}
+          >
+            <Wallet className="w-5 h-5 transition-transform duration-200" />
+            <span className="text-[10px]">الميزانية</span>
+            {activeTab === 'budget' && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
+          </button>
+        )}
+
+        {/* Tab 4: Settings */}
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+            isSettingsOpen
+              ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
+              : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
+          }`}
+        >
+          <Settings className={`w-5 h-5 transition-transform duration-200 ${isSettingsOpen ? 'rotate-45' : ''}`} />
+          <span className="text-[10px]">الإعدادات</span>
+          {isSettingsOpen && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
+        </button>
+      </div>
 
       {/* Quick Settings Overlay/Modal */}
       {isSettingsOpen && (

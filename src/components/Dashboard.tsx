@@ -32,6 +32,7 @@ import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment } 
 import { formatCurrency, formatDate, generateAlerts, generateWhatsAppLink } from '../utils';
 import CashFlowChart from './CashFlowChart';
 import QuickEntry from './QuickEntry';
+import BudgetBurndownChart from './BudgetBurndownChart';
 
 interface DashboardProps {
   debts: Debt[];
@@ -747,6 +748,9 @@ export default function Dashboard({
 
       {/* Debt Cash Flow Chart Section */}
       <CashFlowChart debts={debts} currency={currency} />
+
+      {/* Budget Burn-down Chart Section */}
+      <BudgetBurndownChart expenses={expenses} budget={budget} currency={currency} />
 
       {/* Main Charts & Activity Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="dashboard-details-row">
