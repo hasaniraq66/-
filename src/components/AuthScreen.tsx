@@ -274,17 +274,17 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Full Name for signup */}
           {!isLogin && (
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 text-right">الاسم الكامل</label>
+              <label className="block text-xs font-black text-slate-300 text-right">الاسم الكامل</label>
               <div className="relative">
                 <input
                   type="text"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full text-right pr-10 pl-4 py-2.5 bg-[#070b15] border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-xs font-semibold"
+                  className="w-full text-right pr-10 pl-4 py-3 bg-[#090f1d] border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 text-white text-base font-extrabold tracking-wide placeholder-slate-500"
                   placeholder="مثال: أحمد العبدالله"
                 />
-                <UserIcon className="absolute right-3.5 top-3 w-4 h-4 text-slate-500" />
+                <UserIcon className="absolute right-3.5 top-3.5 w-4.5 h-4.5 text-slate-400" />
               </div>
             </div>
           )}
@@ -292,55 +292,55 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Email or Phone */}
           {authMethod === 'email' ? (
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 text-right">البريد الإلكتروني</label>
+              <label className="block text-xs font-black text-slate-300 text-right">البريد الإلكتروني</label>
               <div className="relative">
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full text-left pr-4 pl-10 py-2.5 bg-[#070b15] border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-xs font-semibold"
+                  className="w-full text-left pr-4 pl-10 py-3 bg-[#090f1d] border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 text-white text-base font-extrabold tracking-wide placeholder-slate-500"
                   placeholder="name@example.com"
                 />
-                <Mail className="absolute right-3.5 top-3 w-4 h-4 text-slate-500" />
+                <Mail className="absolute right-3.5 top-3.5 w-4.5 h-4.5 text-slate-400" />
               </div>
             </div>
           ) : (
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 text-right">رقم الهاتف</label>
+              <label className="block text-xs font-black text-slate-300 text-right">رقم الهاتف</label>
               <div className="relative">
                 <input
                   type="tel"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full text-left pr-4 pl-10 py-2.5 bg-[#070b15] border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-xs font-semibold"
+                  className="w-full text-left pr-4 pl-10 py-3 bg-[#090f1d] border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 text-white text-base font-extrabold tracking-wide placeholder-slate-500"
                   placeholder="05xxxxxxxx"
                 />
-                <Phone className="absolute right-3.5 top-3 w-4 h-4 text-slate-500" />
+                <Phone className="absolute right-3.5 top-3.5 w-4.5 h-4.5 text-slate-400" />
               </div>
             </div>
           )}
 
           {/* Password */}
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-400 text-right">كلمة المرور</label>
+            <label className="block text-xs font-black text-slate-300 text-right">كلمة المرور</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full text-left pr-4 pl-10 py-2.5 bg-[#070b15] border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-xs font-semibold"
+                className="w-full text-left pr-4 pl-10 py-3 bg-[#090f1d] border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 text-white text-base font-extrabold tracking-wide placeholder-slate-500"
                 placeholder="••••••••"
               />
-              <Lock className="absolute right-3.5 top-3 w-4 h-4 text-slate-500" />
+              <Lock className="absolute right-3.5 top-3.5 w-4.5 h-4.5 text-slate-400" />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-3 top-3 text-slate-500 hover:text-slate-300"
+                className="absolute left-3 top-3.5 text-slate-400 hover:text-white"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
               </button>
             </div>
           </div>
@@ -348,11 +348,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Currency setting for signup */}
           {!isLogin && (
             <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400 text-right">العملة المفضلة</label>
+              <label className="block text-xs font-black text-slate-300 text-right">العملة المفضلة</label>
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="w-full text-right px-3 py-2.5 bg-[#070b15] border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-xs font-semibold"
+                className="w-full text-right px-3 py-3 bg-[#090f1d] border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 text-white text-sm font-extrabold"
               >
                 <option value="ر.س">ريال سعودي (ر.س)</option>
                 <option value="د.إ">درهم إماراتي (د.إ)</option>

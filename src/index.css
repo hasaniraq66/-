@@ -267,6 +267,34 @@ input, select, textarea {
   -webkit-text-fill-color: #f1f5f9 !important;
 }
 
+/* Specific high-contrast overrides for the always-dark Authentication screen inputs */
+#auth-viewport input, #auth-viewport select, #auth-viewport textarea {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  font-family: "Cairo", ui-sans-serif, system-ui, sans-serif !important;
+  background-color: #090f1d !important;
+}
+
+#auth-viewport input::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+
+/* Ensure autocomplete / autofill matches the dark background and stays crisp white */
+#auth-viewport input:-webkit-autofill,
+#auth-viewport input:-webkit-autofill:hover, 
+#auth-viewport input:-webkit-autofill:focus, 
+#auth-viewport input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #090f1d inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 /* Clear, legible placeholder styles across all browsers */
 input::placeholder, textarea::placeholder {
   color: #4b5563 !important; /* Force highly legible slate/gray-600 color for placeholders in light mode */
