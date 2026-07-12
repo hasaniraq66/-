@@ -48,10 +48,10 @@ export default function ConfirmModal({
           >
             ✕
           </button>
-          <h3 className="font-extrabold text-sm flex items-center gap-2">
+          <h2 className="font-extrabold text-sm flex items-center gap-2">
             <Icon className="w-4 h-4 shrink-0" />
             <span>{title}</span>
-          </h3>
+          </h2>
         </div>
         <div className="p-6 space-y-4 text-slate-700 font-bold text-xs">
           <p className="leading-relaxed text-slate-600 font-medium">{message}</p>

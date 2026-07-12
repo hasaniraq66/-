@@ -227,7 +227,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
               {/* Expense Row 1 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-expense-amount" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>المبلغ ({currency})</span>
                     <Wallet className="w-3 h-3 text-emerald-600" />
                   </label>
@@ -242,7 +242,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-expense-category" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>فئة المصروف</span>
                     <Tag className="w-3 h-3 text-emerald-600" />
                   </label>
@@ -262,7 +262,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
               {/* Expense Row 2 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-expense-date" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>التاريخ</span>
                     <Calendar className="w-3 h-3 text-emerald-600" />
                   </label>
@@ -279,7 +279,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-expense-project" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>المشروع المرتبط (اختياري)</span>
                     <Briefcase className="w-3 h-3 text-emerald-600" />
                   </label>
@@ -342,7 +342,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
               {/* Debt Row 1 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-debt-person" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>اسم الطرف الآخر</span>
                     <User className="w-3 h-3 text-sky-600" />
                   </label>
@@ -357,7 +357,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-debt-amount" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>المبلغ ({currency})</span>
                     <Wallet className="w-3 h-3 text-sky-600" />
                   </label>
@@ -375,7 +375,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
               {/* Debt Row 2 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-debt-start-date" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>تاريخ الدين</span>
                     <Calendar className="w-3 h-3 text-sky-600" />
                   </label>
@@ -392,7 +392,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-debt-due-date" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>تاريخ الاستحقاق (السداد)</span>
                     <Calendar className="w-3 h-3 text-rose-500" />
                   </label>
@@ -412,7 +412,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
               {/* Debt Row 3 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-debt-category" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>تصنيف الدين</span>
                     <Tag className="w-3 h-3 text-sky-600" />
                   </label>
@@ -429,7 +429,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
+                  <label htmlFor="quick-debt-project" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
                     <span>المشروع المرتبط (اختياري)</span>
                     <Briefcase className="w-3 h-3 text-sky-600" />
                   </label>

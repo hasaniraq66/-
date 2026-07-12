@@ -391,7 +391,7 @@ export default function Dashboard({
           
           <div className="space-y-2 relative z-10">
             <span className="text-[10px] font-black text-slate-400 block tracking-wide">الديون المستحقة لي (عند الناس) 📥</span>
-            <h3 className="text-2xl font-black text-sky-600 tracking-tight">{formatCurrency(activeToMe, currency)}</h3>
+            <div className="text-2xl font-black text-sky-600 tracking-tight">{formatCurrency(activeToMe, currency)}</div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
               <span className="bg-sky-50 text-sky-700 font-extrabold px-2 py-0.5 rounded-lg border border-sky-100">
                 تم تحصيل {collectedToMeRatio}%
@@ -418,7 +418,7 @@ export default function Dashboard({
 
           <div className="space-y-2 relative z-10">
             <span className="text-[10px] font-black text-slate-400 block tracking-wide">الديون المطلوبة مني (للناس) 📤</span>
-            <h3 className="text-2xl font-black text-rose-600 tracking-tight">{formatCurrency(activeToOthers, currency)}</h3>
+            <div className="text-2xl font-black text-rose-600 tracking-tight">{formatCurrency(activeToOthers, currency)}</div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
               <span className="bg-rose-50 text-rose-700 font-extrabold px-2 py-0.5 rounded-lg border border-rose-100">
                 تم سداد {paidToOthersRatio}%
@@ -445,7 +445,7 @@ export default function Dashboard({
 
           <div className="space-y-2 relative z-10">
             <span className="text-[10px] font-black text-slate-400 block tracking-wide">مصاريف الشهر الحالي 💳</span>
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight">{formatCurrency(monthlyExpenses, currency)}</h3>
+            <div className="text-2xl font-black text-slate-800 tracking-tight">{formatCurrency(monthlyExpenses, currency)}</div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
               <span className="bg-slate-100 text-slate-700 font-extrabold px-2 py-0.5 rounded-lg border border-slate-200">
                 لشهر {formatDate(currentMonthStr + '-01').substring(3)}
@@ -473,9 +473,9 @@ export default function Dashboard({
           <div className="flex items-center justify-between mb-3 relative z-10">
             <div className="space-y-1">
               <span className="text-[10px] font-black text-slate-400 block tracking-wide">الميزانية المتبقية 💰</span>
-              <h3 className={`text-xl font-black ${remainingBudget < 0 ? 'text-rose-600 animate-pulse' : 'text-emerald-600'}`}>
+              <div className={`text-xl font-black ${remainingBudget < 0 ? 'text-rose-600 animate-pulse' : 'text-emerald-600'}`}>
                 {formatCurrency(remainingBudget, currency)}
-              </h3>
+              </div>
             </div>
             <div className={`p-2.5 rounded-xl shrink-0 relative z-10 ${remainingBudget < 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
               <Wallet className="w-4 h-4" />
@@ -509,10 +509,10 @@ export default function Dashboard({
       <div className="bg-slate-50/50 border border-slate-200/60 rounded-3xl p-6 space-y-6" id="dashboard-projects-reports-section">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1 text-right">
-            <h3 className="font-extrabold text-slate-800 text-lg flex items-center gap-2">
+            <h2 className="font-extrabold text-slate-800 text-lg flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-sky-600" />
               <span>تقارير أداء مشاريع العمل والرواتب 📊</span>
-            </h3>
+            </h2>
             <p className="text-xs text-slate-500 font-bold">تحليل مالي وموازنة كافّة المشاريع والرواتب ومصاريف التشغيل</p>
           </div>
           <button
@@ -757,7 +757,7 @@ export default function Dashboard({
         {/* Chart 1: Debts Comparison */}
         <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 lg:col-span-2 space-y-4" id="dashboard-chart-debt-compare">
           <div className="flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 text-base">مقارنة الديون الحالية</h3>
+            <h2 className="font-bold text-slate-800 text-base">مقارنة الديون الحالية</h2>
             <span className="text-xs text-slate-400">مقارنة الديون المترتبة والمستحقة</span>
           </div>
           <div className="h-64" id="debt-bar-chart-container">
@@ -784,7 +784,7 @@ export default function Dashboard({
         {/* Expense distribution sidebar */}
         <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4 flex flex-col justify-between" id="dashboard-chart-expenses-pie">
           <div className="space-y-1">
-            <h3 className="font-bold text-slate-800 text-base">توزيع مصاريف الشهر</h3>
+            <h2 className="font-bold text-slate-800 text-base">توزيع مصاريف الشهر</h2>
             <p className="text-xs text-slate-400">حسب فئات المصاريف المسجلة</p>
           </div>
 
@@ -841,7 +841,7 @@ export default function Dashboard({
       {/* Bottom Row: Recent Activities */}
       <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-100 space-y-4" id="dashboard-recent-activities">
         <div className="flex justify-between items-center">
-          <h3 className="font-bold text-slate-800 text-base">آخر الحركات والنشاطات</h3>
+          <h2 className="font-bold text-slate-800 text-base">آخر الحركات والنشاطات</h2>
           <span className="text-xs text-slate-400">آخر 5 عمليات مسجلة</span>
         </div>
 

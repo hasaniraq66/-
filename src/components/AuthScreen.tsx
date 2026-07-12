@@ -274,9 +274,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Full Name for signup */}
           {!isLogin && (
             <div className="space-y-1">
-              <label className="block text-xs font-black text-slate-300 text-right">الاسم الكامل</label>
+              <label htmlFor="auth-fullname" className="block text-xs font-black text-slate-300 text-right">الاسم الكامل</label>
               <div className="relative">
                 <input
+                  id="auth-fullname"
                   type="text"
                   required
                   value={fullName}
@@ -292,9 +293,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Email or Phone */}
           {authMethod === 'email' ? (
             <div className="space-y-1">
-              <label className="block text-xs font-black text-slate-300 text-right">البريد الإلكتروني</label>
+              <label htmlFor="auth-email" className="block text-xs font-black text-slate-300 text-right">البريد الإلكتروني</label>
               <div className="relative">
                 <input
+                  id="auth-email"
                   type="email"
                   required
                   value={email}
@@ -307,9 +309,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             </div>
           ) : (
             <div className="space-y-1">
-              <label className="block text-xs font-black text-slate-300 text-right">رقم الهاتف</label>
+              <label htmlFor="auth-phone" className="block text-xs font-black text-slate-300 text-right">رقم الهاتف</label>
               <div className="relative">
                 <input
+                  id="auth-phone"
                   type="tel"
                   required
                   value={phone}
@@ -324,9 +327,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
           {/* Password */}
           <div className="space-y-1">
-            <label className="block text-xs font-black text-slate-300 text-right">كلمة المرور</label>
+            <label htmlFor="auth-password" className="block text-xs font-black text-slate-300 text-right">كلمة المرور</label>
             <div className="relative">
               <input
+                id="auth-password"
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
@@ -338,6 +342,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                 className="absolute left-3 top-3.5 text-slate-400 hover:text-white"
               >
                 {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
@@ -348,8 +353,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Currency setting for signup */}
           {!isLogin && (
             <div className="space-y-1">
-              <label className="block text-xs font-black text-slate-300 text-right">العملة المفضلة</label>
+              <label htmlFor="auth-currency" className="block text-xs font-black text-slate-300 text-right">العملة المفضلة</label>
               <select
+                id="auth-currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
                 className="w-full text-right px-3 py-3 bg-[#090f1d] border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 text-white text-sm font-extrabold"
