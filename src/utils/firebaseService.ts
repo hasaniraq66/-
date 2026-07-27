@@ -9,17 +9,36 @@ import {
   getDocs, 
   deleteDoc,
   query,
-  enableMultiTabIndexedDbPersistence
+  enableMultiTabIndexedDbPersistence,
+  Firestore
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+
+function initFirestore(): Firestore | null {
+  const dbId = (firebaseConfig as any)?.firestoreDatabaseId;
+  if (dbId && dbId !== '(default)') {
+    try {
+      return getFirestore(app, dbId);
+    } catch (e) {
+      console.warn(`Failed to initialize Firestore with databaseId "${dbId}", trying default database:`, e);
+    }
+  }
+  try {
+    return getFirestore(app);
+  } catch (e) {
+    console.error("Failed to initialize Firestore:", e);
+    return null;
+  }
+}
+
+export const db = initFirestore();
 export const auth = getAuth(app);
 
 // Enable offline persistence to support offline mode and prevent connection error blockages
-if (typeof window !== 'undefined') {
+if (db && typeof window !== 'undefined') {
   enableMultiTabIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
       console.warn('Firestore multi-tab persistence failed-precondition (multiple tabs open)');
@@ -111,6 +130,7 @@ export interface UserProfile {
 }
 
 export const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  if (!db) return null;
   const path = `users/${userId}`;
   try {
     const userDoc = await getDoc(doc(db, 'users', userId));
@@ -125,6 +145,7 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
 };
 
 export const saveUserProfile = async (profile: UserProfile): Promise<void> => {
+  if (!db) return;
   const path = `users/${profile.userId}`;
   try {
     const cleaned = cleanUndefined(profile);
@@ -136,6 +157,7 @@ export const saveUserProfile = async (profile: UserProfile): Promise<void> => {
 
 // --- Generic Helpers for Subcollections ---
 export const fetchCollection = async <T>(userId: string, subcollection: string): Promise<T[]> => {
+  if (!db) return [];
   const path = `users/${userId}/${subcollection}`;
   try {
     const q = query(collection(db, 'users', userId, subcollection));
@@ -157,6 +179,7 @@ export const saveDocument = async <T extends { id?: string; month?: string }>(
   docId: string, 
   data: T
 ): Promise<void> => {
+  if (!db) return;
   const path = `users/${userId}/${subcollection}/${docId}`;
   try {
     const cleaned = cleanUndefined({
@@ -174,6 +197,7 @@ export const deleteDocument = async (
   subcollection: string, 
   docId: string
 ): Promise<void> => {
+  if (!db) return;
   const path = `users/${userId}/${subcollection}/${docId}`;
   try {
     await deleteDoc(doc(db, 'users', userId, subcollection, docId));

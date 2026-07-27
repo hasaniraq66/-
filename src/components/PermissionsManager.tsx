@@ -77,6 +77,10 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
   const loadSubUsers = async () => {
     setIsLoadingList(true);
     setError('');
+    if (!db) {
+      setIsLoadingList(false);
+      return;
+    }
     try {
       const q = query(collection(db, 'users', currentUserId, 'subUsers'));
       const querySnapshot = await getDocs(q);
@@ -135,6 +139,11 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
     }
     if (selectedTabs.length === 0) {
       setError('يجب تحديد صلاحية واحدة على الأقل للمساعد.');
+      return;
+    }
+
+    if (!db) {
+      setError('خدمة قاعدة البيانات غير متوفرة حالياً.');
       return;
     }
 
@@ -207,6 +216,11 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
       return;
     }
 
+    if (!db) {
+      setError('خدمة قاعدة البيانات غير متوفرة حالياً.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Update subuser's main profile
@@ -237,7 +251,7 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
     
     // Check with direct dialog
     const confirmDelete = window.confirm(`هل أنت متأكد من حذف حساب المساعد (${subUser.displayName})؟ سيتم سحب كافة الصلاحيات وإلغاء وصوله للنظام فوراً.`);
-    if (!confirmDelete) return;
+    if (!confirmDelete || !db) return;
 
     setIsSubmitting(true);
     const deleteOp = async () => {

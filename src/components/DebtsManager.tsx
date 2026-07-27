@@ -6,6 +6,9 @@ import {
   Edit3, 
   Check, 
   User, 
+  Users,
+  PlusCircle,
+  Contact,
   Calendar, 
   DollarSign, 
   FileText, 
@@ -16,11 +19,15 @@ import {
   ChevronUp, 
   PiggyBank, 
   ShieldAlert,
-  CreditCard
+  CreditCard,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Wallet
 } from 'lucide-react';
 import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
 import AttachmentSelector from './AttachmentSelector';
+import ConfirmModal from './ConfirmModal';
 
 interface DebtsManagerProps {
   debts: Debt[];
@@ -42,7 +49,7 @@ export default function DebtsManager({
   onDeleteInstallment,
 }: DebtsManagerProps) {
   // Tabs & Filters State
-  const [activeTab, setActiveTab] = useState<'all' | 'to_me' | 'to_others'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'to_me' | 'to_others' | 'accounts'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -87,10 +94,10 @@ export default function DebtsManager({
 
   const categories = ['شخصي', 'عائلي', 'عمل', 'تجاري', 'سلفة', 'أخرى'];
 
-  // Handle open add modal
-  const openAddModal = () => {
-    setPersonName('');
-    setType('to_me');
+  // Handle open add modal (accepts optional preset person name or preset debt type)
+  const openAddModal = (presetName = '', presetType: DebtType = 'to_me') => {
+    setPersonName(presetName);
+    setType(presetType);
     setAmount('');
     setDueDate('');
     setStartDate(getLocalDateString());
@@ -188,6 +195,105 @@ export default function DebtsManager({
     return debts.filter((d) => !d.projectId);
   }, [debts]);
 
+  // Compute unique people / accounts directory summary
+  const accountsSummary = useMemo(() => {
+    const map = new Map<string, {
+      personName: string;
+      totalToMe: number;
+      paidToMe: number;
+      totalToOthers: number;
+      paidToOthers: number;
+      debtCount: number;
+      activeCount: number;
+      debts: Debt[];
+    }>();
+
+    nonProjectDebts.forEach((debt) => {
+      const nameKey = debt.personName.trim().toLowerCase();
+      if (!map.has(nameKey)) {
+        map.set(nameKey, {
+          personName: debt.personName.trim(),
+          totalToMe: 0,
+          paidToMe: 0,
+          totalToOthers: 0,
+          paidToOthers: 0,
+          debtCount: 0,
+          activeCount: 0,
+          debts: []
+        });
+      }
+      const entry = map.get(nameKey)!;
+      entry.debtCount += 1;
+      if (debt.status !== 'paid') {
+        entry.activeCount += 1;
+      }
+      entry.debts.push(debt);
+      if (debt.type === 'to_me') {
+        entry.totalToMe += debt.amount;
+        entry.paidToMe += debt.paidAmount;
+      } else {
+        entry.totalToOthers += debt.amount;
+        entry.paidToOthers += debt.paidAmount;
+      }
+    });
+
+    return Array.from(map.values()).map((acc) => {
+      const remToMe = acc.totalToMe - acc.paidToMe;
+      const remToOthers = acc.totalToOthers - acc.paidToOthers;
+      // Net balance: positive = he owes us net (to_me > to_others), negative = we owe him net
+      const netBalance = remToMe - remToOthers;
+      return {
+        ...acc,
+        remToMe,
+        remToOthers,
+        netBalance
+      };
+    }).sort((a, b) => b.debtCount - a.debtCount);
+  }, [nonProjectDebts]);
+
+  const existingPersonNames = useMemo(() => {
+    return Array.from(new Set(nonProjectDebts.map(d => d.personName.trim()))).filter(Boolean);
+  }, [nonProjectDebts]);
+
+  // Generate WhatsApp Account Statement
+  const generateAccountWhatsAppLink = (accName: string, accDebts: Debt[]) => {
+    let msg = `*كشف حساب الديون والالتزامات*\n`;
+    msg += `👤 *الطرف الثاني:* ${accName}\n`;
+    msg += `📅 *تاريخ التقرير:* ${formatDate(getLocalDateString())}\n\n`;
+    msg += `*التفاصيل والسجلات:*\n`;
+
+    let totalToMeRem = 0;
+    let totalToOthersRem = 0;
+
+    accDebts.forEach((d, idx) => {
+      const rem = d.amount - d.paidAmount;
+      if (d.type === 'to_me') totalToMeRem += rem;
+      else totalToOthersRem += rem;
+
+      const typeStr = d.type === 'to_me' ? '📥 مستحق لك' : '📤 مستحق عليك';
+      const statusStr = d.status === 'paid' ? '✅ مسدد' : d.status === 'partial' ? '⏳ مسدد جزئياً' : '🔴 غير مسدد';
+      
+      msg += `${idx + 1}. ${typeStr} - ${formatCurrency(d.amount, currency)} (${statusStr})\n`;
+      msg += `   المتبقي: ${formatCurrency(rem, currency)} | تاريخ الاستحقاق: ${formatDate(d.dueDate)}\n`;
+      if (d.description) msg += `   ملاحظة: ${d.description}\n`;
+      msg += `\n`;
+    });
+
+    const net = totalToMeRem - totalToOthersRem;
+    msg += `-----------------------------------\n`;
+    msg += `📊 *إجمالي المستحق لك:* ${formatCurrency(totalToMeRem, currency)}\n`;
+    msg += `📊 *إجمالي الالتزامات عليك:* ${formatCurrency(totalToOthersRem, currency)}\n`;
+    if (net > 0) {
+      msg += `💰 *الصافي المطلوب منه:* ${formatCurrency(net, currency)}\n`;
+    } else if (net < 0) {
+      msg += `💸 *الصافي المطلوب منك له:* ${formatCurrency(Math.abs(net), currency)}\n`;
+    } else {
+      msg += `✅ *الصافي:* الحساب متوازن ومسدد بالكامل\n`;
+    }
+
+    return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  };
+
   // Filter debts
   const filteredDebts = useMemo(() => {
     return nonProjectDebts.filter((d) => {
@@ -223,7 +329,7 @@ export default function DebtsManager({
         </div>
         <button
           id="add-debt-main-btn"
-          onClick={openAddModal}
+          onClick={() => openAddModal()}
           className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-white text-sm font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />
@@ -234,11 +340,11 @@ export default function DebtsManager({
       {/* Tabs and Filters Control */}
       <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 space-y-4" id="debts-filters-panel">
         {/* Row 1: Primary Tabs */}
-        <div className="flex border-b border-slate-100 pb-2" id="debts-type-tabs">
+        <div className="flex border-b border-slate-100 pb-2 overflow-x-auto gap-1" id="debts-type-tabs">
           <button
             id="tab-all-debts"
             onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 text-sm font-bold transition-all relative ${
+            className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap relative ${
               activeTab === 'all' 
                 ? 'text-sky-600 border-b-2 border-sky-600' 
                 : 'text-slate-400 hover:text-slate-600'
@@ -249,75 +355,277 @@ export default function DebtsManager({
           <button
             id="tab-to-me-debts"
             onClick={() => setActiveTab('to_me')}
-            className={`px-4 py-2 text-sm font-bold transition-all relative ${
+            className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap relative ${
               activeTab === 'to_me' 
                 ? 'text-sky-600 border-b-2 border-sky-600' 
                 : 'text-slate-400 hover:text-slate-600'
             }`}
           >
-            ديون لي (مستحقات عند الآخرين) ({nonProjectDebts.filter(d => d.type === 'to_me').length})
+            ديون لي ({nonProjectDebts.filter(d => d.type === 'to_me').length})
           </button>
           <button
             id="tab-to-others-debts"
             onClick={() => setActiveTab('to_others')}
-            className={`px-4 py-2 text-sm font-bold transition-all relative ${
+            className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap relative ${
               activeTab === 'to_others' 
                 ? 'text-sky-600 border-b-2 border-sky-600' 
                 : 'text-slate-400 hover:text-slate-600'
             }`}
           >
-            ديون علي (التزامات للآخرين) ({nonProjectDebts.filter(d => d.type === 'to_others').length})
+            ديون علي ({nonProjectDebts.filter(d => d.type === 'to_others').length})
+          </button>
+          <button
+            id="tab-accounts-directory"
+            onClick={() => setActiveTab('accounts')}
+            className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 relative ${
+              activeTab === 'accounts' 
+                ? 'text-sky-600 border-b-2 border-sky-600 font-extrabold' 
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Users className="w-4 h-4 text-sky-600" />
+            <span>دليل الحسابات والأشخاص ({accountsSummary.length})</span>
           </button>
         </div>
 
-        {/* Row 2: Secondary Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" id="debts-sub-filters">
-          {/* Search bar */}
-          <div className="relative" id="filter-search-container">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-            <input
-              id="debt-search-input"
-              type="text"
-              placeholder="ابحث بالاسم أو التفاصيل..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"
-            />
+        {/* Row 2: Quick Accounts / People Selector Bar */}
+        {existingPersonNames.length > 0 && activeTab !== 'accounts' && (
+          <div className="pt-2 border-t border-slate-50 space-y-2">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-slate-500 font-bold flex items-center gap-1">
+                <Users className="w-3.5 h-3.5 text-sky-600" />
+                <span>سجل الحسابات والعملاء (انقر لإضافة دين إضافي مباشرة):</span>
+              </span>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="text-slate-400 hover:text-rose-600 text-[10px] font-bold cursor-pointer"
+                >
+                  إلغاء التصفية ✕
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+              {accountsSummary.map((acc) => {
+                const isSelected = searchTerm.toLowerCase() === acc.personName.toLowerCase();
+                return (
+                  <div
+                    key={acc.personName}
+                    className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border ${
+                      isSelected 
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-2xs' 
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <button
+                      onClick={() => setSearchTerm(acc.personName)}
+                      className="flex items-center gap-1 cursor-pointer"
+                    >
+                      <User className="w-3 h-3 opacity-70" />
+                      <span>{acc.personName}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                        isSelected ? 'bg-sky-700 text-sky-100' : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {acc.debtCount}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => openAddModal(acc.personName)}
+                      className={`p-0.5 rounded-lg transition-colors cursor-pointer ${
+                        isSelected 
+                          ? 'bg-sky-500 hover:bg-sky-400 text-white' 
+                          : 'bg-sky-100 hover:bg-sky-200 text-sky-700'
+                      }`}
+                      title={`إضافة دين إضافي لـ ${acc.personName}`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        )}
 
-          {/* Status Select */}
-          <div className="flex items-center gap-2" id="filter-status-container">
-            <span className="text-xs text-slate-400 shrink-0">الحالة:</span>
-            <select
-              id="debt-status-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
-            >
-              <option value="all">الكل</option>
-              <option value="unpaid">غير مسددة</option>
-              <option value="partial">مسددة جزئياً</option>
-              <option value="paid">مسددة بالكامل</option>
-            </select>
-          </div>
+        {/* Row 3: Secondary Filters */}
+        {activeTab !== 'accounts' && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" id="debts-sub-filters">
+            {/* Search bar */}
+            <div className="relative" id="filter-search-container">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+              <input
+                id="debt-search-input"
+                type="text"
+                placeholder="ابحث بالاسم أو التفاصيل..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"
+              />
+            </div>
 
-          {/* Category Select */}
-          <div className="flex items-center gap-2" id="filter-category-container">
-            <span className="text-xs text-slate-400 shrink-0">الفئة:</span>
-            <select
-              id="debt-category-select"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
-            >
-              <option value="all">الكل</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            {/* Status Select */}
+            <div className="flex items-center gap-2" id="filter-status-container">
+              <span className="text-xs text-slate-400 shrink-0">الحالة:</span>
+              <select
+                id="debt-status-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
+              >
+                <option value="all">الكل</option>
+                <option value="unpaid">غير مسددة</option>
+                <option value="partial">مسددة جزئياً</option>
+                <option value="paid">مسددة بالكامل</option>
+              </select>
+            </div>
+
+            {/* Category Select */}
+            <div className="flex items-center gap-2" id="filter-category-container">
+              <span className="text-xs text-slate-400 shrink-0">الفئة:</span>
+              <select
+                id="debt-category-select"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
+              >
+                <option value="all">الكل</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Accounts Directory Tab View */}
+      {activeTab === 'accounts' && (
+        <div className="space-y-4" id="accounts-directory-section">
+          {/* Header Banner */}
+          <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="space-y-1">
+              <h2 className="text-base md:text-lg font-black flex items-center gap-2">
+                <Users className="w-5 h-5 text-sky-400" />
+                <span>دليل وسجل حسابات الأشخاص والجهات 👥</span>
+              </h2>
+              <p className="text-xs text-slate-300">
+                إدارة شاملة لجميع المتعاملين معك، مع إمكانية إضافة دين جديد إضافي لأي شخص ومتابعة صافي حسابه بنقرة واحدة.
+              </p>
+            </div>
+            <button
+              onClick={() => openAddModal()}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة حساب / دين جديد</span>
+            </button>
+          </div>
+
+          {/* Accounts Grid */}
+          {accountsSummary.length === 0 ? (
+            <div className="bg-white p-12 rounded-2xl text-center border border-slate-100 text-slate-400 space-y-2">
+              <Users className="w-12 h-12 mx-auto text-slate-200" />
+              <h3 className="font-bold text-slate-700">لا توجد حسابات مسجلة بعد</h3>
+              <p className="text-xs max-w-sm mx-auto">عند تسجيل أول دين باسم شخص أو جهة، سيتم إنشاء حساب تلقائي له هنا لمتابعة كافة ديونه بدقة.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {accountsSummary.map((acc) => {
+                return (
+                  <div
+                    key={acc.personName}
+                    className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4 flex flex-col justify-between hover:border-sky-300 transition-all"
+                  >
+                    <div className="space-y-3">
+                      {/* Card Header */}
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2.5 bg-sky-50 text-sky-700 rounded-xl border border-sky-100 shrink-0 font-black">
+                            <User className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-slate-800 text-sm">{acc.personName}</h3>
+                            <span className="text-[10px] text-slate-400 font-bold block">
+                              إجمالي السجلات: {acc.debtCount} (النشطة: {acc.activeCount})
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Net Position Badge */}
+                        <div>
+                          {acc.netBalance > 0 ? (
+                            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-black block">
+                              مطلوب منه: +{formatCurrency(acc.netBalance, currency)}
+                            </span>
+                          ) : acc.netBalance < 0 ? (
+                            <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[10px] font-black block">
+                              مستحق له: {formatCurrency(Math.abs(acc.netBalance), currency)}
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-black block">
+                              خالي / مسدد
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Breakdown Box */}
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl text-center text-xs">
+                        <div className="space-y-0.5 border-l border-slate-200 pl-2">
+                          <span className="block text-[10px] text-slate-400 font-bold">ديون له عنده (لك) 📥</span>
+                          <span className="font-extrabold text-sky-700 block">
+                            {formatCurrency(acc.remToMe, currency)}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5 pr-2">
+                          <span className="block text-[10px] text-slate-400 font-bold">ديون عليك له (عليك) 📤</span>
+                          <span className="font-extrabold text-rose-700 block">
+                            {formatCurrency(acc.remToOthers, currency)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <button
+                        onClick={() => openAddModal(acc.personName)}
+                        className="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>+ إضافة دين إضافي لهذا الشخص</span>
+                      </button>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            setActiveTab('all');
+                            setSearchTerm(acc.personName);
+                          }}
+                          className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-slate-500" />
+                          <span>سجل الديون ({acc.debtCount})</span>
+                        </button>
+
+                        <a
+                          href={generateAccountWhatsAppLink(acc.personName, acc.debts)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>كشف حساب</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Debts List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="debts-list-grid">
@@ -463,6 +771,16 @@ export default function DebtsManager({
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   {/* Action row 1: Primary features */}
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      id={`btn-add-extra-debt-${debt.id}`}
+                      onClick={() => openAddModal(debt.personName, debt.type)}
+                      className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-sky-200/60"
+                      title={`إضافة دين جديد إضافي لـ ${debt.personName}`}
+                    >
+                      <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
+                      <span>+ دين إضافي</span>
+                    </button>
+
                     {debt.status !== 'paid' && (
                       <button
                         id={`btn-record-payment-${debt.id}`}
@@ -605,12 +923,40 @@ export default function DebtsManager({
                   <input
                     type="text"
                     required
+                    list="existing-people-list"
                     placeholder="مثال: أحمد العبدالله، شركة الكهرباء..."
                     value={personName}
                     onChange={(e) => setPersonName(e.target.value)}
                     className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
                   />
+                  <datalist id="existing-people-list">
+                    {existingPersonNames.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
                 </div>
+
+                {existingPersonNames.length > 0 && (
+                  <div className="pt-1 space-y-1">
+                    <span className="text-[10px] text-slate-400 block font-bold">أو اختر من الحسابات والعملاء المسجلين:</span>
+                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                      {existingPersonNames.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setPersonName(name)}
+                          className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                            personName === name
+                              ? 'bg-sky-600 text-white'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Amount and Category */}
