@@ -314,4 +314,29 @@ input[type="date"] {
   min-height: 38px;
 }
 
+/* Print CSS rules for crisp PDF and Paper Printing */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #pdf-report-content, #pdf-report-content * {
+    visibility: visible;
+  }
+  #pdf-report-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 20px !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  #export-reports-modal {
+    display: none !important;
+  }
+}
+
 

@@ -28,7 +28,8 @@ import {
   Download,
   Loader2,
   X,
-  FileText
+  FileText,
+  Printer
 } from 'lucide-react';
 import { Debt, Expense, Budget } from '../types';
 import { formatCurrency, formatDate, getCurrentMonthString, getLocalDateString } from '../utils';
@@ -46,19 +47,25 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthString());
   const [activePieIndex, setActivePieIndex] = useState<number | null>(null);
   const [activeBarIndex, setActiveBarIndex] = useState<number | null>(null);
+  const [debtChartMode, setDebtChartMode] = useState<'paid_vs_required' | 'type_breakdown'>('paid_vs_required');
 
   // Custom interactive Tooltips for professional, high-fidelity UI/UX
   const CustomPieTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const value = payload[0].value;
+      const entry = payload[0];
+      const value = entry.value;
       const total = expensesCategoryData.reduce((sum, item) => sum + item.value, 0);
-      const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+      const color = entry.payload.fill || entry.color || '#0284c7';
       return (
-        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800/80 shadow-2xl text-right text-xs space-y-1.5 font-bold select-none min-w-[150px] transition-all duration-150">
-          <p className="text-slate-400 font-semibold text-[10px]">{payload[0].name}</p>
+        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-slate-800/80 shadow-2xl text-right text-xs space-y-2 font-bold select-none min-w-[170px] transition-all duration-150">
+          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-1.5">
+            <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0 shadow-xs" style={{ backgroundColor: color }} />
+            <p className="text-slate-200 font-bold text-xs">{entry.name}</p>
+          </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-emerald-400 font-black text-sm">{formatCurrency(value, currency)}</span>
-            <span className="text-sky-400 text-[9px] bg-sky-500/10 px-2 py-0.5 rounded-lg border border-sky-500/20 font-extrabold">{percentage}%</span>
+            <span className="text-sky-300 text-[10px] bg-sky-500/20 px-2 py-0.5 rounded-lg border border-sky-500/30 font-black">{percentage}%</span>
           </div>
         </div>
       );
@@ -264,6 +271,11 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
     }
   };
 
+  // Direct print function using browser print API
+  const handleDirectPrint = () => {
+    window.print();
+  };
+
   // Available months list based on expenses & budgets
   const availableMonths = useMemo(() => {
     const monthsSet = new Set<string>();
@@ -322,6 +334,41 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
     });
 
     return Object.values(people).slice(0, 10); // Show top 10 people
+  }, [debts]);
+
+  // Active Debts: Required vs Paid per Person
+  const debtsActivePaidData = useMemo(() => {
+    const peopleMap = new Map<string, {
+      name: string;
+      'إجمالي المطلوب': number;
+      'المسدد': number;
+      'المتبقي': number;
+    }>();
+
+    debts.forEach(d => {
+      if (d.projectId) return; // Exclude project debts
+      const remaining = d.amount - d.paidAmount;
+      if (remaining <= 0 && d.status === 'paid') return; // Only active/pending debts
+
+      const name = d.personName.trim();
+      if (!peopleMap.has(name)) {
+        peopleMap.set(name, {
+          name,
+          'إجمالي المطلوب': 0,
+          'المسدد': 0,
+          'المتبقي': 0,
+        });
+      }
+      const entry = peopleMap.get(name)!;
+      entry['إجمالي المطلوب'] += d.amount;
+      entry['المسدد'] += d.paidAmount;
+      entry['المتبقي'] += Math.max(0, remaining);
+    });
+
+    return Array.from(peopleMap.values())
+      .filter(item => item['إجمالي المطلوب'] > 0)
+      .sort((a, b) => b['إجمالي المطلوب'] - a['إجمالي المطلوب'])
+      .slice(0, 10);
   }, [debts]);
 
   // Total debt summaries (excluding project-related debts)
@@ -458,112 +505,328 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
                 <span>لا توجد مصاريف مسجلة لهذا الشهر لعرض تقريرها البياني.</span>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={expensesCategoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                    isAnimationActive={true}
-                    animationDuration={800}
-                    animationEasing="ease-out"
-                  >
-                    {expensesCategoryData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={COLORS[index % COLORS.length]} 
-                        opacity={activePieIndex === null ? 1 : activePieIndex === index ? 1 : 0.65}
-                        onMouseEnter={() => setActivePieIndex(index)}
-                        onMouseLeave={() => setActivePieIndex(null)}
-                        style={{
-                          transform: activePieIndex === index ? 'scale(1.05)' : 'scale(1)',
-                          transformOrigin: '50% 50%',
-                          transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomPieTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <>
+                {/* Donut Center Summary Badge */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-7">
+                  <span className="text-[10px] text-slate-400 font-bold">إجمالي المصاريف</span>
+                  <span className="text-xs font-black text-slate-800">{formatCurrency(totalSpent, currency)}</span>
+                </div>
+
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={expensesCategoryData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={58}
+                      outerRadius={82}
+                      paddingAngle={4}
+                      dataKey="value"
+                      isAnimationActive={true}
+                      animationDuration={800}
+                      animationEasing="ease-out"
+                      labelLine={false}
+                      label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+                        if (percent < 0.06) return null;
+                        const RADIAN = Math.PI / 180;
+                        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                        return (
+                          <text 
+                            x={x} 
+                            y={y} 
+                            fill="#ffffff" 
+                            textAnchor="middle" 
+                            dominantBaseline="central"
+                            fontSize={10}
+                            fontWeight={900}
+                          >
+                            {`${(percent * 100).toFixed(0)}%`}
+                          </text>
+                        );
+                      }}
+                    >
+                      {expensesCategoryData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={COLORS[index % COLORS.length]} 
+                          opacity={activePieIndex === null ? 1 : activePieIndex === index ? 1 : 0.55}
+                          onMouseEnter={() => setActivePieIndex(index)}
+                          onMouseLeave={() => setActivePieIndex(null)}
+                          style={{
+                            transform: activePieIndex === index ? 'scale(1.06)' : 'scale(1)',
+                            transformOrigin: '50% 50%',
+                            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomPieTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </>
             )}
           </div>
+
+          {/* Interactive Category Breakdown List */}
+          {expensesCategoryData.length > 0 && (
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">توزيع النسب حسب الفئات:</span>
+                <span className="text-[10px] text-slate-400 font-semibold">{expensesCategoryData.length} فئات</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {expensesCategoryData.map((item, idx) => {
+                  const pct = totalSpent > 0 ? ((item.value / totalSpent) * 100).toFixed(1) : '0';
+                  const color = COLORS[idx % COLORS.length];
+                  return (
+                    <div 
+                      key={item.name}
+                      onMouseEnter={() => setActivePieIndex(idx)}
+                      onMouseLeave={() => setActivePieIndex(null)}
+                      className={`p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between text-xs gap-1.5 ${
+                        activePieIndex === idx 
+                          ? 'bg-sky-50/80 border-sky-300 shadow-2xs font-bold scale-[1.01]' 
+                          : 'bg-slate-50/70 border-slate-100 hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: color }} />
+                          <span className="font-bold text-slate-800 text-[11px] truncate">{item.name}</span>
+                        </div>
+                        <span className="font-extrabold text-slate-900 text-[11px] shrink-0">{formatCurrency(item.value, currency)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200/80 h-1.5 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+                        </div>
+                        <span className="text-[10px] font-extrabold text-slate-600 shrink-0">{pct}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Card 2: Debt Per Person Bar Chart */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4 shadow-3xs" id="reports-debt-by-person-card">
-          <div className="flex items-center justify-between border-b border-slate-50 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-50 pb-3 gap-2">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-sky-600" />
-              <h3 className="font-bold text-slate-800 text-sm">مستحقات الديون النشطة حسب الشخص</h3>
+              <h3 className="font-bold text-slate-800 text-sm">مخطط ديون الأشخاص النشطة</h3>
             </div>
-            <span className="text-[10px] text-slate-400">أعلى 10 أشخاص معلقين</span>
+            
+            {/* View Mode Switcher for Debts Chart */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl self-start sm:self-auto text-xs">
+              <button
+                type="button"
+                onClick={() => setDebtChartMode('paid_vs_required')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  debtChartMode === 'paid_vs_required'
+                    ? 'bg-sky-600 text-white shadow-2xs font-extrabold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📊 المطلوب مقابل المسدد
+              </button>
+              <button
+                type="button"
+                onClick={() => setDebtChartMode('type_breakdown')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  debtChartMode === 'type_breakdown'
+                    ? 'bg-sky-600 text-white shadow-2xs font-extrabold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ⚖️ حسب نوع الدين (لي/علي)
+              </button>
+            </div>
           </div>
 
           <div className="h-64" id="reports-bar-chart-container">
-            {debtsByPersonData.length === 0 ? (
-              <div className="text-center text-slate-400 text-xs py-12 flex flex-col items-center gap-2">
-                <Users className="w-10 h-10 text-slate-200" />
-                <span>لا توجد ديون نشطة (متبقية) مسجلة حالياً لعرض تفصيل الأشخاص.</span>
-              </div>
+            {debtChartMode === 'paid_vs_required' ? (
+              debtsActivePaidData.length === 0 ? (
+                <div className="text-center text-slate-400 text-xs py-12 flex flex-col items-center gap-2">
+                  <Users className="w-10 h-10 text-slate-200" />
+                  <span>لا توجد ديون نشطة معلقة حالياً لعرض مقارنة المطلوب والمسدد.</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={debtsActivePaidData} 
+                    margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                    onMouseMove={(state) => {
+                      if (state && typeof state.activeTooltipIndex === 'number') {
+                        setActiveBarIndex(state.activeTooltipIndex);
+                      } else {
+                        setActiveBarIndex(null);
+                      }
+                    }}
+                    onMouseLeave={() => setActiveBarIndex(null)}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dy={4} />
+                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-4} />
+                    <Tooltip 
+                      content={<CustomBarTooltip />} 
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.08)', radius: 6 }} 
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                    <Bar dataKey="إجمالي المطلوب" fill="#0284c7" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
+                      {debtsActivePaidData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-req-${index}`} 
+                          fill="#0284c7"
+                          opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="المسدد" fill="#10b981" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
+                      {debtsActivePaidData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-paid-${index}`} 
+                          fill="#10b981"
+                          opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="المتبقي" fill="#f59e0b" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
+                      {debtsActivePaidData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-rem-${index}`} 
+                          fill="#f59e0b"
+                          opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={debtsByPersonData} 
-                  margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
-                  onMouseMove={(state) => {
-                    if (state && typeof state.activeTooltipIndex === 'number') {
-                      setActiveBarIndex(state.activeTooltipIndex);
-                    } else {
-                      setActiveBarIndex(null);
-                    }
-                  }}
-                  onMouseLeave={() => setActiveBarIndex(null)}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dy={4} />
-                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-4} />
-                  <Tooltip 
-                    content={<CustomBarTooltip />} 
-                    cursor={{ fill: 'rgba(148, 163, 184, 0.08)', radius: 6 }} 
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                  <Bar dataKey="أطلبهم (لي)" fill="#0284c7" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
-                    {debtsByPersonData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-to-me-${index}`} 
-                        fill="#0284c7"
-                        opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
-                        style={{
-                          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="يطلبوني (علي)" fill="#ef4444" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
-                    {debtsByPersonData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-to-others-${index}`} 
-                        fill="#ef4444"
-                        opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
-                        style={{
-                          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              debtsByPersonData.length === 0 ? (
+                <div className="text-center text-slate-400 text-xs py-12 flex flex-col items-center gap-2">
+                  <Users className="w-10 h-10 text-slate-200" />
+                  <span>لا توجد ديون نشطة (متبقية) مسجلة حالياً لعرض تفصيل الأشخاص.</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={debtsByPersonData} 
+                    margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                    onMouseMove={(state) => {
+                      if (state && typeof state.activeTooltipIndex === 'number') {
+                        setActiveBarIndex(state.activeTooltipIndex);
+                      } else {
+                        setActiveBarIndex(null);
+                      }
+                    }}
+                    onMouseLeave={() => setActiveBarIndex(null)}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dy={4} />
+                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-4} />
+                    <Tooltip 
+                      content={<CustomBarTooltip />} 
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.08)', radius: 6 }} 
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                    <Bar dataKey="أطلبهم (لي)" fill="#0284c7" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
+                      {debtsByPersonData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-to-me-${index}`} 
+                          fill="#0284c7"
+                          opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="يطلبوني (علي)" fill="#ef4444" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out">
+                      {debtsByPersonData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-to-others-${index}`} 
+                          fill="#ef4444"
+                          opacity={activeBarIndex === null || activeBarIndex === index ? 1 : 0.4}
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )
             )}
           </div>
+
+          {/* Interactive Person Progress List */}
+          {debtChartMode === 'paid_vs_required' && debtsActivePaidData.length > 0 && (
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">نسبة سداد الديون النشطة لكل شخص:</span>
+                <span className="text-[10px] text-slate-400 font-semibold">{debtsActivePaidData.length} أشخاص</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {debtsActivePaidData.map((person, idx) => {
+                  const req = person['إجمالي المطلوب'];
+                  const paid = person['المسدد'];
+                  const rem = person['المتبقي'];
+                  const pct = req > 0 ? Math.min(100, Math.round((paid / req) * 100)) : 0;
+                  return (
+                    <div 
+                      key={person.name}
+                      onMouseEnter={() => setActiveBarIndex(idx)}
+                      onMouseLeave={() => setActiveBarIndex(null)}
+                      className={`p-2.5 rounded-xl border transition-all text-xs space-y-1.5 ${
+                        activeBarIndex === idx
+                          ? 'bg-sky-50/80 border-sky-300 shadow-2xs font-bold scale-[1.01]'
+                          : 'bg-slate-50/70 border-slate-100 hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-slate-800">
+                        <span className="truncate">{person.name}</span>
+                        <span className="text-sky-700 font-extrabold">{formatCurrency(req, currency)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                        <span className="text-emerald-600 font-bold">مسدد: {formatCurrency(paid, currency)}</span>
+                        <span className="text-amber-600 font-bold">متبقي: {formatCurrency(rem, currency)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                            style={{ width: `${pct}%` }} 
+                          />
+                        </div>
+                        <span className="text-[10px] font-black text-slate-600 shrink-0">{pct}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -708,18 +971,27 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
             </div>
 
             {/* Modal Actions */}
-            <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end">
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex flex-wrap gap-2.5 justify-end">
               <button
                 onClick={() => setShowExportModal(false)}
                 disabled={isExporting}
-                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50 text-xs"
               >
                 إلغاء
               </button>
               <button
+                type="button"
+                onClick={handleDirectPrint}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-colors cursor-pointer text-xs shadow-2xs"
+              >
+                <Printer className="w-4 h-4" />
+                <span>طباعة مباشرة</span>
+              </button>
+              <button
                 onClick={generatePDF}
                 disabled={isExporting}
-                className="flex items-center gap-2 px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50 text-xs shadow-2xs"
               >
                 {isExporting ? (
                   <>
@@ -729,7 +1001,7 @@ export default function Reports({ debts, expenses, budgets, currency }: ReportsP
                 ) : (
                   <>
                     <Download className="w-4 h-4" />
-                    <span>تحميل PDF</span>
+                    <span>تصدير وحفظ PDF</span>
                   </>
                 )}
               </button>

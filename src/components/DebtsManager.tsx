@@ -71,6 +71,10 @@ export default function DebtsManager({
   // Selected item for Edit/Payment
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
 
+  // Selected Person Account for Detailed Ledger View Modal
+  const [selectedAccountPerson, setSelectedAccountPerson] = useState<string | null>(null);
+  const [displayGroupedByAccount, setDisplayGroupedByAccount] = useState<boolean>(true);
+
   // Attachment states for the modals
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState('');
@@ -319,6 +323,72 @@ export default function DebtsManager({
     });
   }, [nonProjectDebts, activeTab, searchTerm, statusFilter, categoryFilter]);
 
+  // Group filtered debts by Person / Account
+  const groupedAccounts = useMemo(() => {
+    const map = new Map<string, {
+      personName: string;
+      totalToMe: number;
+      paidToMe: number;
+      remToMe: number;
+      totalToOthers: number;
+      paidToOthers: number;
+      remToOthers: number;
+      totalAmount: number;
+      paidAmount: number;
+      remAmount: number;
+      netBalance: number;
+      debtCount: number;
+      activeCount: number;
+      debts: Debt[];
+    }>();
+
+    filteredDebts.forEach((debt) => {
+      const key = debt.personName.trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          personName: debt.personName.trim(),
+          totalToMe: 0,
+          paidToMe: 0,
+          remToMe: 0,
+          totalToOthers: 0,
+          paidToOthers: 0,
+          remToOthers: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+          remAmount: 0,
+          netBalance: 0,
+          debtCount: 0,
+          activeCount: 0,
+          debts: []
+        });
+      }
+      const entry = map.get(key)!;
+      entry.debtCount += 1;
+      if (debt.status !== 'paid') {
+        entry.activeCount += 1;
+      }
+      entry.debts.push(debt);
+      
+      entry.totalAmount += debt.amount;
+      entry.paidAmount += debt.paidAmount;
+      const rem = debt.amount - debt.paidAmount;
+      entry.remAmount += rem;
+
+      if (debt.type === 'to_me') {
+        entry.totalToMe += debt.amount;
+        entry.paidToMe += debt.paidAmount;
+        entry.remToMe += rem;
+      } else {
+        entry.totalToOthers += debt.amount;
+        entry.paidToOthers += debt.paidAmount;
+        entry.remToOthers += rem;
+      }
+      entry.netBalance = entry.remToMe - entry.remToOthers;
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.debtCount - a.debtCount);
+  }, [filteredDebts]);
+
   return (
     <div className="space-y-6" id="debts-viewport">
       {/* Page Header */}
@@ -449,52 +519,86 @@ export default function DebtsManager({
 
         {/* Row 3: Secondary Filters */}
         {activeTab !== 'accounts' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" id="debts-sub-filters">
-            {/* Search bar */}
-            <div className="relative" id="filter-search-container">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-              <input
-                id="debt-search-input"
-                type="text"
-                placeholder="ابحث بالاسم أو التفاصيل..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"
-              />
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" id="debts-sub-filters">
+              {/* Search bar */}
+              <div className="relative" id="filter-search-container">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                <input
+                  id="debt-search-input"
+                  type="text"
+                  placeholder="ابحث بالاسم أو التفاصيل..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"
+                />
+              </div>
+
+              {/* Status Select */}
+              <div className="flex items-center gap-2" id="filter-status-container">
+                <span className="text-xs text-slate-400 shrink-0">الحالة:</span>
+                <select
+                  id="debt-status-select"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
+                >
+                  <option value="all">الكل</option>
+                  <option value="unpaid">غير مسددة</option>
+                  <option value="partial">مسددة جزئياً</option>
+                  <option value="paid">مسددة بالكامل</option>
+                </select>
+              </div>
+
+              {/* Category Select */}
+              <div className="flex items-center gap-2" id="filter-category-container">
+                <span className="text-xs text-slate-400 shrink-0">الفئة:</span>
+                <select
+                  id="debt-category-select"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
+                >
+                  <option value="all">الكل</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* Status Select */}
-            <div className="flex items-center gap-2" id="filter-status-container">
-              <span className="text-xs text-slate-400 shrink-0">الحالة:</span>
-              <select
-                id="debt-status-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
-              >
-                <option value="all">الكل</option>
-                <option value="unpaid">غير مسددة</option>
-                <option value="partial">مسددة جزئياً</option>
-                <option value="paid">مسددة بالكامل</option>
-              </select>
+            {/* View Mode Switcher in filter panel */}
+            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-sky-600" />
+                <span>نمط عرض الديون:</span>
+              </span>
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setDisplayGroupedByAccount(true)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    displayGroupedByAccount
+                      ? 'bg-sky-600 text-white shadow-2xs font-extrabold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  👥 حساب موحد لكل شخص ({groupedAccounts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDisplayGroupedByAccount(false)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    !displayGroupedByAccount
+                      ? 'bg-sky-600 text-white shadow-2xs font-extrabold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  📄 قائمة البنود المفردة ({filteredDebts.length})
+                </button>
+              </div>
             </div>
-
-            {/* Category Select */}
-            <div className="flex items-center gap-2" id="filter-category-container">
-              <span className="text-xs text-slate-400 shrink-0">الفئة:</span>
-              <select
-                id="debt-category-select"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
-              >
-                <option value="all">الكل</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -599,13 +703,12 @@ export default function DebtsManager({
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => {
-                            setActiveTab('all');
-                            setSearchTerm(acc.personName);
+                            setSelectedAccountPerson(acc.personName);
                           }}
-                          className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                          className="py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/60 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
                         >
-                          <FileText className="w-3.5 h-3.5 text-slate-500" />
-                          <span>سجل الديون ({acc.debtCount})</span>
+                          <FileText className="w-3.5 h-3.5 text-sky-600" />
+                          <span>تفاصيل الحساب ({acc.debtCount})</span>
                         </button>
 
                         <a
@@ -627,8 +730,110 @@ export default function DebtsManager({
         </div>
       )}
 
-      {/* Debts List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="debts-list-grid">
+      {/* Debts List View */}
+      {activeTab !== 'accounts' && (
+        displayGroupedByAccount ? (
+          /* Grouped Person Account Cards View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="grouped-debts-grid">
+            {groupedAccounts.length === 0 ? (
+              <div className="col-span-full bg-white p-12 rounded-2xl text-center border border-slate-100 text-slate-400">
+                <Users className="w-12 h-12 mx-auto text-slate-200 mb-3" />
+                <h3 className="font-bold text-slate-700 mb-1">لا توجد حسابات ديون مطابقة للخيارات</h3>
+                <p className="text-xs max-w-sm mx-auto">ابدأ بإضافة دين جديد لحساب شخص عبر زر "إضافة دين جديد".</p>
+              </div>
+            ) : (
+              groupedAccounts.map((acc) => (
+                <div
+                  key={acc.personName}
+                  className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs space-y-4 flex flex-col justify-between hover:border-sky-300 transition-all"
+                >
+                  <div className="space-y-3">
+                    {/* Card Header */}
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2.5 bg-sky-50 text-sky-700 rounded-xl border border-sky-100 shrink-0 font-black">
+                          <User className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 text-sm">{acc.personName}</h3>
+                          <span className="text-[10px] text-slate-400 font-bold block">
+                            السجل الخاص: {acc.debtCount} بند/ديون ({acc.activeCount} نشط)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Net Position Badge */}
+                      <div>
+                        {acc.netBalance > 0 ? (
+                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-black block">
+                            مطلوب منه: +{formatCurrency(acc.netBalance, currency)}
+                          </span>
+                        ) : acc.netBalance < 0 ? (
+                          <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[10px] font-black block">
+                            مستحق له: {formatCurrency(Math.abs(acc.netBalance), currency)}
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-black block">
+                            خالي / مسدد
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Financial Summary Box */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl text-center text-xs">
+                      <div>
+                        <span className="block text-[10px] text-slate-400 font-bold">الإجمالي المجموع</span>
+                        <span className="font-bold text-slate-700 text-xs">{formatCurrency(acc.totalAmount, currency)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] text-slate-400 font-bold">المدفوع</span>
+                        <span className="font-bold text-emerald-600 text-xs">{formatCurrency(acc.paidAmount, currency)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] text-slate-400 font-bold">الرصيد المتبقي</span>
+                        <span className="font-extrabold text-sky-700 text-xs">{formatCurrency(acc.remAmount, currency)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <button
+                      onClick={() => openAddModal(acc.personName)}
+                      className="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>+ إضافة دين إضافي لهذا الحساب</span>
+                    </button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setSelectedAccountPerson(acc.personName)}
+                        className="py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/60 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-sky-600" />
+                        <span>السجل والتفاصيل ({acc.debtCount})</span>
+                      </button>
+
+                      <a
+                        href={generateAccountWhatsAppLink(acc.personName, acc.debts)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>كشف حساب</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          /* Individual Items View */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="debts-list-grid">
         {filteredDebts.length === 0 ? (
           <div className="col-span-full bg-white p-12 rounded-2xl text-center border border-slate-100 text-slate-400" id="empty-debts-list">
             <FileText className="w-12 h-12 mx-auto text-slate-200 mb-3" />
@@ -877,6 +1082,8 @@ export default function DebtsManager({
           })
         )}
       </div>
+        )
+      )}
 
       {/* Add Debt Modal */}
       {isAddModalOpen && (
@@ -955,6 +1162,18 @@ export default function DebtsManager({
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {personName.trim() && (
+                  <div className="bg-sky-50 border border-sky-200/80 p-2.5 rounded-xl flex items-center justify-between text-[11px] text-sky-800 font-bold">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <span>الحساب المستهدف: <strong>{personName.trim()}</strong></span>
+                    </span>
+                    <span className="text-[10px] text-sky-600 font-medium">
+                      (سيتم إضافة هذا المبلغ مباشرة إلى رصيد حساب {personName.trim()} وزيادته تلقائياً)
+                    </span>
                   </div>
                 )}
               </div>
@@ -1410,6 +1629,257 @@ export default function DebtsManager({
           </div>
         </div>
       )}
+
+      {/* Detailed Person Account Modal */}
+      {selectedAccountPerson && (() => {
+        const personDebts = nonProjectDebts.filter(
+          (d) => d.personName.trim().toLowerCase() === selectedAccountPerson.trim().toLowerCase()
+        );
+        let totalToMeRem = 0;
+        let totalToOthersRem = 0;
+        personDebts.forEach((d) => {
+          const rem = d.amount - d.paidAmount;
+          if (d.type === 'to_me') totalToMeRem += rem;
+          else totalToOthersRem += rem;
+        });
+        const net = totalToMeRem - totalToOthersRem;
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 z-[90] flex items-center justify-center p-4 overflow-y-auto" id="person-account-modal">
+            <div className="bg-white rounded-3xl max-w-2xl w-full my-8 shadow-2xl overflow-hidden border border-slate-100 text-right flex flex-col max-h-[90vh]">
+              {/* Modal Header */}
+              <div className="bg-slate-900 p-5 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-sky-600/30 text-sky-400 rounded-xl border border-sky-500/30">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-base md:text-lg flex items-center gap-2">
+                      <span>كشف وتفاصيل حساب:</span>
+                      <span className="text-sky-400">{selectedAccountPerson}</span>
+                    </h2>
+                    <p className="text-[11px] text-slate-300 font-bold">
+                      جميع بنود الديون والالتزامات المسجلة باسم هذا الشخص ({personDebts.length} بند)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedAccountPerson(null)}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl text-lg font-bold transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5 overflow-y-auto flex-1">
+                {/* Account Summary Banner */}
+                <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-3">
+                  <div className="flex flex-wrap justify-between items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500">صافي الموقف المالي لهذا الحساب:</span>
+                    {net > 0 ? (
+                      <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-extrabold">
+                        مطلوب منه صافي: +{formatCurrency(net, currency)} 📥
+                      </span>
+                    ) : net < 0 ? (
+                      <span className="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-extrabold">
+                        مستحق له صافي: {formatCurrency(Math.abs(net), currency)} 📤
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-extrabold">
+                        الحساب متوازن ومسدد بالكامل ✅
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-center text-xs">
+                    <div className="bg-white p-3 rounded-xl border border-slate-100 space-y-0.5">
+                      <span className="block text-[10px] text-slate-400 font-bold">إجمالي المستحق لك عنده 📥</span>
+                      <span className="font-black text-sky-700 text-sm">{formatCurrency(totalToMeRem, currency)}</span>
+                    </div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-100 space-y-0.5">
+                      <span className="block text-[10px] text-slate-400 font-bold">إجمالي الالتزامات عليك له 📤</span>
+                      <span className="font-black text-rose-700 text-sm">{formatCurrency(totalToOthersRem, currency)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Actions inside Account */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={() => {
+                      openAddModal(selectedAccountPerson);
+                    }}
+                    className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>+ إضافة دين / بند جديد لهذا الحساب</span>
+                  </button>
+
+                  <a
+                    href={generateAccountWhatsAppLink(selectedAccountPerson, personDebts)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>إرسال كشف الحساب واتساب</span>
+                  </a>
+                </div>
+
+                {/* List of Debt Items for this Person */}
+                <div className="space-y-3">
+                  <h3 className="font-extrabold text-xs text-slate-700 flex items-center justify-between border-b pb-2 border-slate-100">
+                    <span>تفاصيل وبنود الديون المترتبة ({personDebts.length}):</span>
+                    <span className="text-[10px] text-slate-400 font-normal">مرتبة بحسب التاريخ</span>
+                  </h3>
+
+                  {personDebts.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-400 text-xs">
+                      لا توجد بنود ديون مسجلة باسم {selectedAccountPerson}. اضغط على زر الإضافة أعلاه لإضافة أول دين له.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {personDebts.map((debt, index) => {
+                        const remaining = debt.amount - debt.paidAmount;
+                        const percentage = Math.min(Math.round((debt.paidAmount / debt.amount) * 100), 100);
+
+                        return (
+                          <div
+                            key={debt.id}
+                            className={`p-4 rounded-2xl border text-xs space-y-3 transition-all ${
+                              debt.status === 'paid'
+                                ? 'bg-emerald-50/20 border-emerald-200/60'
+                                : debt.type === 'to_me'
+                                ? 'bg-white border-sky-100 shadow-2xs'
+                                : 'bg-white border-rose-100 shadow-2xs'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-slate-800 text-sm">
+                                    #{index + 1} {debt.description || debt.category}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    debt.type === 'to_me'
+                                      ? 'bg-sky-100 text-sky-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}>
+                                    {debt.type === 'to_me' ? '📥 مستحق لك' : '📤 مستحق عليك'}
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+                                  <span>الفئة: <strong className="text-slate-600">{debt.category}</strong></span>
+                                  <span>تاريخ البدء: <strong className="text-slate-600">{formatDate(debt.startDate)}</strong></span>
+                                  <span>الاستحقاق: <strong className="text-slate-600">{formatDate(debt.dueDate)}</strong></span>
+                                </div>
+                              </div>
+
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black shrink-0 ${
+                                debt.status === 'paid'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : debt.status === 'partial'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {debt.status === 'paid' ? '✅ مسدد بالكامل' : debt.status === 'partial' ? '⏳ مسدد جزئياً' : '🔴 غير مسدد'}
+                              </span>
+                            </div>
+
+                            {/* Progress bar and amounts */}
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-2">
+                              <div className="flex justify-between items-center font-bold text-[11px]">
+                                <span className="text-slate-600">المبلغ الإجمالي: {formatCurrency(debt.amount, currency)}</span>
+                                <span className="text-emerald-700">المدفوع: {formatCurrency(debt.paidAmount, currency)}</span>
+                                <span className="text-rose-700">المتبقي: {formatCurrency(remaining, currency)}</span>
+                              </div>
+
+                              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full transition-all duration-300 ${
+                                    debt.status === 'paid' ? 'bg-emerald-500' : 'bg-sky-500'
+                                  }`}
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Item Action Buttons */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                              <div className="flex items-center gap-1.5">
+                                {debt.status !== 'paid' && (
+                                  <button
+                                    onClick={() => openPaymentModal(debt)}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                  >
+                                    + تسجيل دفعة
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openEditModal(debt)}
+                                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                >
+                                  تعديل
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setConfirmModal({
+                                      title: 'حذف بند الدين',
+                                      message: `هل أنت أفق على حذف بند الدين بقيمة (${formatCurrency(debt.amount, currency)}) لحساب ${debt.personName}؟`,
+                                      onConfirm: () => onDeleteDebt(debt.id)
+                                    });
+                                  }}
+                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                >
+                                  حذف
+                                </button>
+                              </div>
+
+                              {debt.installments && debt.installments.length > 0 && (
+                                <button
+                                  onClick={() => setExpandedDebtId(expandedDebtId === debt.id ? null : debt.id)}
+                                  className="text-[11px] text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
+                                >
+                                  {expandedDebtId === debt.id ? 'إخفاء الأقساط ▴' : `سجل الدفعات (${debt.installments.length}) ▾`}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Installments History */}
+                            {expandedDebtId === debt.id && debt.installments && (
+                              <div className="bg-slate-100/70 p-2.5 rounded-xl space-y-1.5 border border-slate-200/60 mt-2">
+                                <span className="text-[10px] text-slate-500 font-extrabold block">سجل الدفعات المسددة لهذا البند:</span>
+                                {debt.installments.map((inst, idx) => (
+                                  <div key={inst.id || idx} className="flex justify-between items-center text-[11px] bg-white p-1.5 rounded-lg border border-slate-200/50">
+                                    <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
+                                    <span className="text-slate-400">{formatDate(inst.date)}</span>
+                                    {inst.notes && <span className="text-slate-500 text-[10px]">({inst.notes})</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+                <button
+                  onClick={() => setSelectedAccountPerson(null)}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  إغلاق كشف الحساب
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
