@@ -22,7 +22,8 @@ import {
   BarChart3,
   Bell,
   Database,
-  Loader2
+  Loader2,
+  History
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -52,6 +53,7 @@ const TAB_DEFINITIONS = [
   { id: 'projects', label: 'مشاريع العمل والرواتب', desc: 'إدارة مشاريع المقاولات، الموظفين، وصرف الرواتب', icon: Briefcase, color: 'text-purple-500 bg-purple-50' },
   { id: 'reports', label: 'التقارير الرسومية', desc: 'الرسوم البيانية وتحليلات الأداء المالي والمصاريف', icon: BarChart3, color: 'text-rose-500 bg-rose-50' },
   { id: 'alerts', label: 'مركز التنبيهات', desc: 'استلام التنبيهات الذكية بالديون المستحقة والمتأخرة', icon: Bell, color: 'text-cyan-500 bg-cyan-50' },
+  { id: 'activity_log', label: 'سجل العمليات الشامل', desc: 'استعراض التسلسل الزمني لجميع الحركات والعمليات المالية', icon: History, color: 'text-sky-600 bg-sky-50' },
   { id: 'backup', label: 'النسخ الاحتياطي والبيانات', desc: 'تصدير واستيراد وتهيئة بيانات النظام المالي', icon: Database, color: 'text-slate-500 bg-slate-50' }
 ];
 

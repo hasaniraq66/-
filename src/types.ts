@@ -21,6 +21,7 @@ export interface Debt {
   installments: PaymentInstallment[];
   note?: string;
   photo?: string; // base64 representation
+  guarantor?: string; // اسم الكفيل أو الضامن
   projectId?: string; // Linked Work Project if any
 }
 
@@ -34,6 +35,15 @@ export interface Expense {
   note?: string;
   photo?: string; // base64 representation
   projectId?: string; // Linked Work Project if any
+}
+
+export interface ExpenseTemplate {
+  id: string;
+  title: string;
+  amount: number;
+  category: string;
+  description?: string;
+  note?: string;
 }
 
 export interface Budget {
@@ -89,6 +99,7 @@ export interface UserProfile {
   email?: string;
   phoneNumber?: string;
   currency: string;
+  initialCapital?: number; // رأس المال الابتدائي
   createdAt: string;
   adminId?: string; // If this profile belongs to a sub-user, this points to their admin's userId
   allowedTabs?: string[]; // Allowed navigation tabs for this sub-user

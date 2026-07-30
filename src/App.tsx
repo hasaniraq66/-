@@ -23,7 +23,8 @@ import {
   Sparkles,
   Sun,
   Moon,
-  Settings
+  Settings,
+  History
 } from 'lucide-react';
 
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -53,6 +54,7 @@ import LockScreen from './components/LockScreen';
 import ProjectManager from './components/ProjectManager';
 import SmartAdvisor from './components/SmartAdvisor';
 import PermissionsManager from './components/PermissionsManager';
+import ActivityLog from './components/ActivityLog';
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -83,8 +85,8 @@ export default function App() {
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
 
   const [currency, setCurrency] = useState<string>('ر.س');
-
   const [userName, setUserName] = useState<string>('مستخدم جديد');
+  const [initialCapital, setInitialCapital] = useState<number>(0);
 
   // Track read Alert IDs to persist user clearing actions
   const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
@@ -158,6 +160,7 @@ export default function App() {
             setUserProfile(profile);
             setUserName(profile.displayName);
             setCurrency(profile.currency);
+            setInitialCapital(profile.initialCapital || 0);
             if (profile.adminId) {
               finalUid = profile.adminId;
               // If current active tab is not in allowedTabs, route to the first allowed tab
@@ -173,6 +176,7 @@ export default function App() {
               displayName: firebaseUser.displayName || userName || 'مستثمر جديد',
               email: firebaseUser.email || undefined,
               currency: currency,
+              initialCapital: initialCapital,
               createdAt: new Date().toISOString()
             };
             await saveUserProfile(newProfile);
@@ -651,6 +655,19 @@ export default function App() {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
     if (currentUser && targetUid) {
       deleteDocument(targetUid, 'expenses', id);
+    }
+  };
+
+  const handleUpdateInitialCapital = async (newCapital: number) => {
+    setInitialCapital(newCapital);
+    if (userProfile && currentUser) {
+      const updatedProfile = { ...userProfile, initialCapital: newCapital };
+      setUserProfile(updatedProfile);
+      try {
+        await saveUserProfile(updatedProfile);
+      } catch (err) {
+        console.error('Error saving initial capital:', err);
+      }
     }
   };
 
@@ -1166,7 +1183,7 @@ export default function App() {
             )}
 
             {/* Category 3: Reporting & Alerts */}
-            {hasCategoryPermission(['reports', 'alerts', 'backup']) && (
+            {hasCategoryPermission(['reports', 'alerts', 'activity_log', 'backup']) && (
               <div className="space-y-1">
                 <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">التقارير والأدوات</span>
 
@@ -1185,6 +1202,24 @@ export default function App() {
                       <span>التقارير الرسومية</span>
                     </span>
                     {activeTab === 'reports' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
+
+                {hasTabPermission('activity_log') && (
+                  <button
+                    id="nav-activity-log"
+                    onClick={() => { setActiveTab('activity_log'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'activity_log' 
+                        ? 'bg-sky-600 text-white font-extrabold shadow-[0_4px_12px_rgba(2,132,199,0.25)]' 
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <History className="w-4 h-4 shrink-0" />
+                      <span>سجل العمليات الشامل</span>
+                    </span>
+                    {activeTab === 'activity_log' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
                   </button>
                 )}
 
@@ -1298,6 +1333,8 @@ export default function App() {
                 salaryPayments={salaryPayments}
                 onAddDebt={handleAddDebt}
                 onAddExpense={handleAddExpense}
+                initialCapital={initialCapital}
+                onUpdateInitialCapital={handleUpdateInitialCapital}
               />
             )}
 
@@ -1342,6 +1379,19 @@ export default function App() {
                 onMarkAlertAsRead={handleMarkAlertAsRead}
                 onMarkAllAsRead={handleMarkAllAlertsAsRead}
                 onClearReadAlerts={handleClearReadAlerts}
+                onNavigate={setActiveTab}
+              />
+            )}
+
+            {activeTab === 'activity_log' && (
+              <ActivityLog
+                debts={debts}
+                expenses={expenses}
+                budgets={budgets}
+                projects={projects}
+                employees={employees}
+                salaryPayments={salaryPayments}
+                currency={currency}
                 onNavigate={setActiveTab}
               />
             )}
@@ -1801,6 +1851,24 @@ export default function App() {
                       className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
                       placeholder="مثال: حسن أحمد..."
                     />
+                  </div>
+
+                  {/* Initial Capital Setting */}
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-500 font-semibold">رأس المال الابتدائي / الرصيد الأولي 🏦</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={initialCapital || ''}
+                        onChange={(e) => handleUpdateInitialCapital(Number(e.target.value) || 0)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 font-bold"
+                        placeholder="0"
+                      />
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">{currency}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">سيتم إضافة تسديدات ديونك إلي هذا الرصيد وخصم المصاريف منه تلقائياً.</p>
                   </div>
 
                   {/* Currency Selector */}

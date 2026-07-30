@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
@@ -14,9 +14,12 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  Zap,
+  Check,
+  Sparkles
 } from 'lucide-react';
-import { Expense, Budget } from '../types';
+import { Expense, Budget, ExpenseTemplate } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, getCurrentMonthString } from '../utils';
 import AttachmentSelector from './AttachmentSelector';
 
@@ -29,6 +32,13 @@ interface BudgetManagerProps {
   onEditExpense: (expense: Expense) => void;
   onDeleteExpense: (id: string) => void;
 }
+
+const DEFAULT_TEMPLATES: ExpenseTemplate[] = [
+  { id: 'tmpl-1', title: 'إيجار السكن الشهري', amount: 1500, category: 'سكن', description: 'دفع إيجار المنزل الشهري المتكرر' },
+  { id: 'tmpl-2', title: 'فاتورة الإنترنت والاتصالات', amount: 200, category: 'فواتير', description: 'اشتراك الشبكة المنزلية' },
+  { id: 'tmpl-3', title: 'شحن الوقود والمواصلات', amount: 250, category: 'مواصلات', description: 'تكاليف التنقل الأسبوعية' },
+  { id: 'tmpl-4', title: 'مشتريات البقالة والمواد الغذائية', amount: 350, category: 'طعام', description: 'مواد غذائية ومستلزمات منزلية' },
+];
 
 export default function BudgetManager({
   expenses,
@@ -70,6 +80,103 @@ export default function BudgetManager({
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
+  // Quick Expense Templates state
+  const [templates, setTemplates] = useState<ExpenseTemplate[]>(() => {
+    const saved = localStorage.getItem('personal_expense_templates');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        // fallback to default
+      }
+    }
+    return DEFAULT_TEMPLATES;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('personal_expense_templates', JSON.stringify(templates));
+  }, [templates]);
+
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<ExpenseTemplate | null>(null);
+  const [templateTitle, setTemplateTitle] = useState('');
+  const [templateAmount, setTemplateAmount] = useState<number | ''>('');
+  const [templateCategory, setTemplateCategory] = useState('فواتير');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [addedTemplateId, setAddedTemplateId] = useState<string | null>(null);
+
+  const handleQuickAddTemplate = (tmpl: ExpenseTemplate) => {
+    const todayStr = getLocalDateString();
+    const dateToAdd = todayStr.startsWith(selectedMonth) ? todayStr : `${selectedMonth}-01`;
+
+    onAddExpense({
+      amount: tmpl.amount,
+      category: tmpl.category,
+      date: dateToAdd,
+      description: tmpl.title + (tmpl.description ? ` (${tmpl.description})` : ''),
+      note: tmpl.note || 'تمت الإضافة عبر قوالب المصاريف السريعة ⚡',
+    });
+
+    setAddedTemplateId(tmpl.id);
+    setTimeout(() => setAddedTemplateId(null), 2200);
+  };
+
+  const openAddTemplateModal = () => {
+    setEditingTemplate(null);
+    setTemplateTitle('');
+    setTemplateAmount('');
+    setTemplateCategory('فواتير');
+    setTemplateDescription('');
+    setIsTemplateModalOpen(true);
+  };
+
+  const openEditTemplateModal = (tmpl: ExpenseTemplate) => {
+    setEditingTemplate(tmpl);
+    setTemplateTitle(tmpl.title);
+    setTemplateAmount(tmpl.amount);
+    setTemplateCategory(tmpl.category);
+    setTemplateDescription(tmpl.description || '');
+    setIsTemplateModalOpen(true);
+  };
+
+  const handleSaveTemplateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!templateTitle.trim() || !templateAmount || Number(templateAmount) <= 0) return;
+
+    if (editingTemplate) {
+      setTemplates((prev) =>
+        prev.map((t) =>
+          t.id === editingTemplate.id
+            ? {
+                ...t,
+                title: templateTitle.trim(),
+                amount: Number(templateAmount),
+                category: templateCategory,
+                description: templateDescription.trim(),
+              }
+            : t
+        )
+      );
+    } else {
+      const newTmpl: ExpenseTemplate = {
+        id: `tmpl-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        title: templateTitle.trim(),
+        amount: Number(templateAmount),
+        category: templateCategory,
+        description: templateDescription.trim(),
+      };
+      setTemplates((prev) => [...prev, newTmpl]);
+    }
+    setIsTemplateModalOpen(false);
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا القالب السريع؟')) {
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+    }
+  };
 
   const expenseCategories = ['طعام', 'فواتير', 'مواصلات', 'سكن', 'صحة', 'ترفيه', 'تسديد ديون', 'أخرى'];
 
@@ -431,6 +538,119 @@ export default function BudgetManager({
           </div>
         </div>
       )}
+
+      {/* Quick Expense Templates Section */}
+      <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-100 space-y-4" id="quick-expense-templates-section">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+          <div className="space-y-0.5">
+            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-500 fill-amber-400" />
+              <span>قوالب المصاريف السريعة ⚡</span>
+            </h3>
+            <p className="text-[11px] text-slate-400">أنشئ قائمة بمصاريفك المتكررة (إيجار، إنترنت، اشتراكات) وأضفها بضغطة زر واحدة للميزانية الشهرية</p>
+          </div>
+
+          <button
+            type="button"
+            id="add-quick-template-btn"
+            onClick={openAddTemplateModal}
+            className="px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 border border-sky-200/60"
+          >
+            <Plus className="w-3.5 h-3.5 text-sky-600" />
+            <span>إنشاء قالب جديد</span>
+          </button>
+        </div>
+
+        {templates.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200 text-slate-400">
+            <Zap className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+            <p className="text-xs font-bold mb-1">لا توجد قوالب مصاريف سريعة حالياً</p>
+            <button
+              onClick={openAddTemplateModal}
+              className="text-xs text-sky-600 hover:underline font-bold mt-1 inline-block"
+            >
+              + إضافة أول قالب سريع
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5" id="quick-templates-grid">
+            {templates.map((tmpl) => {
+              const isAdded = addedTemplateId === tmpl.id;
+
+              return (
+                <div
+                  key={tmpl.id}
+                  id={`template-card-${tmpl.id}`}
+                  className="p-3.5 bg-slate-50/70 hover:bg-white rounded-xl border border-slate-200/80 hover:border-sky-300 hover:shadow-md transition-all flex flex-col justify-between gap-2.5 relative group"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded text-[9px] font-bold truncate max-w-[100px]">
+                        {tmpl.category}
+                      </span>
+                      <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => openEditTemplateModal(tmpl)}
+                          className="p-1 text-slate-400 hover:text-sky-600 rounded hover:bg-slate-200/60 transition-colors"
+                          title="تعديل القالب"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTemplate(tmpl.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-200/60 transition-colors"
+                          title="حذف القالب"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <h4 className="font-bold text-slate-800 text-xs truncate" title={tmpl.title}>
+                      {tmpl.title}
+                    </h4>
+
+                    {tmpl.description && (
+                      <p className="text-[10px] text-slate-400 truncate" title={tmpl.description}>
+                        {tmpl.description}
+                      </p>
+                    )}
+
+                    <div className="text-rose-600 font-black text-sm pt-0.5">
+                      {formatCurrency(tmpl.amount, currency)}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    id={`btn-quick-add-${tmpl.id}`}
+                    onClick={() => handleQuickAddTemplate(tmpl)}
+                    className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
+                      isAdded
+                        ? 'bg-emerald-600 text-white font-black scale-98'
+                        : 'bg-white hover:bg-sky-600 text-sky-700 hover:text-white border border-sky-200 hover:border-sky-600'
+                    }`}
+                  >
+                    {isAdded ? (
+                      <>
+                        <Check className="w-4 h-4 text-white" />
+                        <span>تمت الإضافة للميزانية! ✨</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3.5 h-3.5 fill-current" />
+                        <span>إضافة سريعة للميزانية</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Filters and Search and Register button */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 rounded-2xl shadow-xs border border-slate-100" id="expenses-filters">
@@ -892,6 +1112,103 @@ export default function BudgetManager({
                   className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer"
                 >
                   تعديل المصروف
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Quick Expense Template Modal */}
+      {isTemplateModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="template-modal">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <Zap className="w-5 h-5 text-amber-500 fill-amber-400" />
+                <span>{editingTemplate ? 'تعديل قالب مصروف سريع' : 'إنشاء قالب مصروف سريع جديد ⚡'}</span>
+              </h2>
+              <button onClick={() => setIsTemplateModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTemplateSubmit} className="p-5 space-y-4 text-xs" id="template-form">
+              {/* Template Title */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-500 font-semibold">اسم القالب (عنوان المصروف المتكرر)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: إيجار الشقة، فاتورة الإنترنت، اشتراك الجيم..."
+                  value={templateTitle}
+                  onChange={(e) => setTemplateTitle(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-900 dark:text-slate-100 dark:bg-slate-900 font-bold"
+                />
+              </div>
+
+              {/* Amount */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-500 font-semibold">المبلغ الافتراضي ({currency})</label>
+                <div className="relative">
+                  <DollarSign className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="number"
+                    required
+                    min="0.1"
+                    step="any"
+                    placeholder="0.00"
+                    value={templateAmount}
+                    onChange={(e) => setTemplateAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-900 dark:text-slate-100 dark:bg-slate-900 font-black"
+                  />
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-500 font-semibold">فئة المصروف</label>
+                <div className="relative">
+                  <Tag className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                  <select
+                    value={templateCategory}
+                    onChange={(e) => setTemplateCategory(e.target.value)}
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-900 dark:text-slate-100 dark:bg-slate-900 font-bold"
+                  >
+                    {expenseCategories.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-500 font-semibold">ملاحظات / وصف مختصر (اختياري)</label>
+                <textarea
+                  placeholder="مثال: فاتورة الخدمة الشهرية المتكررة..."
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  rows={2}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-900 dark:text-slate-100 dark:bg-slate-900 font-medium"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTemplateModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-700 transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  <span>{editingTemplate ? 'حفظ التغييرات' : 'حفظ القالب'}</span>
                 </button>
               </div>
             </form>

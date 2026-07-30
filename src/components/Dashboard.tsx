@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   TrendingUp, 
@@ -14,7 +14,8 @@ import {
   Briefcase,
   Users,
   CheckCircle,
-  Activity
+  Activity,
+  X
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -47,6 +48,8 @@ interface DashboardProps {
   salaryPayments?: SalaryPayment[];
   onAddDebt?: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
   onAddExpense?: (expense: Omit<Expense, 'id'>) => void;
+  initialCapital?: number;
+  onUpdateInitialCapital?: (newCapital: number) => void;
 }
 
 export default function Dashboard({
@@ -62,6 +65,8 @@ export default function Dashboard({
   salaryPayments = [],
   onAddDebt = () => {},
   onAddExpense = () => {},
+  initialCapital = 0,
+  onUpdateInitialCapital = () => {},
 }: DashboardProps) {
   // Calculate project performance metrics & statistics reports
   const projectStats = useMemo(() => {
@@ -315,6 +320,65 @@ export default function Dashboard({
     return 'طاب مساؤك، تمنياتنا بنوم هادئ 🌌';
   }, []);
 
+  const [isEditingCapitalModal, setIsEditingCapitalModal] = useState(false);
+  const [tempCapitalValue, setTempCapitalValue] = useState(String(initialCapital || ''));
+
+  // Capital & Cash Balance calculation (رأس المال والسيولة المتاحة)
+  // 1. Inflows (+): Paid debt installments received for debts owed to me (excluding project debts!)
+  const totalCollectedToMeAllTime = useMemo(() => {
+    return debts
+      .filter((d) => d.type === 'to_me' && !d.projectId)
+      .reduce((sum, d) => sum + d.paidAmount, 0);
+  }, [debts]);
+
+  // 2. Outflows (-): Cash expenses + debt payments to others (unlinked) + employee salaries (excluding projects!)
+  const totalExpensesAllTime = useMemo(() => {
+    return expenses
+      .filter((e) => !e.projectId)
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [expenses]);
+
+  const totalUnlinkedPaidToOthers = useMemo(() => {
+    return debts
+      .filter((d) => d.type === 'to_others' && !d.projectId)
+      .reduce((sum, d) => {
+        const unlinkedInstSum = d.installments.reduce((instSum, inst) => {
+          const isExpenseLinked = expenses.some(
+            (e) => e.linkedDebtId === d.id && Math.abs(e.amount - inst.amount) < 0.01
+          );
+          return isExpenseLinked ? instSum : instSum + inst.amount;
+        }, 0);
+        return sum + unlinkedInstSum;
+      }, 0);
+  }, [debts, expenses]);
+
+  // Employee salaries linked to projects are paid from that project's independent budget/account,
+  // NOT withdrawn from the general capital!
+  const totalSalariesAllTime = useMemo(() => {
+    return salaryPayments
+      .filter((sp) => !sp.projectId)
+      .reduce((sum, sp) => sum + sp.amount, 0);
+  }, [salaryPayments]);
+
+  const totalCapitalOutflows = totalExpensesAllTime + totalUnlinkedPaidToOthers + totalSalariesAllTime;
+  const currentCapital = initialCapital + totalCollectedToMeAllTime - totalCapitalOutflows;
+
+  // Isolated total balance of all projects
+  const totalProjectsBalance = useMemo(() => {
+    return projects.reduce((sum, proj) => {
+      const projExpenses = expenses
+        .filter(e => e.projectId === proj.id && !e.id.startsWith('salary-exp-'))
+        .reduce((s, e) => s + e.amount, 0);
+      const projSalaries = salaryPayments
+        .filter(sp => sp.projectId === proj.id)
+        .reduce((s, sp) => s + sp.amount, 0);
+      const projCollected = debts
+        .filter(d => d.projectId === proj.id && d.type === 'to_me')
+        .reduce((s, d) => s + d.paidAmount, 0);
+      return sum + (proj.budget + projCollected - (projExpenses + projSalaries));
+    }, 0);
+  }, [projects, expenses, salaryPayments, debts]);
+
   // Debt ratios
   const collectedToMeRatio = useMemo(() => {
     if (totalToMe === 0) return 0;
@@ -372,6 +436,94 @@ export default function Dashboard({
             <span>تسجيل مصروف</span>
             <ArrowDownLeft className="w-4 h-4 shrink-0" />
           </motion.button>
+        </div>
+      </div>
+
+      {/* Capital & Cash Balance Overview Card */}
+      <div 
+        className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-white rounded-3xl p-6 shadow-xl border border-slate-700/60 relative overflow-hidden" 
+        id="capital-summary-card"
+      >
+        <div className="absolute top-0 left-1/4 w-72 h-72 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="p-2 bg-sky-500/20 text-sky-400 rounded-xl border border-sky-500/30">
+                <Wallet className="w-5 h-5" />
+              </span>
+              <div>
+                <span className="text-xs text-slate-300 font-extrabold block">رأس المال والسيولة المتاحة (صندوق رأس المال) 🏛️</span>
+                <span className="text-[11px] text-sky-400 font-semibold">ربط ذكي: تسديد لك ➕ يضيف | مصروف أو سداد منك ➖ يسحب</span>
+              </div>
+            </div>
+
+            <div className="flex items-baseline gap-3 pt-1">
+              <span className={`text-3xl md:text-4xl font-black tracking-tight ${
+                currentCapital > 0 ? 'text-emerald-400' : currentCapital < 0 ? 'text-rose-400' : 'text-slate-200'
+              }`}>
+                {formatCurrency(currentCapital, currency)}
+              </span>
+              <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                currentCapital > 0 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                  : currentCapital < 0 
+                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' 
+                  : 'bg-slate-700 text-slate-300 border-slate-600'
+              }`}>
+                {currentCapital > 0 ? 'رصيد موجب 🟢' : currentCapital < 0 ? 'عجز في رأس المال 🔴' : 'رصيد متوازن'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            {/* Initial Capital Pill */}
+            <div className="flex-1 md:flex-none p-3 bg-slate-800/90 rounded-2xl border border-slate-700/80 space-y-1 min-w-[130px]">
+              <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold">
+                <span>رأس المال الابتدائي</span>
+                <button
+                  onClick={() => {
+                    setTempCapitalValue(String(initialCapital || 0));
+                    setIsEditingCapitalModal(true);
+                  }}
+                  className="text-sky-400 hover:text-sky-300 font-extrabold underline cursor-pointer text-[10px]"
+                >
+                  تعديل ✏️
+                </button>
+              </div>
+              <div className="text-sm font-extrabold text-white">{formatCurrency(initialCapital, currency)}</div>
+            </div>
+
+            {/* Inflows Pill */}
+            <div className="flex-1 md:flex-none p-3 bg-emerald-950/50 rounded-2xl border border-emerald-800/60 space-y-1 min-w-[140px]">
+              <span className="block text-[10px] text-emerald-300 font-bold">➕ مقبوضات الديون (تُضاف)</span>
+              <span className="block text-sm font-extrabold text-emerald-400">+{formatCurrency(totalCollectedToMeAllTime, currency)}</span>
+            </div>
+
+            {/* Outflows Pill */}
+            <div className="flex-1 md:flex-none p-3 bg-rose-950/50 rounded-2xl border border-rose-800/60 space-y-1 min-w-[140px]">
+              <span className="block text-[10px] text-rose-300 font-bold">➖ المصروفات والسداد (تُسحب)</span>
+              <span className="block text-sm font-extrabold text-rose-400">-{formatCurrency(totalCapitalOutflows, currency)}</span>
+            </div>
+
+            {/* Isolated Projects Pill */}
+            <div className="flex-1 md:flex-none p-3 bg-sky-950/60 rounded-2xl border border-sky-800/60 space-y-1 min-w-[150px]">
+              <span className="block text-[10px] text-sky-300 font-bold">🔒 حسابات المشاريع (معزولة)</span>
+              <span className="block text-sm font-extrabold text-sky-400">{formatCurrency(totalProjectsBalance, currency)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic rule reminder banner */}
+        <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400 font-medium">
+          <div className="flex items-center gap-1.5">
+            <span className="text-amber-400 font-bold">💡 آلية رأس المال الآلية:</span>
+            <span>عند تسديد أي مبلغ عام لك يضاف تلقائياً، وعند صرف أي مبلغ عام يسحب تلقائياً من رأس المال.</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sky-400 font-bold">
+            <span>🛡️ مشاريع العمل والرواتب معزولة في حسابات وميزانيات مستقلة تماماً ولا تؤثر على رأس المال.</span>
+          </div>
         </div>
       </div>
 
@@ -876,6 +1028,66 @@ export default function Dashboard({
           )}
         </div>
       </div>
+
+      {/* Edit Initial Capital Modal */}
+      {isEditingCapitalModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 dark:border-slate-800">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-sky-600" />
+                <span>تعديل رأس المال الابتدائي 🏛️</span>
+              </h3>
+              <button onClick={() => setIsEditingCapitalModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-500 dark:text-slate-400 leading-relaxed font-semibold">
+                أدخل الرصيد المالي الأولي الأساسي المتوفر لديك. سيقوم النظام بعد ذلك بإضافة كل الديون المسددة لك وخصم المصاريف تلقائياً احتساباً للسيولة الحقيقية.
+              </p>
+              
+              <div className="space-y-1">
+                <label className="block text-slate-700 dark:text-slate-300 font-extrabold">المبلغ الأولي / رأس المال ({currency})</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={tempCapitalValue}
+                    onChange={(e) => setTempCapitalValue(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-lg text-slate-900 dark:text-white"
+                    placeholder="0"
+                    autoFocus
+                  />
+                  <span className="absolute left-3 top-3 text-xs font-bold text-slate-400">{currency}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditingCapitalModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateInitialCapital(Number(tempCapitalValue) || 0);
+                  setIsEditingCapitalModal(false);
+                }}
+                className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold cursor-pointer shadow-xs"
+              >
+                حفظ التغيير
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -124,6 +124,7 @@ export interface UserProfile {
   email?: string;
   phoneNumber?: string;
   currency: string;
+  initialCapital?: number;
   createdAt: string;
   adminId?: string;
   allowedTabs?: string[];

@@ -374,9 +374,9 @@ export default function ProjectManager({
     const project = projects.find(p => p.id === projId);
     if (!project) return { totalExpenses: 0, totalDebts: 0, totalDebtsToMe: 0, debtCeilingExceeded: false, debtCeilingPercent: 0, employeeCount: 0 };
 
-    // Sum of regular expenses linked to project
+    // Sum of regular expenses linked to project (exclude auto salary-expense records to prevent double counting!)
     const projExpensesTotal = expenses
-      .filter(e => e.projectId === projId)
+      .filter(e => e.projectId === projId && !e.id.startsWith('salary-exp-'))
       .reduce((sum, e) => sum + e.amount, 0);
 
     // Sum of salaries paid under this project
@@ -396,16 +396,28 @@ export default function ProjectManager({
       .filter(d => d.projectId === projId && d.type === 'to_me')
       .reduce((sum, d) => sum + (d.amount - d.paidAmount), 0);
 
+    // Collected installments for debts owed to us under this project
+    const projCollectedToMe = debts
+      .filter(d => d.projectId === projId && d.type === 'to_me')
+      .reduce((sum, d) => sum + d.paidAmount, 0);
+
     const employeeCount = employees.filter(emp => emp.projectId === projId).length;
 
     const debtCeilingPercent = project.debtCeiling > 0 
       ? Math.round((activeDebtsToOthers / project.debtCeiling) * 100) 
       : 0;
 
+    // Independent Project Account Balance (معزول عن رأس المال العام)
+    const projectBalance = project.budget + projCollectedToMe - totalExpenses;
+
     return {
       totalExpenses,
+      projExpensesOnly: projExpensesTotal,
+      projSalariesOnly: projSalariesTotal,
       totalDebts: activeDebtsToOthers,
       totalDebtsToMe: activeDebtsToMe,
+      projCollectedToMe,
+      projectBalance,
       debtCeilingExceeded: project.debtCeiling > 0 && activeDebtsToOthers > project.debtCeiling,
       debtCeilingPercent,
       employeeCount
@@ -571,6 +583,22 @@ export default function ProjectManager({
                             {proj.description || 'لا يوجد وصف للمشروع.'}
                           </p>
 
+                          {/* Isolated Project Account Box (حساب المشروع المستقل معزول عن رأس المال العام) */}
+                          <div className="p-3 bg-gradient-to-r from-sky-950/90 to-slate-900 rounded-2xl border border-sky-800/50 text-white space-y-1.5 shadow-xs">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] text-sky-300 font-bold flex items-center gap-1">
+                                <span>🔒 حساب المشروع (معزول):</span>
+                              </span>
+                              <span className="text-xs font-black text-emerald-400">
+                                {formatCurrency(stats.projectBalance, currency)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-[9px] text-slate-400 font-medium">
+                              <span>الميزانية: {formatCurrency(proj.budget, currency)}</span>
+                              <span>الرواتب والمصروفات: -{formatCurrency(stats.totalExpenses, currency)}</span>
+                            </div>
+                          </div>
+
                           {/* Quick Stats Grid */}
                           <div className="grid grid-cols-3 gap-2 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/80 text-center">
                             <div className="space-y-0.5">
@@ -725,6 +753,14 @@ export default function ProjectManager({
                           <Plus className="w-3.5 h-3.5" />
                           <span>إضافة موظف جديد</span>
                         </button>
+                      </div>
+
+                      {/* Isolation Rule Notice */}
+                      <div className="p-3 bg-sky-50/80 border border-sky-100 rounded-2xl flex items-center justify-between gap-2 text-xs text-sky-800 font-bold">
+                        <div className="flex items-center gap-2">
+                          <span>🛡️</span>
+                          <span>رواتب الموظفين ومصاريف المشاريع معزولة تماماً وتُصرف من ميزانية وحساب المشروع المحدد فقط ولا تُسحب من رأس المال العام.</span>
+                        </div>
                       </div>
 
                       {employees.length === 0 ? (

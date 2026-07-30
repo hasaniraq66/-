@@ -22,12 +22,88 @@ import {
   CreditCard,
   ArrowUpRight,
   ArrowDownLeft,
-  Wallet
+  Wallet,
+  Clock,
+  Activity,
+  CheckCircle2,
+  Printer
 } from 'lucide-react';
 import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
 import AttachmentSelector from './AttachmentSelector';
 import ConfirmModal from './ConfirmModal';
+
+export interface ActivityEvent {
+  id: string;
+  date: string;
+  type: 'debt_added' | 'payment_made' | 'debt_completed';
+  debtId: string;
+  personName: string;
+  debtTitle: string;
+  debtType: 'to_me' | 'to_others';
+  amount: number;
+  notes?: string;
+  category?: string;
+  photo?: string;
+}
+
+export function getPersonActivityHistory(personDebts: Debt[]): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+
+  personDebts.forEach((debt) => {
+    const debtTitle = debt.description || debt.category || `دين بقيمة ${debt.amount}`;
+
+    // 1. Creation event
+    events.push({
+      id: `add-${debt.id}`,
+      date: debt.startDate || debt.dueDate,
+      type: 'debt_added',
+      debtId: debt.id,
+      personName: debt.personName,
+      debtTitle,
+      debtType: debt.type,
+      amount: debt.amount,
+      notes: debt.note || debt.description,
+      category: debt.category,
+      photo: debt.photo,
+    });
+
+    // 2. Installments events
+    if (debt.installments && debt.installments.length > 0) {
+      debt.installments.forEach((inst, idx) => {
+        events.push({
+          id: `pay-${debt.id}-${inst.id || idx}`,
+          date: inst.date,
+          type: 'payment_made',
+          debtId: debt.id,
+          personName: debt.personName,
+          debtTitle,
+          debtType: debt.type,
+          amount: inst.amount,
+          notes: inst.notes || `دفعة سداد رقم #${idx + 1}`,
+        });
+      });
+    }
+
+    // 3. Status completed event
+    if (debt.status === 'paid' && debt.installments && debt.installments.length > 0) {
+      const lastInst = debt.installments[debt.installments.length - 1];
+      events.push({
+        id: `completed-${debt.id}`,
+        date: lastInst?.date || debt.dueDate,
+        type: 'debt_completed',
+        debtId: debt.id,
+        personName: debt.personName,
+        debtTitle,
+        debtType: debt.type,
+        amount: debt.amount,
+        notes: 'تم إغلاق البند وتسديده بالكامل ✅',
+      });
+    }
+  });
+
+  return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
 
 interface DebtsManagerProps {
   debts: Debt[];
@@ -49,15 +125,18 @@ export default function DebtsManager({
   onDeleteInstallment,
 }: DebtsManagerProps) {
   // Tabs & Filters State
-  const [activeTab, setActiveTab] = useState<'all' | 'to_me' | 'to_others' | 'accounts'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'to_me' | 'to_others' | 'accounts' | 'history'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid' | 'overdue'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   // Modal forms State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
+  // Printable Account Statement State
+  const [printableAccountPerson, setPrintableAccountPerson] = useState<string | null>(null);
 
   // Form Field State
   const [personName, setPersonName] = useState('');
@@ -67,13 +146,15 @@ export default function DebtsManager({
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [category, setCategory] = useState('شخصي');
   const [description, setDescription] = useState('');
+  const [guarantor, setGuarantor] = useState('');
 
   // Selected item for Edit/Payment
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
 
-  // Selected Person Account for Detailed Ledger View Modal
+  // Selected Person Account for Detailed Ledger View Modal & Movement Tab
   const [selectedAccountPerson, setSelectedAccountPerson] = useState<string | null>(null);
-  const [displayGroupedByAccount, setDisplayGroupedByAccount] = useState<boolean>(true);
+  const [accountModalTab, setAccountModalTab] = useState<'items' | 'history'>('items');
+  const [activityFilter, setActivityFilter] = useState<'all' | 'payments' | 'debts'>('all');
 
   // Attachment states for the modals
   const [note, setNote] = useState('');
@@ -88,6 +169,32 @@ export default function DebtsManager({
 
   // Expand installment logs
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
+
+  // Expand person sub-debts list state (defaults to true)
+  const [expandedPersons, setExpandedPersons] = useState<Record<string, boolean>>({});
+
+  const isPersonExpanded = (personName: string) => {
+    return expandedPersons[personName] !== false; // Expanded by default so sub-debts & extra details are always visible!
+  };
+
+  const togglePersonExpand = (personName: string) => {
+    setExpandedPersons((prev) => ({
+      ...prev,
+      [personName]: !isPersonExpanded(personName),
+    }));
+  };
+
+  // Open Payment Modal directly from a Person Account Card
+  const openPersonPaymentModal = (accName: string) => {
+    const personDebts = nonProjectDebts.filter(
+      (d) => d.personName.trim().toLowerCase() === accName.trim().toLowerCase()
+    );
+    // Find active (unpaid or partial) debt, otherwise pick the first debt
+    const targetDebt = personDebts.find((d) => d.status !== 'paid') || personDebts[0];
+    if (targetDebt) {
+      openPaymentModal(targetDebt);
+    }
+  };
 
   // Custom confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -107,6 +214,7 @@ export default function DebtsManager({
     setStartDate(getLocalDateString());
     setCategory('شخصي');
     setDescription('');
+    setGuarantor('');
     setNote('');
     setPhoto('');
     setIsAddModalOpen(true);
@@ -122,6 +230,7 @@ export default function DebtsManager({
     setStartDate(debt.startDate);
     setCategory(debt.category);
     setDescription(debt.description);
+    setGuarantor(debt.guarantor || '');
     setNote(debt.note || '');
     setPhoto(debt.photo || '');
     setIsEditModalOpen(true);
@@ -149,6 +258,7 @@ export default function DebtsManager({
       startDate,
       category,
       description,
+      guarantor: guarantor.trim() || undefined,
       note,
       photo,
     });
@@ -168,6 +278,7 @@ export default function DebtsManager({
       startDate,
       category,
       description,
+      guarantor: guarantor.trim() || undefined,
       note,
       photo,
     });
@@ -246,11 +357,22 @@ export default function DebtsManager({
       const remToOthers = acc.totalToOthers - acc.paidToOthers;
       // Net balance: positive = he owes us net (to_me > to_others), negative = we owe him net
       const netBalance = remToMe - remToOthers;
+      const totalAmount = acc.totalToMe + acc.totalToOthers;
+      const paidAmount = acc.paidToMe + acc.paidToOthers;
+      const remAmount = remToMe + remToOthers;
+      const activities = getPersonActivityHistory(acc.debts);
+      const latestActivity = activities[0] || null;
+
       return {
         ...acc,
+        totalAmount,
+        paidAmount,
+        remAmount,
         remToMe,
         remToOthers,
-        netBalance
+        netBalance,
+        activities,
+        latestActivity
       };
     }).sort((a, b) => b.debtCount - a.debtCount);
   }, [nonProjectDebts]);
@@ -295,6 +417,16 @@ export default function DebtsManager({
       msg += `✅ *الصافي:* الحساب متوازن ومسدد بالكامل\n`;
     }
 
+    const activities = getPersonActivityHistory(accDebts);
+    if (activities.length > 0) {
+      msg += `\n*📜 سجل آخر الحركات والتسديدات:* \n`;
+      activities.slice(0, 5).forEach((act, i) => {
+        const actType = act.type === 'payment_made' ? '💳 تسديد دفعة' : act.type === 'debt_completed' ? '✅ تسديد كامل' : '➕ إضافة دين';
+        msg += `${i + 1}. ${actType} بمبلغ ${formatCurrency(act.amount, currency)} بتاريخ ${formatDate(act.date)}\n`;
+        if (act.notes) msg += `   ملاحظة: ${act.notes}\n`;
+      });
+    }
+
     return `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
@@ -314,7 +446,12 @@ export default function DebtsManager({
       }
 
       // 3. Status filter
-      if (statusFilter !== 'all' && d.status !== statusFilter) return false;
+      if (statusFilter === 'overdue') {
+        const todayStr = getLocalDateString();
+        if (d.status === 'paid' || d.dueDate >= todayStr) return false;
+      } else if (statusFilter !== 'all' && d.status !== statusFilter) {
+        return false;
+      }
 
       // 4. Category filter
       if (categoryFilter !== 'all' && d.category !== categoryFilter) return false;
@@ -340,6 +477,8 @@ export default function DebtsManager({
       debtCount: number;
       activeCount: number;
       debts: Debt[];
+      activities: ActivityEvent[];
+      latestActivity: ActivityEvent | null;
     }>();
 
     filteredDebts.forEach((debt) => {
@@ -359,7 +498,9 @@ export default function DebtsManager({
           netBalance: 0,
           debtCount: 0,
           activeCount: 0,
-          debts: []
+          debts: [],
+          activities: [],
+          latestActivity: null
         });
       }
       const entry = map.get(key)!;
@@ -386,8 +527,20 @@ export default function DebtsManager({
       entry.netBalance = entry.remToMe - entry.remToOthers;
     });
 
-    return Array.from(map.values()).sort((a, b) => b.debtCount - a.debtCount);
+    return Array.from(map.values()).map((acc) => {
+      const activities = getPersonActivityHistory(acc.debts);
+      return {
+        ...acc,
+        activities,
+        latestActivity: activities[0] || null
+      };
+    }).sort((a, b) => b.debtCount - a.debtCount);
   }, [filteredDebts]);
+
+  // Global activity history calculation for all non-project debts
+  const allGlobalActivities = useMemo(() => {
+    return getPersonActivityHistory(nonProjectDebts);
+  }, [nonProjectDebts]);
 
   return (
     <div className="space-y-6" id="debts-viewport">
@@ -456,10 +609,23 @@ export default function DebtsManager({
             <Users className="w-4 h-4 text-sky-600" />
             <span>دليل الحسابات والأشخاص ({accountsSummary.length})</span>
           </button>
+
+          <button
+            id="tab-history-feed"
+            onClick={() => setActiveTab('history')}
+            className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 relative ${
+              activeTab === 'history' 
+                ? 'text-emerald-600 border-b-2 border-emerald-600 font-extrabold' 
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <History className="w-4 h-4 text-emerald-600" />
+            <span>سجل الحركات العام ({allGlobalActivities.length})</span>
+          </button>
         </div>
 
         {/* Row 2: Quick Accounts / People Selector Bar */}
-        {existingPersonNames.length > 0 && activeTab !== 'accounts' && (
+        {existingPersonNames.length > 0 && activeTab !== 'accounts' && activeTab !== 'history' && (
           <div className="pt-2 border-t border-slate-50 space-y-2">
             <div className="flex justify-between items-center text-[11px]">
               <span className="text-slate-500 font-bold flex items-center gap-1">
@@ -567,37 +733,6 @@ export default function DebtsManager({
               </div>
             </div>
 
-            {/* View Mode Switcher in filter panel */}
-            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="text-slate-500 font-bold flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-sky-600" />
-                <span>نمط عرض الديون:</span>
-              </span>
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setDisplayGroupedByAccount(true)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    displayGroupedByAccount
-                      ? 'bg-sky-600 text-white shadow-2xs font-extrabold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  👥 حساب موحد لكل شخص ({groupedAccounts.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDisplayGroupedByAccount(false)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    !displayGroupedByAccount
-                      ? 'bg-sky-600 text-white shadow-2xs font-extrabold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  📄 قائمة البنود المفردة ({filteredDebts.length})
-                </button>
-              </div>
-            </div>
           </>
         )}
       </div>
@@ -730,11 +865,9 @@ export default function DebtsManager({
         </div>
       )}
 
-      {/* Debts List View */}
-      {activeTab !== 'accounts' && (
-        displayGroupedByAccount ? (
-          /* Grouped Person Account Cards View */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="grouped-debts-grid">
+      {/* Debts List View - Unified Account per Person */}
+      {activeTab !== 'accounts' && activeTab !== 'history' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="grouped-debts-grid">
             {groupedAccounts.length === 0 ? (
               <div className="col-span-full bg-white p-12 rounded-2xl text-center border border-slate-100 text-slate-400">
                 <Users className="w-12 h-12 mx-auto text-slate-200 mb-3" />
@@ -795,6 +928,242 @@ export default function DebtsManager({
                         <span className="font-extrabold text-sky-700 text-xs">{formatCurrency(acc.remAmount, currency)}</span>
                       </div>
                     </div>
+
+                    {/* Prominent Payment Button on Front Card */}
+                    {acc.remAmount > 0 && (
+                      <button
+                        onClick={() => openPersonPaymentModal(acc.personName)}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer border border-emerald-700/30"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        <span>💳 تسديد / تسجيل دفعة (ينقص من الحساب)</span>
+                      </button>
+                    )}
+
+                    {/* Recent Movement Log Preview Widget on Person Card */}
+                    {acc.activities && acc.activities.length > 0 && (
+                      <div className="bg-sky-50/60 border border-sky-100 p-2.5 rounded-xl space-y-1.5 text-xs">
+                        <div className="flex justify-between items-center text-[11px] font-extrabold text-slate-700">
+                          <span className="flex items-center gap-1.5 text-sky-800">
+                            <History className="w-3.5 h-3.5 text-sky-600" />
+                            <span>سجل الحركة ({acc.activities.length} حركة):</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAccountPerson(acc.personName);
+                              setAccountModalTab('history');
+                            }}
+                            className="text-[10px] text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
+                          >
+                            عرض السجل الشامل ⚡
+                          </button>
+                        </div>
+
+                        {/* Top 2 latest movements */}
+                        <div className="space-y-1">
+                          {acc.activities.slice(0, 2).map((act) => (
+                            <div key={act.id} className="flex justify-between items-center text-[10px] bg-white p-1.5 rounded-lg border border-slate-200/60">
+                              <div className="flex items-center gap-1.5 font-bold truncate">
+                                {act.type === 'payment_made' ? (
+                                  <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black text-[9px] shrink-0">💳 تسديد</span>
+                                ) : act.type === 'debt_completed' ? (
+                                  <span className="px-1.5 py-0.5 bg-emerald-200 text-emerald-900 rounded font-black text-[9px] shrink-0">✅ مسدد</span>
+                                ) : act.debtType === 'to_me' ? (
+                                  <span className="px-1.5 py-0.5 bg-sky-100 text-sky-800 rounded font-black text-[9px] shrink-0">📥 دين لك</span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded font-black text-[9px] shrink-0">📤 دين عليك</span>
+                                )}
+                                <span className="text-slate-800 truncate max-w-[120px]">{act.debtTitle}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`font-black ${act.type === 'payment_made' || act.type === 'debt_completed' ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                  {formatCurrency(act.amount, currency)}
+                                </span>
+                                <span className="text-slate-400 text-[9px]">{formatDate(act.date)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sub-debts breakdown list directly on the card */}
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                        <span className="flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-sky-600" />
+                          <span>بنود الديون والتفاصيل ({acc.debts.length}):</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => togglePersonExpand(acc.personName)}
+                          className="text-sky-600 hover:text-sky-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          {isPersonExpanded(acc.personName) ? 'إخفاء التفاصيل ▴' : 'عرض التفاصيل ▾'}
+                        </button>
+                      </div>
+
+                      {isPersonExpanded(acc.personName) && (
+                        <div className="space-y-3 pt-1">
+                          {acc.debts.map((debt, index) => {
+                            const remaining = debt.amount - debt.paidAmount;
+                            const percentage = Math.min(Math.round((debt.paidAmount / debt.amount) * 100), 100);
+
+                            return (
+                              <div
+                                key={debt.id}
+                                className={`p-3.5 rounded-xl border text-xs space-y-2.5 transition-all ${
+                                  debt.status === 'paid'
+                                    ? 'bg-emerald-50/25 border-emerald-200/70'
+                                    : debt.type === 'to_me'
+                                    ? 'bg-sky-50/20 border-sky-100 shadow-3xs'
+                                    : 'bg-rose-50/20 border-rose-100 shadow-3xs'
+                                }`}
+                              >
+                                {/* Header */}
+                                <div className="flex justify-between items-start gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-1.5 font-extrabold text-slate-800">
+                                      <span className="text-slate-400 text-[11px]">#{index + 1}</span>
+                                      <span>{debt.description || debt.category}</span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                      <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">{debt.category}</span>
+                                      <span>تاريخ الاستحقاق: <strong className="text-slate-700">{formatDate(debt.dueDate)}</strong></span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col items-end gap-1 shrink-0">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                      debt.type === 'to_me' ? 'bg-sky-100 text-sky-800' : 'bg-rose-100 text-rose-800'
+                                    }`}>
+                                      {debt.type === 'to_me' ? '📥 مستحق لك' : '📤 مستحق عليك'}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                      debt.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : debt.status === 'partial' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                                    }`}>
+                                      {debt.status === 'paid' ? '✅ مسدد' : debt.status === 'partial' ? '⏳ جزئي' : '🔴 غير مسدد'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Financial breakdown */}
+                                <div className="bg-white/90 p-2 rounded-lg border border-slate-200/60 grid grid-cols-3 gap-1 text-center text-[10px]">
+                                  <div>
+                                    <span className="text-slate-400 block">الإجمالي</span>
+                                    <span className="font-bold text-slate-700">{formatCurrency(debt.amount, currency)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400 block">المدفوع</span>
+                                    <span className="font-bold text-emerald-600">{formatCurrency(debt.paidAmount, currency)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400 block">المتبقي</span>
+                                    <span className="font-extrabold text-rose-600">{formatCurrency(remaining, currency)}</span>
+                                  </div>
+                                </div>
+
+                                {/* Extra description if distinct */}
+                                {debt.description && debt.description !== debt.category && (
+                                  <div className="text-[11px] text-slate-600 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed">
+                                    <span className="font-bold text-slate-400 block text-[10px]">💡 ملاحظات/وصف الدين:</span>
+                                    {debt.description}
+                                  </div>
+                                )}
+
+                                {/* Extra note */}
+                                {debt.note && (
+                                  <div className="text-[11px] text-slate-700 bg-amber-50/70 p-2 rounded-lg border border-amber-200/60 leading-relaxed">
+                                    <span className="font-bold text-amber-800 block text-[10px]">📝 ملاحظات توثيقية:</span>
+                                    {debt.note}
+                                  </div>
+                                )}
+
+                                {/* Photo attachment preview */}
+                                {debt.photo && (
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-slate-400 font-bold block">📎 المستند / الصورة المرفقة:</span>
+                                    <div
+                                      onClick={() => setSelectedPhoto(debt.photo!)}
+                                      className="relative group max-w-[100px] rounded-lg overflow-hidden border border-slate-300 shadow-3xs cursor-zoom-in"
+                                    >
+                                      <img
+                                        src={debt.photo}
+                                        alt="Attachment"
+                                        referrerPolicy="no-referrer"
+                                        className="w-full h-20 object-cover group-hover:scale-105 transition-transform"
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[9px] font-bold">
+                                        تكبير 🔍
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Sub-item action controls */}
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-slate-200/40">
+                                  <div className="flex items-center gap-1">
+                                    {debt.status !== 'paid' && (
+                                      <button
+                                        onClick={() => openPaymentModal(debt)}
+                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-extrabold transition-colors cursor-pointer flex items-center gap-1"
+                                      >
+                                        <CreditCard className="w-3 h-3" />
+                                        <span>تسديد</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => openEditModal(debt)}
+                                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                      <Edit3 className="w-3 h-3 text-slate-500" />
+                                      <span>تعديل</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setConfirmModal({
+                                          title: 'حذف بند الدين',
+                                          message: `هل أنت متأكد من حذف بند الدين بقيمة ${formatCurrency(debt.amount, currency)}؟`,
+                                          onConfirm: () => onDeleteDebt(debt.id)
+                                        });
+                                      }}
+                                      className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span>حذف</span>
+                                    </button>
+                                  </div>
+
+                                  {debt.installments && debt.installments.length > 0 && (
+                                    <button
+                                      onClick={() => toggleExpanded(debt.id)}
+                                      className="text-[10px] text-sky-700 font-bold hover:underline cursor-pointer"
+                                    >
+                                      {expandedDebtId === debt.id ? 'إخفاء الدفعات ▴' : `سجل الدفعات (${debt.installments.length}) ▾`}
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Installments History */}
+                                {expandedDebtId === debt.id && debt.installments && (
+                                  <div className="bg-slate-100 p-2 rounded-lg space-y-1 text-[10px] border border-slate-200">
+                                    <span className="font-extrabold text-slate-600 block">سجل الدفعات المسددة لهذا البند:</span>
+                                    {debt.installments.map((inst, idx) => (
+                                      <div key={inst.id || idx} className="flex justify-between items-center bg-white p-1 rounded border border-slate-200/60">
+                                        <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
+                                        <span className="text-slate-400">{formatDate(inst.date)}</span>
+                                        {inst.notes && <span className="text-slate-600 font-medium">({inst.notes})</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Actions */}
@@ -813,7 +1182,7 @@ export default function DebtsManager({
                         className="py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/60 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <FileText className="w-3.5 h-3.5 text-sky-600" />
-                        <span>السجل والتفاصيل ({acc.debtCount})</span>
+                        <span>كشف الحساب الكامل ({acc.debtCount})</span>
                       </button>
 
                       <a
@@ -823,7 +1192,7 @@ export default function DebtsManager({
                         className="py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
-                        <span>كشف حساب</span>
+                        <span>واتساب</span>
                       </a>
                     </div>
                   </div>
@@ -831,263 +1200,193 @@ export default function DebtsManager({
               ))
             )}
           </div>
-        ) : (
-          /* Individual Items View */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="debts-list-grid">
-        {filteredDebts.length === 0 ? (
-          <div className="col-span-full bg-white p-12 rounded-2xl text-center border border-slate-100 text-slate-400" id="empty-debts-list">
-            <FileText className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-            <h3 className="font-bold text-slate-700 mb-1">لا توجد ديون مطابقة للخيارات</h3>
-            <p className="text-xs max-w-sm mx-auto">ابدأ بإضافة دين جديد عبر زر "إضافة دين جديد" أو عدل فلاتر البحث الحالية.</p>
-          </div>
-        ) : (
-          filteredDebts.map((debt) => {
-            const remaining = debt.amount - debt.paidAmount;
-            const percentage = Math.min(Math.round((debt.paidAmount / debt.amount) * 100), 100);
+      )}
 
-            return (
-              <div 
-                key={debt.id} 
-                id={`debt-card-${debt.id}`}
-                className={`bg-white rounded-2xl border p-5 shadow-2xs space-y-4 flex flex-col justify-between transition-all ${
-                  debt.status === 'paid' 
-                    ? 'border-emerald-100 bg-emerald-50/5' 
-                    : debt.type === 'to_me' 
-                    ? 'border-sky-100 hover:border-sky-200' 
-                    : 'border-rose-100 hover:border-rose-200'
+      {/* Global Activity / Movement History View */}
+      {activeTab === 'history' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4" id="global-history-view">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="font-extrabold text-base text-slate-800 flex items-center gap-2">
+                <History className="w-5 h-5 text-emerald-600" />
+                <span>سجل الحركة الشامل لجميع الديون والإضافات ({allGlobalActivities.length} حركة)</span>
+              </h2>
+              <p className="text-xs text-slate-400 font-medium">
+                يتضمن جميع عمليات إضافة الديون الجديدة، وتسديد الدفعات، وإغلاق الحسابات مرتبة زمينياً من الأحدث إلى الأقدم.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActivityFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-colors ${
+                  activityFilter === 'all' ? 'bg-sky-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                {/* Header section of card */}
-                <div className="space-y-3">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`p-2 rounded-xl shrink-0 ${
-                        debt.type === 'to_me' ? 'bg-sky-50 text-sky-600' : 'bg-rose-50 text-rose-600'
-                      }`}>
-                        <User className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-800 text-sm">{debt.personName}</h3>
-                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">
-                          {debt.category}
-                        </span>
-                      </div>
-                    </div>
+                الكل ({allGlobalActivities.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivityFilter('debts')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-colors ${
+                  activityFilter === 'debts' ? 'bg-sky-700 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                ➕ الديون المضافة ({allGlobalActivities.filter((a) => a.type === 'debt_added').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivityFilter('payments')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-colors ${
+                  activityFilter === 'payments' ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                💳 التسديدات والدفعات ({allGlobalActivities.filter((a) => a.type === 'payment_made' || a.type === 'debt_completed').length})
+              </button>
+            </div>
+          </div>
 
-                    {/* Status Badge */}
-                    <div id={`debt-status-badge-${debt.id}`}>
-                      {debt.status === 'paid' ? (
-                        <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold flex items-center gap-1">
-                          <Check className="w-3.5 h-3.5" />
-                          <span>مسدد</span>
-                        </span>
-                      ) : debt.status === 'partial' ? (
-                        <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold">
-                          جزئي ({percentage}%)
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold">
-                          غير مسدد
-                        </span>
-                      )}
-                    </div>
-                  </div>
+          {/* Filtered Timeline Feed */}
+          {(() => {
+            const filteredGlobal = allGlobalActivities.filter((act) => {
+              if (activityFilter === 'payments') return act.type === 'payment_made' || act.type === 'debt_completed';
+              if (activityFilter === 'debts') return act.type === 'debt_added';
+              return true;
+            });
 
-                  {/* Financial Breakdown */}
-                  <div className="grid grid-cols-3 gap-2 bg-slate-50/80 p-3 rounded-xl text-center" id="financial-breakdown">
-                    <div>
-                      <span className="block text-[10px] text-slate-400">الإجمالي</span>
-                      <span className="text-xs font-bold text-slate-700">{formatCurrency(debt.amount, currency)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400">المدفوع</span>
-                      <span className="text-xs font-bold text-emerald-600">{formatCurrency(debt.paidAmount, currency)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400">المتبقي</span>
-                      <span className={`text-xs font-bold ${remaining > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                        {formatCurrency(remaining, currency)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Payment Progress Bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] text-slate-400">
-                      <span>نسبة السداد</span>
-                      <span>{percentage}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-300 ${debt.status === 'paid' ? 'bg-emerald-500' : 'bg-sky-500'}`}
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Dates & Notes */}
-                  <div className="space-y-1.5 text-xs text-slate-500 pt-1 border-t border-slate-50">
-                    <div className="flex justify-between">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span>تاريخ البدء:</span>
-                      </span>
-                      <span className="font-medium text-slate-600">{formatDate(debt.startDate)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span>تاريخ الاستحقاق:</span>
-                      </span>
-                      <span className="font-bold text-slate-700">{formatDate(debt.dueDate)}</span>
-                    </div>
-                    {debt.description && (
-                      <div className="pt-1.5 text-slate-400 italic text-[11px] leading-relaxed border-t border-slate-100">
-                        "{debt.description}"
-                      </div>
-                    )}
-                    {(debt.note || debt.photo) && (
-                      <div className="pt-2 mt-2 border-t border-slate-150/80 space-y-2">
-                        <span className="text-[10px] text-slate-400 font-bold block">📎 المرفقات التوثيقية:</span>
-                        {debt.note && (
-                          <p className="text-[11px] text-slate-600 bg-slate-50/50 p-2 rounded-lg border border-slate-100 leading-relaxed">
-                            {debt.note}
-                          </p>
-                        )}
-                        {debt.photo && (
-                          <div className="relative group max-w-[120px] rounded-lg overflow-hidden border border-slate-200 shadow-3xs cursor-zoom-in" onClick={() => setSelectedPhoto(debt.photo!)}>
-                            <img
-                              src={debt.photo}
-                              alt="Captured attachment"
-                              referrerPolicy="no-referrer"
-                              className="w-full h-auto aspect-square object-cover hover:scale-105 transition-transform duration-300"
-                            />
-                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[9px] font-bold">
-                              تكبير المعاينة 🔍
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+            if (filteredGlobal.length === 0) {
+              return (
+                <div className="p-12 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-400">
+                  <History className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                  <p className="text-xs font-bold">لا توجد حركات مسجلة حالياً بهذا التصنيف.</p>
                 </div>
+              );
+            }
 
-                {/* Actions / Bottom controls */}
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  {/* Action row 1: Primary features */}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      id={`btn-add-extra-debt-${debt.id}`}
-                      onClick={() => openAddModal(debt.personName, debt.type)}
-                      className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-sky-200/60"
-                      title={`إضافة دين جديد إضافي لـ ${debt.personName}`}
+            return (
+              <div className="space-y-3">
+                {filteredGlobal.map((act) => {
+                  const isPayment = act.type === 'payment_made';
+                  const isCompleted = act.type === 'debt_completed';
+
+                  return (
+                    <div
+                      key={act.id}
+                      className={`p-4 rounded-2xl border text-xs space-y-3 transition-all ${
+                        isCompleted
+                          ? 'bg-emerald-50/40 border-emerald-200/80'
+                          : isPayment
+                          ? 'bg-emerald-50/20 border-emerald-100'
+                          : act.debtType === 'to_me'
+                          ? 'bg-white border-sky-100 shadow-2xs'
+                          : 'bg-white border-rose-100 shadow-2xs'
+                      }`}
                     >
-                      <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
-                      <span>+ دين إضافي</span>
-                    </button>
+                      <div className="flex flex-wrap justify-between items-start gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-black flex items-center gap-1 ${
+                                isCompleted
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isPayment
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : act.debtType === 'to_me'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {isCompleted ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>سداد بالكامل</span>
+                                </>
+                              ) : isPayment ? (
+                                <>
+                                  <CreditCard className="w-3 h-3 text-emerald-600" />
+                                  <span>تسديد دفعة</span>
+                                </>
+                              ) : act.debtType === 'to_me' ? (
+                                <>
+                                  <PlusCircle className="w-3 h-3 text-sky-600" />
+                                  <span>📥 إضافة دين لك (مستحق لك)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <PlusCircle className="w-3 h-3 text-rose-600" />
+                                  <span>📤 إضافة دين عليك (التزام عليك)</span>
+                                </>
+                              )}
+                            </span>
 
-                    {debt.status !== 'paid' && (
-                      <button
-                        id={`btn-record-payment-${debt.id}`}
-                        onClick={() => openPaymentModal(debt)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>تسجيل دفعة</span>
-                      </button>
-                    )}
-                    
-                    <button
-                      id={`btn-expand-history-${debt.id}`}
-                      onClick={() => toggleExpanded(debt.id)}
-                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <History className="w-3.5 h-3.5" />
-                      <span>الدفعات ({debt.installments.length})</span>
-                      {expandedDebtId === debt.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAccountPerson(act.personName)}
+                              className="font-black text-sky-700 hover:text-sky-900 underline text-xs cursor-pointer flex items-center gap-1"
+                            >
+                              <User className="w-3.5 h-3.5 text-sky-600" />
+                              <span>الحساب: {act.personName}</span>
+                            </button>
+                          </div>
 
-                    <a
-                      id={`btn-whatsapp-remind-${debt.id}`}
-                      href={generateWhatsAppLink(debt, currency)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2.5 py-1.5 bg-green-500 hover:bg-green-400 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>واتساب</span>
-                    </a>
-                  </div>
+                          <div className="font-extrabold text-slate-800 text-sm pt-0.5">
+                            {act.debtTitle}
+                          </div>
+                        </div>
 
-                  {/* Installment History Sub-view */}
-                  {expandedDebtId === debt.id && (
-                    <div className="bg-slate-50 rounded-xl p-3 space-y-2 border border-slate-100" id={`installment-history-${debt.id}`}>
-                      <h4 className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200 flex justify-between">
-                        <span>سجل المبالغ المسددة:</span>
-                        <span className="text-[10px] text-slate-400">عدد الدفعات: {debt.installments.length}</span>
-                      </h4>
-                      {debt.installments.length === 0 ? (
-                        <p className="text-[11px] text-slate-400 py-2 text-center">لا توجد أي دفعات جزئية مسجلة بعد.</p>
-                      ) : (
-                        <div className="divide-y divide-slate-200 max-h-36 overflow-y-auto">
-                          {debt.installments.map((inst) => (
-                            <div key={inst.id} className="py-2 flex justify-between items-center text-xs gap-2" id={`installment-${inst.id}`}>
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-700">{formatCurrency(inst.amount, currency)}</p>
-                                <p className="text-[10px] text-slate-400">{formatDate(inst.date)} {inst.notes && `- ${inst.notes}`}</p>
-                              </div>
-                              <button
-                                id={`btn-delete-inst-${inst.id}`}
-                                onClick={() => onDeleteInstallment(debt.id, inst.id)}
-                                className="p-1 text-slate-400 hover:text-red-500 rounded-md hover:bg-slate-100 transition-colors"
-                                title="حذف هذه الدفعة"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ))}
+                        <div className="text-right shrink-0">
+                          <span className="text-[10px] text-slate-400 font-bold block">تاريخ الحركة</span>
+                          <span className="text-xs text-slate-600 font-extrabold flex items-center justify-end gap-1">
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            {formatDate(act.date)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center text-xs font-bold">
+                        <span className="text-slate-500">مبلغ الحركة:</span>
+                        <span
+                          className={`font-black text-sm ${
+                            isPayment || isCompleted
+                              ? 'text-emerald-600'
+                              : act.debtType === 'to_me'
+                              ? 'text-sky-700'
+                              : 'text-rose-700'
+                          }`}
+                        >
+                          {formatCurrency(act.amount, currency)}
+                        </span>
+                      </div>
+
+                      {act.notes && (
+                        <div className="text-[11px] text-slate-700 bg-amber-50/70 p-2 rounded-lg border border-amber-200/60 leading-relaxed font-semibold">
+                          📝 التفاصيل: {act.notes}
+                        </div>
+                      )}
+
+                      {act.photo && (
+                        <div className="pt-0.5">
+                          <img
+                            src={act.photo}
+                            alt="Attachment"
+                            onClick={() => setSelectedPhoto(act.photo!)}
+                            className="w-16 h-16 object-cover rounded-lg border border-slate-200 cursor-zoom-in"
+                          />
                         </div>
                       )}
                     </div>
-                  )}
-
-                  {/* Action row 2: Management */}
-                  <div className="flex justify-end gap-2 pt-1 border-t border-dashed border-slate-100">
-                    <button
-                      id={`btn-edit-debt-${debt.id}`}
-                      onClick={() => openEditModal(debt)}
-                      className="p-1.5 text-slate-500 hover:text-sky-600 rounded-lg hover:bg-slate-50 transition-colors"
-                      title="تعديل تفاصيل الدين"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      id={`btn-delete-debt-${debt.id}`}
-                      onClick={() => {
-                        setConfirmModal({
-                          title: 'تأكيد حذف الدين',
-                          message: `هل أنت متأكد من رغبتك في حذف الدين المسجل باسم "${debt.personName}"؟`,
-                          onConfirm: () => onDeleteDebt(debt.id)
-                        });
-                      }}
-                      className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-slate-50 transition-colors"
-                      title="حذف الدين"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             );
-          })
-        )}
-      </div>
-        )
+          })()}
+        </div>
       )}
 
       {/* Add Debt Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="add-debt-modal">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in" id="add-debt-modal">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl border border-slate-100 flex flex-col justify-between">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h2 className="text-base font-bold text-slate-800">إضافة سجل دين جديد ✍️</h2>
@@ -1248,8 +1547,20 @@ export default function DebtsManager({
                   placeholder="مثال: سلفة لمصاريف السفر، ثمن شراء جهاز لابتوب..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
+                  rows={2}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 leading-relaxed font-bold"
+                />
+              </div>
+
+              {/* Guarantor / الضامن */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-500 font-semibold">اسم الكفيل / الضامن (اختياري)</label>
+                <input
+                  type="text"
+                  placeholder="مثال: أ. محمد العلي (كفيل حظوري ضامن)"
+                  value={guarantor}
+                  onChange={(e) => setGuarantor(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
                 />
               </div>
 
@@ -1284,7 +1595,7 @@ export default function DebtsManager({
 
       {/* Edit Debt Modal */}
       {isEditModalOpen && selectedDebt && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="edit-debt-modal">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in" id="edit-debt-modal">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl border border-slate-100 flex flex-col justify-between">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h2 className="text-base font-bold text-slate-800">تعديل بيانات الدين ✏️</h2>
@@ -1402,8 +1713,20 @@ export default function DebtsManager({
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
+                  rows={2}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 leading-relaxed font-bold"
+                />
+              </div>
+
+              {/* Guarantor / الضامن */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-500 font-semibold">اسم الكفيل / الضامن (اختياري)</label>
+                <input
+                  type="text"
+                  placeholder="اسم الكفيل أو الضامن..."
+                  value={guarantor}
+                  onChange={(e) => setGuarantor(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
                 />
               </div>
 
@@ -1445,56 +1768,136 @@ export default function DebtsManager({
       )}
 
       {/* Record Payment/Installment Modal */}
-      {isPaymentModalOpen && selectedDebt && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="payment-modal">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">تسجيل دفعة سداد جديدة 💸</h2>
-                <p className="text-[11px] text-slate-400">لصالح: {selectedDebt.personName}</p>
-              </div>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handlePaymentSubmit} className="p-5 space-y-4 text-xs" id="payment-form">
-              {/* Quick stats */}
-              <div className="p-3 bg-slate-50 rounded-xl flex justify-between text-center border border-slate-100">
-                <div>
-                  <span className="block text-[10px] text-slate-400">إجمالي الدين</span>
-                  <span className="font-bold text-slate-700">{formatCurrency(selectedDebt.amount, currency)}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] text-slate-400">المدفوع سابقاً</span>
-                  <span className="font-bold text-emerald-600">{formatCurrency(selectedDebt.paidAmount, currency)}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] text-slate-400">الحد الأقصى للمتبقي</span>
-                  <span className="font-bold text-rose-600">
-                    {formatCurrency(selectedDebt.amount - selectedDebt.paidAmount, currency)}
-                  </span>
-                </div>
-              </div>
+      {isPaymentModalOpen && selectedDebt && (() => {
+        const personDebts = nonProjectDebts.filter(
+          (d) => d.personName.trim().toLowerCase() === selectedDebt.personName.trim().toLowerCase()
+        );
+        const remainingForSelected = selectedDebt.amount - selectedDebt.paidAmount;
 
-              {/* Installment Amount */}
-              <div className="space-y-1.5">
-                <label className="block text-slate-500 font-semibold">قيمة الدفعة الحالية ({currency})</label>
-                <div className="relative">
-                  <DollarSign className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="number"
-                    required
-                    min="0.1"
-                    step="any"
-                    max={selectedDebt.amount - selectedDebt.paidAmount}
-                    placeholder="أدخل قيمة الدفعة الحالية..."
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
-                  />
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in" id="payment-modal">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">تسجيل دفعة سداد جديدة 💸</h2>
+                  <p className="text-[11px] text-slate-400">الحساب: <strong className="text-slate-700">{selectedDebt.personName}</strong></p>
                 </div>
+                <button onClick={() => setIsPaymentModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
+              
+              <form onSubmit={handlePaymentSubmit} className="p-5 space-y-4 text-xs" id="payment-form">
+                {/* Selector if person has multiple debts */}
+                {personDebts.length > 1 && (
+                  <div className="space-y-1.5 bg-sky-50/80 p-3 rounded-xl border border-sky-100">
+                    <label className="block text-sky-900 font-extrabold text-xs">
+                      اختر بند الدين المراد تسديده لهذا الشخص:
+                    </label>
+                    <select
+                      value={selectedDebt.id}
+                      onChange={(e) => {
+                        const found = personDebts.find((d) => d.id === e.target.value);
+                        if (found) {
+                          setSelectedDebt(found);
+                          setPaymentAmount('');
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-sky-300 rounded-xl font-bold text-slate-800 text-xs focus:ring-2 focus:ring-sky-500"
+                    >
+                      {personDebts.map((d, idx) => {
+                        const rem = d.amount - d.paidAmount;
+                        return (
+                          <option key={d.id} value={d.id}>
+                            #{idx + 1} {d.description || d.category} ({d.type === 'to_me' ? 'له' : 'عليه'}) - المتبقي: {formatCurrency(rem, currency)} {d.status === 'paid' ? '✅ مسدد' : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+
+                {/* Quick stats for the selected debt */}
+                <div className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
+                  <div className="flex justify-between text-center">
+                    <div>
+                      <span className="block text-[10px] text-slate-400">إجمالي البند</span>
+                      <span className="font-bold text-slate-700">{formatCurrency(selectedDebt.amount, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400">المدفوع سابقاً</span>
+                      <span className="font-bold text-emerald-600">{formatCurrency(selectedDebt.paidAmount, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400">الرصيد المتبقي</span>
+                      <span className="font-extrabold text-rose-600">
+                        {formatCurrency(remainingForSelected, currency)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Capital Impact Badge */}
+                  <div className={`p-2 rounded-lg text-[11px] font-bold text-center flex items-center justify-center gap-1.5 ${
+                    selectedDebt.projectId
+                      ? 'bg-sky-50 text-sky-700 border border-sky-200/60'
+                      : selectedDebt.type === 'to_me'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200/60'
+                  }`}>
+                    <span>{selectedDebt.projectId ? '🔒 حساب المشروع المستقل:' : '🏛️ تأثير التسديد:'}</span>
+                    <span>
+                      {selectedDebt.projectId
+                        ? 'هذا الدين مرتبط بمشروع عمل معزول؛ يتم خصمه/إضافته من ميزانية المشروع ولا يُسحب من رأس المال العام'
+                        : selectedDebt.type === 'to_me' 
+                        ? 'تضاف هذه الدفعة فوراً إلى رأس المال والسيولة المتاحة ➕' 
+                        : 'تسحب هذه الدفعة فوراً من رأس المال والسيولة المتاحة ➖'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Installment Amount */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-slate-500 font-semibold">قيمة الدفعة الحالية ({currency})</label>
+                    <span className="text-[10px] text-slate-400 font-bold">ينقص المتبقي تلقائياً</span>
+                  </div>
+                  <div className="relative">
+                    <DollarSign className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      required
+                      min="0.1"
+                      step="any"
+                      max={remainingForSelected > 0 ? remainingForSelected : undefined}
+                      placeholder="أدخل قيمة الدفعة الحالية..."
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
+                    />
+                  </div>
+
+                  {/* Quick Fill Buttons */}
+                  {remainingForSelected > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAmount(remainingForSelected)}
+                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                      >
+                        تسديد المبلغ المتبقي بالكامل ({formatCurrency(remainingForSelected, currency)})
+                      </button>
+                      {remainingForSelected > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentAmount(Math.round(remainingForSelected / 2))}
+                          className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                        >
+                          تسديد 50% ({formatCurrency(Math.round(remainingForSelected / 2), currency)})
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
 
               {/* Installment Date */}
               <div className="space-y-1.5">
@@ -1562,12 +1965,13 @@ export default function DebtsManager({
             </form>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Photo Lightbox Modal */}
       {selectedPhoto && (
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in cursor-zoom-out"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-[120] animate-fade-in cursor-zoom-out"
           onClick={() => setSelectedPhoto(null)}
           id="photo-lightbox-modal"
         >
@@ -1643,6 +2047,13 @@ export default function DebtsManager({
           else totalToOthersRem += rem;
         });
         const net = totalToMeRem - totalToOthersRem;
+        const activities = getPersonActivityHistory(personDebts);
+
+        const filteredActivities = activities.filter((act) => {
+          if (activityFilter === 'payments') return act.type === 'payment_made' || act.type === 'debt_completed';
+          if (activityFilter === 'debts') return act.type === 'debt_added';
+          return true;
+        });
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 z-[90] flex items-center justify-center p-4 overflow-y-auto" id="person-account-modal">
@@ -1659,7 +2070,7 @@ export default function DebtsManager({
                       <span className="text-sky-400">{selectedAccountPerson}</span>
                     </h2>
                     <p className="text-[11px] text-slate-300 font-bold">
-                      جميع بنود الديون والالتزامات المسجلة باسم هذا الشخص ({personDebts.length} بند)
+                      جميع بنود الديون وسجل الحركات والالتزامات باسم هذا الشخص ({personDebts.length} بند | {activities.length} حركة)
                     </p>
                   </div>
                 </div>
@@ -1668,6 +2079,34 @@ export default function DebtsManager({
                   className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl text-lg font-bold transition-colors cursor-pointer"
                 >
                   ✕
+                </button>
+              </div>
+
+              {/* Navigation Tabs Header */}
+              <div className="flex border-b border-slate-200 bg-slate-50/80 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAccountModalTab('items')}
+                  className={`flex-1 py-3 text-xs font-black border-b-2 flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                    accountModalTab === 'items'
+                      ? 'border-sky-600 text-sky-700 bg-white shadow-2xs'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-sky-600" />
+                  <span>بنود الديون والالتزامات ({personDebts.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountModalTab('history')}
+                  className={`flex-1 py-3 text-xs font-black border-b-2 flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                    accountModalTab === 'history'
+                      ? 'border-sky-600 text-sky-700 bg-white shadow-2xs'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <History className="w-4 h-4 text-emerald-600" />
+                  <span>سجل الحركة الشامل ({activities.length})</span>
                 </button>
               </div>
 
@@ -1719,156 +2158,349 @@ export default function DebtsManager({
                     href={generateAccountWhatsAppLink(selectedAccountPerson, personDebts)}
                     target="_blank"
                     rel="noreferrer"
-                    className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <MessageSquare className="w-4 h-4" />
-                    <span>إرسال كشف الحساب واتساب</span>
+                    <span>إرسال كشف واتساب</span>
                   </a>
+
+                  <button
+                    onClick={() => setPrintableAccountPerson(selectedAccountPerson)}
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-sky-400" />
+                    <span>طباعة الكشف 🖨️</span>
+                  </button>
                 </div>
 
-                {/* List of Debt Items for this Person */}
-                <div className="space-y-3">
-                  <h3 className="font-extrabold text-xs text-slate-700 flex items-center justify-between border-b pb-2 border-slate-100">
-                    <span>تفاصيل وبنود الديون المترتبة ({personDebts.length}):</span>
-                    <span className="text-[10px] text-slate-400 font-normal">مرتبة بحسب التاريخ</span>
-                  </h3>
+                {/* TAB 1: Debt Items Breakdown */}
+                {accountModalTab === 'items' && (
+                  <div className="space-y-3">
+                    <h3 className="font-extrabold text-xs text-slate-700 flex items-center justify-between border-b pb-2 border-slate-100">
+                      <span>تفاصيل وبنود الديون المترتبة ({personDebts.length}):</span>
+                      <span className="text-[10px] text-slate-400 font-normal">مرتبة بحسب التاريخ</span>
+                    </h3>
 
-                  {personDebts.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-400 text-xs">
-                      لا توجد بنود ديون مسجلة باسم {selectedAccountPerson}. اضغط على زر الإضافة أعلاه لإضافة أول دين له.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {personDebts.map((debt, index) => {
-                        const remaining = debt.amount - debt.paidAmount;
-                        const percentage = Math.min(Math.round((debt.paidAmount / debt.amount) * 100), 100);
+                    {personDebts.length === 0 ? (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-400 text-xs">
+                        لا توجد بنود ديون مسجلة باسم {selectedAccountPerson}. اضغط على زر الإضافة أعلاه لإضافة أول دين له.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {personDebts.map((debt, index) => {
+                          const remaining = debt.amount - debt.paidAmount;
+                          const percentage = Math.min(Math.round((debt.paidAmount / debt.amount) * 100), 100);
 
-                        return (
-                          <div
-                            key={debt.id}
-                            className={`p-4 rounded-2xl border text-xs space-y-3 transition-all ${
-                              debt.status === 'paid'
-                                ? 'bg-emerald-50/20 border-emerald-200/60'
-                                : debt.type === 'to_me'
-                                ? 'bg-white border-sky-100 shadow-2xs'
-                                : 'bg-white border-rose-100 shadow-2xs'
-                            }`}
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-black text-slate-800 text-sm">
-                                    #{index + 1} {debt.description || debt.category}
-                                  </span>
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    debt.type === 'to_me'
-                                      ? 'bg-sky-100 text-sky-800'
-                                      : 'bg-rose-100 text-rose-800'
-                                  }`}>
-                                    {debt.type === 'to_me' ? '📥 مستحق لك' : '📤 مستحق عليك'}
-                                  </span>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
-                                  <span>الفئة: <strong className="text-slate-600">{debt.category}</strong></span>
-                                  <span>تاريخ البدء: <strong className="text-slate-600">{formatDate(debt.startDate)}</strong></span>
-                                  <span>الاستحقاق: <strong className="text-slate-600">{formatDate(debt.dueDate)}</strong></span>
-                                </div>
-                              </div>
-
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black shrink-0 ${
+                          return (
+                            <div
+                              key={debt.id}
+                              className={`p-4 rounded-2xl border text-xs space-y-3 transition-all ${
                                 debt.status === 'paid'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : debt.status === 'partial'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-rose-100 text-rose-800'
-                              }`}>
-                                {debt.status === 'paid' ? '✅ مسدد بالكامل' : debt.status === 'partial' ? '⏳ مسدد جزئياً' : '🔴 غير مسدد'}
-                              </span>
-                            </div>
+                                  ? 'bg-emerald-50/20 border-emerald-200/60'
+                                  : debt.type === 'to_me'
+                                  ? 'bg-white border-sky-100 shadow-2xs'
+                                  : 'bg-white border-rose-100 shadow-2xs'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-slate-800 text-sm">
+                                      #{index + 1} {debt.description || debt.category}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                      debt.type === 'to_me'
+                                        ? 'bg-sky-100 text-sky-800'
+                                        : 'bg-rose-100 text-rose-800'
+                                    }`}>
+                                      {debt.type === 'to_me' ? '📥 مستحق لك' : '📤 مستحق عليك'}
+                                    </span>
+                                  </div>
 
-                            {/* Progress bar and amounts */}
-                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-2">
-                              <div className="flex justify-between items-center font-bold text-[11px]">
-                                <span className="text-slate-600">المبلغ الإجمالي: {formatCurrency(debt.amount, currency)}</span>
-                                <span className="text-emerald-700">المدفوع: {formatCurrency(debt.paidAmount, currency)}</span>
-                                <span className="text-rose-700">المتبقي: {formatCurrency(remaining, currency)}</span>
+                                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+                                    <span>الفئة: <strong className="text-slate-600">{debt.category}</strong></span>
+                                    <span>تاريخ البدء: <strong className="text-slate-600">{formatDate(debt.startDate)}</strong></span>
+                                    <span>الاستحقاق: <strong className="text-slate-600">{formatDate(debt.dueDate)}</strong></span>
+                                  </div>
+                                </div>
+
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black shrink-0 ${
+                                  debt.status === 'paid'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : debt.status === 'partial'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {debt.status === 'paid' ? '✅ مسدد بالكامل' : debt.status === 'partial' ? '⏳ مسدد جزئياً' : '🔴 غير مسدد'}
+                                </span>
                               </div>
 
-                              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full transition-all duration-300 ${
-                                    debt.status === 'paid' ? 'bg-emerald-500' : 'bg-sky-500'
-                                  }`}
-                                  style={{ width: `${percentage}%` }}
-                                />
-                              </div>
-                            </div>
+                              {/* Progress bar and amounts */}
+                              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-2">
+                                <div className="flex justify-between items-center font-bold text-[11px]">
+                                  <span className="text-slate-600">المبلغ الإجمالي: {formatCurrency(debt.amount, currency)}</span>
+                                  <span className="text-emerald-700">المدفوع: {formatCurrency(debt.paidAmount, currency)}</span>
+                                  <span className="text-rose-700">المتبقي: {formatCurrency(remaining, currency)}</span>
+                                </div>
 
-                            {/* Item Action Buttons */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                              <div className="flex items-center gap-1.5">
-                                {debt.status !== 'paid' && (
+                                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full transition-all duration-300 ${
+                                      debt.status === 'paid' ? 'bg-emerald-500' : 'bg-sky-500'
+                                    }`}
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Guarantor if available */}
+                              {debt.guarantor && (
+                                <div className="text-[11px] text-purple-700 bg-purple-50 p-2 rounded-lg border border-purple-200/60 font-semibold flex items-center gap-1.5">
+                                  <span>🛡️ الكفيل / الضامن:</span>
+                                  <span className="font-extrabold">{debt.guarantor}</span>
+                                </div>
+                              )}
+
+                              {/* Note if available */}
+                              {debt.note && (
+                                <div className="text-[11px] text-slate-700 bg-amber-50/70 p-2 rounded-lg border border-amber-200/60 leading-relaxed font-semibold">
+                                  📝 ملاحظات: {debt.note}
+                                </div>
+                              )}
+
+                              {/* Photo attachment preview */}
+                              {debt.photo && (
+                                <div className="space-y-1">
+                                  <span className="text-[10px] text-slate-400 font-bold block">📎 المرفق:</span>
+                                  <img
+                                    src={debt.photo}
+                                    alt="Attachment"
+                                    onClick={() => setSelectedPhoto(debt.photo!)}
+                                    className="w-16 h-16 object-cover rounded-lg border border-slate-200 cursor-zoom-in"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Item Action Buttons */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                <div className="flex items-center gap-1.5">
+                                  {debt.status !== 'paid' && (
+                                    <button
+                                      onClick={() => openPaymentModal(debt)}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                      <CreditCard className="w-3 h-3" />
+                                      <span>+ تسجيل دفعة</span>
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => openPaymentModal(debt)}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                    onClick={() => openEditModal(debt)}
+                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
                                   >
-                                    + تسجيل دفعة
+                                    <Edit3 className="w-3 h-3 text-slate-500" />
+                                    <span>تعديل</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setConfirmModal({
+                                        title: 'حذف بند الدين',
+                                        message: `هل أنت موافق على حذف بند الدين بقيمة (${formatCurrency(debt.amount, currency)}) لحساب ${debt.personName}؟`,
+                                        onConfirm: () => onDeleteDebt(debt.id)
+                                      });
+                                    }}
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>حذف</span>
+                                  </button>
+                                </div>
+
+                                {debt.installments && debt.installments.length > 0 && (
+                                  <button
+                                    onClick={() => setExpandedDebtId(expandedDebtId === debt.id ? null : debt.id)}
+                                    className="text-[11px] text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
+                                  >
+                                    {expandedDebtId === debt.id ? 'إخفاء الأقساط ▴' : `سجل الدفعات (${debt.installments.length}) ▾`}
                                   </button>
                                 )}
-                                <button
-                                  onClick={() => openEditModal(debt)}
-                                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
-                                >
-                                  تعديل
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setConfirmModal({
-                                      title: 'حذف بند الدين',
-                                      message: `هل أنت أفق على حذف بند الدين بقيمة (${formatCurrency(debt.amount, currency)}) لحساب ${debt.personName}؟`,
-                                      onConfirm: () => onDeleteDebt(debt.id)
-                                    });
-                                  }}
-                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
-                                >
-                                  حذف
-                                </button>
                               </div>
 
-                              {debt.installments && debt.installments.length > 0 && (
-                                <button
-                                  onClick={() => setExpandedDebtId(expandedDebtId === debt.id ? null : debt.id)}
-                                  className="text-[11px] text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
-                                >
-                                  {expandedDebtId === debt.id ? 'إخفاء الأقساط ▴' : `سجل الدفعات (${debt.installments.length}) ▾`}
-                                </button>
+                              {/* Installments History */}
+                              {expandedDebtId === debt.id && debt.installments && (
+                                <div className="bg-slate-100/70 p-2.5 rounded-xl space-y-1.5 border border-slate-200/60 mt-2">
+                                  <span className="text-[10px] text-slate-500 font-extrabold block">سجل الدفعات المسددة لهذا البند:</span>
+                                  {debt.installments.map((inst, idx) => (
+                                    <div key={inst.id || idx} className="flex justify-between items-center text-[11px] bg-white p-1.5 rounded-lg border border-slate-200/50">
+                                      <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
+                                      <span className="text-slate-400">{formatDate(inst.date)}</span>
+                                      {inst.notes && <span className="text-slate-500 text-[10px]">({inst.notes})</span>}
+                                    </div>
+                                  ))}
+                                </div>
                               )}
                             </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                            {/* Installments History */}
-                            {expandedDebtId === debt.id && debt.installments && (
-                              <div className="bg-slate-100/70 p-2.5 rounded-xl space-y-1.5 border border-slate-200/60 mt-2">
-                                <span className="text-[10px] text-slate-500 font-extrabold block">سجل الدفعات المسددة لهذا البند:</span>
-                                {debt.installments.map((inst, idx) => (
-                                  <div key={inst.id || idx} className="flex justify-between items-center text-[11px] bg-white p-1.5 rounded-lg border border-slate-200/50">
-                                    <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
-                                    <span className="text-slate-400">{formatDate(inst.date)}</span>
-                                    {inst.notes && <span className="text-slate-500 text-[10px]">({inst.notes})</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                {/* TAB 2: Complete Activity & Movement History Feed */}
+                {accountModalTab === 'history' && (
+                  <div className="space-y-4">
+                    {/* Activity Filter Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                      <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                        <Activity className="w-4 h-4 text-sky-600" />
+                        <span>تصفية الحركات المسجلة:</span>
+                      </span>
+
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setActivityFilter('all')}
+                          className={`px-3 py-1 rounded-lg text-xs font-black cursor-pointer transition-colors ${
+                            activityFilter === 'all' ? 'bg-sky-600 text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          الكل ({activities.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivityFilter('payments')}
+                          className={`px-3 py-1 rounded-lg text-xs font-black cursor-pointer transition-colors ${
+                            activityFilter === 'payments' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          💳 الدفعات والتسديدات ({activities.filter((a) => a.type === 'payment_made' || a.type === 'debt_completed').length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivityFilter('debts')}
+                          className={`px-3 py-1 rounded-lg text-xs font-black cursor-pointer transition-colors ${
+                            activityFilter === 'debts' ? 'bg-sky-700 text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          ➕ الديون المضافة ({activities.filter((a) => a.type === 'debt_added').length})
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* Timeline Feed Container */}
+                    {filteredActivities.length === 0 ? (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-400 text-xs font-bold">
+                        لا توجد حركات مسجلة تحت هذا التصنيف لحساب {selectedAccountPerson}.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 pt-1">
+                        {filteredActivities.map((act) => {
+                          const isPayment = act.type === 'payment_made';
+                          const isCompleted = act.type === 'debt_completed';
+
+                          return (
+                            <div
+                              key={act.id}
+                              className={`p-3.5 rounded-2xl border text-xs space-y-2.5 transition-all ${
+                                isCompleted
+                                  ? 'bg-emerald-50/40 border-emerald-200/80 shadow-3xs'
+                                  : isPayment
+                                  ? 'bg-emerald-50/20 border-emerald-100 shadow-3xs'
+                                  : 'bg-white border-slate-200 shadow-3xs'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-black flex items-center gap-1 ${
+                                      isCompleted
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : isPayment
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : act.debtType === 'to_me'
+                                        ? 'bg-sky-100 text-sky-800'
+                                        : 'bg-rose-100 text-rose-800'
+                                    }`}
+                                  >
+                                    {isCompleted ? (
+                                      <>
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                        <span>سداد بالكامل</span>
+                                      </>
+                                    ) : isPayment ? (
+                                      <>
+                                        <CreditCard className="w-3 h-3 text-emerald-600" />
+                                        <span>تسديد دفعة</span>
+                                      </>
+                                    ) : act.debtType === 'to_me' ? (
+                                      <>
+                                        <PlusCircle className="w-3 h-3 text-sky-600" />
+                                        <span>📥 إضافة دين لك</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <PlusCircle className="w-3 h-3 text-rose-600" />
+                                        <span>📤 إضافة دين عليك</span>
+                                      </>
+                                    )}
+                                  </span>
+
+                                  <span className="font-extrabold text-slate-800 text-xs">
+                                    {act.debtTitle}
+                                  </span>
+                                </div>
+
+                                <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1 shrink-0">
+                                  <Calendar className="w-3 h-3 text-slate-400" />
+                                  <span>{formatDate(act.date)}</span>
+                                </span>
+                              </div>
+
+                              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
+                                <span className="text-slate-500 font-bold">قيمة الحركة المالية:</span>
+                                <span
+                                  className={`font-black text-sm ${
+                                    isPayment || isCompleted
+                                      ? 'text-emerald-600'
+                                      : act.debtType === 'to_me'
+                                      ? 'text-sky-700'
+                                      : 'text-rose-700'
+                                  }`}
+                                >
+                                  {formatCurrency(act.amount, currency)}
+                                </span>
+                              </div>
+
+                              {act.notes && (
+                                <div className="text-[11px] text-slate-700 bg-amber-50/70 p-2 rounded-lg border border-amber-200/60 leading-relaxed font-semibold">
+                                  📝 ملاحظة الحركة: {act.notes}
+                                </div>
+                              )}
+
+                              {act.photo && (
+                                <div className="pt-0.5">
+                                  <img
+                                    src={act.photo}
+                                    alt="Attachment"
+                                    onClick={() => setSelectedPhoto(act.photo!)}
+                                    className="w-16 h-16 object-cover rounded-lg border border-slate-200 cursor-zoom-in"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+                <span className="text-[11px] text-slate-400 font-bold">
+                  تحديث فوري للسجل عند كل حركة إضافية ⚡
+                </span>
                 <button
                   onClick={() => setSelectedAccountPerson(null)}
                   className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer"
@@ -1876,6 +2508,183 @@ export default function DebtsManager({
                   إغلاق كشف الحساب
                 </button>
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Printable Account Statement Modal */}
+      {printableAccountPerson && (() => {
+        const accDebts = nonProjectDebts.filter(
+          (d) => d.personName.trim().toLowerCase() === printableAccountPerson.trim().toLowerCase()
+        );
+        let totalToMe = 0;
+        let paidToMe = 0;
+        let totalToOthers = 0;
+        let paidToOthers = 0;
+
+        accDebts.forEach((d) => {
+          if (d.type === 'to_me') {
+            totalToMe += d.amount;
+            paidToMe += d.paidAmount;
+          } else {
+            totalToOthers += d.amount;
+            paidToOthers += d.paidAmount;
+          }
+        });
+
+        const remToMe = totalToMe - paidToMe;
+        const remToOthers = totalToOthers - paidToOthers;
+        const netBalance = remToMe - remToOthers;
+
+        const activities = getPersonActivityHistory(accDebts);
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full p-6 space-y-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 print:shadow-none print:border-none print:p-0 print:max-w-none">
+              
+              {/* Printable Header */}
+              <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-4">
+                <div>
+                  <h1 className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
+                    <FileText className="w-6 h-6 text-sky-600" />
+                    <span>كشف حساب مالي تفصيلي وشامل</span>
+                  </h1>
+                  <p className="text-xs text-slate-500 font-bold mt-1">
+                    اسم الشخص / الحساب: <span className="text-sky-600 dark:text-sky-400 font-black text-sm">{printableAccountPerson}</span>
+                  </p>
+                </div>
+                <div className="text-left text-xs text-slate-400 space-y-0.5">
+                  <div>تاريخ الإصدار: <span className="font-bold text-slate-700 dark:text-slate-300">{formatDate(getLocalDateString())}</span></div>
+                  <div>نظام إدارة الديون الشامل 📑</div>
+                </div>
+              </div>
+
+              {/* Financial Summary Cards */}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-3 bg-sky-50 dark:bg-sky-950/40 rounded-xl border border-sky-100 dark:border-sky-900/50 space-y-1">
+                  <span className="block text-[11px] text-sky-800 dark:text-sky-300 font-bold">ديون لك عنده (لك)</span>
+                  <span className="block text-sm font-black text-sky-700 dark:text-sky-400">{formatCurrency(remToMe, currency)}</span>
+                </div>
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-100 dark:border-rose-900/50 space-y-1">
+                  <span className="block text-[11px] text-rose-800 dark:text-rose-300 font-bold">ديون عليك له (عليك)</span>
+                  <span className="block text-sm font-black text-rose-700 dark:text-rose-400">{formatCurrency(remToOthers, currency)}</span>
+                </div>
+                <div className={`p-3 rounded-xl border space-y-1 ${
+                  netBalance > 0 
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/50 text-emerald-900 dark:text-emerald-300' 
+                    : netBalance < 0 
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-300' 
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}>
+                  <span className="block text-[11px] font-bold">الرصيد الصافي المتبقي</span>
+                  <span className="block text-sm font-black">
+                    {netBalance > 0 ? `+${formatCurrency(netBalance, currency)} (مطلوب منه)` : netBalance < 0 ? `${formatCurrency(Math.abs(netBalance), currency)} (مطلوب منك)` : 'خالي ومسدد بالكامل'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detailed Items Table */}
+              <div className="space-y-2">
+                <h2 className="text-xs font-extrabold text-slate-700 dark:text-slate-300">بيان بنود الديون المترتبة:</h2>
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">النوع</th>
+                        <th className="p-2.5">البيان والتفاصيل</th>
+                        <th className="p-2.5">الكفيل/الضامن</th>
+                        <th className="p-2.5">تاريخ الاستحقاق</th>
+                        <th className="p-2.5">الإجمالي</th>
+                        <th className="p-2.5">المدفوع</th>
+                        <th className="p-2.5">المتبقي</th>
+                        <th className="p-2.5">الحالة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {accDebts.map((d, i) => {
+                        const rem = d.amount - d.paidAmount;
+                        return (
+                          <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="p-2.5 font-bold">{i + 1}</td>
+                            <td className="p-2.5">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                d.type === 'to_me' ? 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200'
+                              }`}>
+                                {d.type === 'to_me' ? 'دين لك' : 'دين عليك'}
+                              </span>
+                            </td>
+                            <td className="p-2.5 font-bold">{d.description || d.category}</td>
+                            <td className="p-2.5 text-slate-600 dark:text-slate-400 font-semibold">{d.guarantor || '-'}</td>
+                            <td className="p-2.5 text-slate-600 dark:text-slate-400">{formatDate(d.dueDate)}</td>
+                            <td className="p-2.5 font-bold">{formatCurrency(d.amount, currency)}</td>
+                            <td className="p-2.5 text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(d.paidAmount, currency)}</td>
+                            <td className="p-2.5 text-rose-600 dark:text-rose-400 font-bold">{formatCurrency(rem, currency)}</td>
+                            <td className="p-2.5 font-bold">
+                              {d.status === 'paid' ? '✅ مسدد' : d.status === 'partial' ? '⏳ جزئي' : '🔴 غير مسدد'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Activity Log in Statement */}
+              {activities.length > 0 && (
+                <div className="space-y-2">
+                  <h2 className="text-xs font-extrabold text-slate-700 dark:text-slate-300">سجل المدفوعات والتسديدات السابقة:</h2>
+                  <div className="space-y-1.5 border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-800/30">
+                    {activities.slice(0, 8).map((act, i) => (
+                      <div key={i} className="flex justify-between items-center text-[11px] py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                        <span className="font-bold text-slate-700 dark:text-slate-300">
+                          {act.type === 'payment_made' ? '💳 دفعة مسددة' : act.type === 'debt_completed' ? '✅ تسديد كامل' : '➕ إدخال دين'}
+                          {act.notes && ` (${act.notes})`}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-400">{formatDate(act.date)}</span>
+                          <span className="font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(act.amount, currency)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer notes */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500">
+                <div>تعتبر هذه الوثيقة كشف حساب معتمد للديون حتى تاريخ إصدارها.</div>
+                <div className="font-bold">التوقيع / المصادقة: ................................</div>
+              </div>
+
+              {/* Action Buttons (Hidden when printing) */}
+              <div className="flex justify-end gap-2 pt-2 print:hidden">
+                <button
+                  onClick={() => setPrintableAccountPerson(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold cursor-pointer"
+                >
+                  إغلاق
+                </button>
+                <a
+                  href={generateAccountWhatsAppLink(printableAccountPerson, accDebts)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>إرسال عبر واتساب</span>
+                </a>
+                <button
+                  onClick={() => window.print()}
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>طباعة الكشف (PDF/ورقي)</span>
+                </button>
+              </div>
+
             </div>
           </div>
         );
