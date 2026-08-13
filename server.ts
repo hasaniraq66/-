@@ -14,16 +14,19 @@ app.use(express.json());
 
 // Load Firebase API key securely
 let firebaseApiKey = "";
+let firebaseConfigLoadAttempted = false;
 function getFirebaseApiKey(): string {
-  if (firebaseApiKey) return firebaseApiKey;
-  try {
-    const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
-    if (fs.existsSync(firebaseConfigPath)) {
-      const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
-      firebaseApiKey = firebaseConfig.apiKey || "";
+  if (!firebaseConfigLoadAttempted) {
+    firebaseConfigLoadAttempted = true;
+    try {
+      const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+      if (fs.existsSync(firebaseConfigPath)) {
+        const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+        firebaseApiKey = firebaseConfig.apiKey || "";
+      }
+    } catch (err) {
+      console.error("Error loading firebase-applet-config.json:", err);
     }
-  } catch (err) {
-    console.error("Error loading firebase-applet-config.json:", err);
   }
   return firebaseApiKey || process.env.FIREBASE_API_KEY || "";
 }
