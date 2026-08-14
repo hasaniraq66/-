@@ -1,6 +1,8 @@
 import firebaseConfig from '../client/firebase-applet-config.json';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
+import { updateAttachmentReview } from '../client/src/lib/attachmentReview';
+import type { AttachmentReviewActor, AttachmentReviewStatus, FinancialAttachment } from '../client/src/types';
 import { storageGetSignedUrl, storagePut } from './storage';
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
@@ -9,9 +11,10 @@ const SAFE_NAME = /[^a-zA-Z0-9._-]+/g;
 
 export type AttachmentUploadPayload = { dataUrl?: unknown; name?: unknown; recordType?: unknown; recordId?: unknown };
 export type AttachmentStorageWriter = (path: string, data: Buffer, contentType: string) => Promise<{ key: string; url: string }>;
-export type AttachmentIdentity = { uid: string; idToken: string };
+export type AttachmentIdentity = { uid: string; idToken: string; displayName?: string; email?: string };
 export type AttachmentRecord = { userId?: unknown; attachments?: unknown };
 export type AttachmentRecordReader = (identity: AttachmentIdentity, ownerUid: string, recordType: 'debt' | 'expense', recordId: string) => Promise<AttachmentRecord | null>;
+export type AttachmentRecordWriter = (identity: AttachmentIdentity, ownerUid: string, recordType: 'debt' | 'expense', recordId: string, attachments: FinancialAttachment[]) => Promise<void>;
 
 async function getFirebaseIdentity(req: Request): Promise<AttachmentIdentity | null> {
   const authorization = req.headers.authorization;
@@ -22,9 +25,14 @@ async function getFirebaseIdentity(req: Request): Promise<AttachmentIdentity | n
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }),
   });
   if (!response.ok) return null;
-  const body = await response.json() as { users?: Array<{ localId?: string }> };
-  const uid = body.users?.[0]?.localId;
-  return uid ? { uid, idToken } : null;
+  const body = await response.json() as { users?: Array<{ localId?: string; displayName?: string; email?: string }> };
+  const user = body.users?.[0];
+  return user?.localId ? {
+    uid: user.localId,
+    idToken,
+    ...(user.displayName ? { displayName: user.displayName } : {}),
+    ...(user.email ? { email: user.email } : {}),
+  } : null;
 }
 
 async function getFirebaseUid(req: Request): Promise<string | null> {
@@ -43,9 +51,7 @@ export function validateAttachmentUpload(payload: AttachmentUploadPayload): { ok
   const decoded = decodeAttachmentDataUrl(payload?.dataUrl);
   if (!decoded || !ALLOWED_TYPES.has(decoded.mimeType)) return { ok: false, error: 'الصيغة غير مدعومة. استخدم PDF أو JPG أو PNG أو WEBP.' };
   if (decoded.data.length > MAX_ATTACHMENT_BYTES) return { ok: false, error: 'حجم الملف أكبر من 5 ميغابايت.' };
-  if ((payload.recordType !== 'debt' && payload.recordType !== 'expense') || typeof payload.recordId !== 'string' || !/^[a-zA-Z0-9_-]{3,120}$/.test(payload.recordId)) {
-    return { ok: false, error: 'مرجع السجل غير صالح.' };
-  }
+  if ((payload.recordType !== 'debt' && payload.recordType !== 'expense') || typeof payload.recordId !== 'string' || !/^[a-zA-Z0-9_-]{3,120}$/.test(payload.recordId)) return { ok: false, error: 'مرجع السجل غير صالح.' };
   const name = typeof payload.name === 'string' ? payload.name.slice(0, 120) : 'attachment';
   const safeName = name.replace(SAFE_NAME, '_').slice(0, 100) || 'attachment';
   return { ok: true, data: decoded.data, mimeType: decoded.mimeType, safeName, name, recordType: payload.recordType, recordId: payload.recordId };
@@ -61,12 +67,33 @@ export function buildAttachmentPreviewPath(ownerUid: string, recordType: 'debt' 
   return `/api/attachments/preview?${query.toString()}`;
 }
 
-function parsePreviewRequest(query: Record<string, unknown>): { ownerUid: string; recordType: 'debt' | 'expense'; recordId: string; attachmentId: string } | null {
-  const { ownerUid, recordType, recordId, attachmentId } = query;
+function parseAttachmentReference(input: Record<string, unknown>): { ownerUid: string; recordType: 'debt' | 'expense'; recordId: string; attachmentId: string } | null {
+  const { ownerUid, recordType, recordId, attachmentId } = input;
   if (typeof ownerUid !== 'string' || !/^[a-zA-Z0-9_-]{3,128}$/.test(ownerUid)) return null;
   if ((recordType !== 'debt' && recordType !== 'expense') || typeof recordId !== 'string' || !/^[a-zA-Z0-9_-]{3,120}$/.test(recordId)) return null;
   if (typeof attachmentId !== 'string' || !/^[a-zA-Z0-9_-]{3,120}$/.test(attachmentId)) return null;
   return { ownerUid, recordType, recordId, attachmentId };
+}
+
+function parsePreviewRequest(query: Record<string, unknown>) {
+  return parseAttachmentReference(query);
+}
+
+function parseReviewRequest(body: unknown): ({ ownerUid: string; recordType: 'debt' | 'expense'; recordId: string; attachmentId: string } & { update: { reviewStatus?: AttachmentReviewStatus; internalNote?: string } }) | null {
+  if (!body || typeof body !== 'object') return null;
+  const input = body as Record<string, unknown>;
+  const reference = parseAttachmentReference(input);
+  if (!reference) return null;
+  const update: { reviewStatus?: AttachmentReviewStatus; internalNote?: string } = {};
+  if (input.reviewStatus !== undefined) {
+    if (input.reviewStatus !== 'pending_review' && input.reviewStatus !== 'reviewed') return null;
+    update.reviewStatus = input.reviewStatus;
+  }
+  if (input.internalNote !== undefined) {
+    if (typeof input.internalNote !== 'string') return null;
+    update.internalNote = input.internalNote;
+  }
+  return Object.keys(update).length > 0 ? { ...reference, update } : null;
 }
 
 function decodeFirestoreValue(value: unknown): unknown {
@@ -77,10 +104,7 @@ function decodeFirestoreValue(value: unknown): unknown {
   if (typeof field.doubleValue === 'number') return field.doubleValue;
   if (typeof field.booleanValue === 'boolean') return field.booleanValue;
   if (field.nullValue !== undefined) return null;
-  if (field.arrayValue && typeof field.arrayValue === 'object') {
-    const values = (field.arrayValue as { values?: unknown[] }).values ?? [];
-    return values.map(decodeFirestoreValue);
-  }
+  if (field.arrayValue && typeof field.arrayValue === 'object') return ((field.arrayValue as { values?: unknown[] }).values ?? []).map(decodeFirestoreValue);
   if (field.mapValue && typeof field.mapValue === 'object') {
     const fields = (field.mapValue as { fields?: Record<string, unknown> }).fields ?? {};
     return Object.fromEntries(Object.entries(fields).map(([key, item]) => [key, decodeFirestoreValue(item)]));
@@ -88,25 +112,42 @@ function decodeFirestoreValue(value: unknown): unknown {
   return undefined;
 }
 
+function encodeFirestoreValue(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') return { stringValue: value };
+  if (typeof value === 'boolean') return { booleanValue: value };
+  if (typeof value === 'number') return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  if (value === null) return { nullValue: null };
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(encodeFirestoreValue) } };
+  if (value && typeof value === 'object') return { mapValue: { fields: Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined).map(([key, item]) => [key, encodeFirestoreValue(item)])) } };
+  return { nullValue: null };
+}
+
 export const readAttachmentRecordFromFirestore: AttachmentRecordReader = async (identity, ownerUid, recordType, recordId) => {
   const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
   const collection = recordType === 'debt' ? 'debts' : 'expenses';
   const path = [ownerUid, collection, recordId].map(encodeURIComponent).join('/');
-  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(firebaseConfig.projectId)}/databases/${encodeURIComponent(databaseId)}/documents/users/${path}`;
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${identity.idToken}` } });
+  const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(firebaseConfig.projectId)}/databases/${encodeURIComponent(databaseId)}/documents/users/${path}`, { headers: { Authorization: `Bearer ${identity.idToken}` } });
   if (response.status === 404 || response.status === 403) return null;
   if (!response.ok) throw new Error(`Firestore attachment lookup failed (${response.status})`);
   const body = await response.json() as { fields?: Record<string, unknown> };
   return Object.fromEntries(Object.entries(body.fields ?? {}).map(([key, value]) => [key, decodeFirestoreValue(value)]));
 };
 
+export const writeAttachmentRecordToFirestore: AttachmentRecordWriter = async (identity, ownerUid, recordType, recordId, attachments) => {
+  const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
+  const collection = recordType === 'debt' ? 'debts' : 'expenses';
+  const path = [ownerUid, collection, recordId].map(encodeURIComponent).join('/');
+  const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(firebaseConfig.projectId)}/databases/${encodeURIComponent(databaseId)}/documents/users/${path}?updateMask.fieldPaths=attachments&currentDocument.exists=true`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${identity.idToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { attachments: encodeFirestoreValue(attachments) } }),
+  });
+  if (!response.ok) throw new Error(`Firestore attachment review update failed (${response.status})`);
+};
+
 function getAttachmentStorageKey(attachment: Record<string, unknown>, ownerUid: string, recordType: 'debt' | 'expense', recordId: string): string | null {
   const expectedPrefix = `financial-attachments/${encodeURIComponent(ownerUid)}/${recordType}/${recordId}/`;
-  const storageKey = typeof attachment.storageKey === 'string'
-    ? attachment.storageKey
-    : typeof attachment.url === 'string' && attachment.url.startsWith('/manus-storage/')
-      ? attachment.url.slice('/manus-storage/'.length)
-      : '';
+  const storageKey = typeof attachment.storageKey === 'string' ? attachment.storageKey : typeof attachment.url === 'string' && attachment.url.startsWith('/manus-storage/') ? attachment.url.slice('/manus-storage/'.length) : '';
   return storageKey.startsWith(expectedPrefix) ? storageKey : null;
 }
 
@@ -114,15 +155,18 @@ function isMissingStorageObject(error: unknown): boolean {
   return error instanceof Error && /(?:\(|\s)404(?:\)|\s|:)/.test(error.message);
 }
 
-export function createAttachmentPreviewHandler(dependencies: {
-  getIdentity?: (req: Request) => Promise<AttachmentIdentity | null>;
-  readRecord?: AttachmentRecordReader;
-  signUrl?: (storageKey: string) => Promise<string>;
-} = {}) {
+function getReviewActor(identity: AttachmentIdentity): AttachmentReviewActor {
+  return {
+    uid: identity.uid,
+    displayName: identity.displayName?.trim().slice(0, 200) || identity.email?.trim().slice(0, 256) || 'مستخدم مصادق',
+    ...(identity.email ? { email: identity.email.trim().slice(0, 256) } : {}),
+  };
+}
+
+export function createAttachmentPreviewHandler(dependencies: { getIdentity?: (req: Request) => Promise<AttachmentIdentity | null>; readRecord?: AttachmentRecordReader; signUrl?: (storageKey: string) => Promise<string> } = {}) {
   const getIdentity = dependencies.getIdentity ?? getFirebaseIdentity;
   const readRecord = dependencies.readRecord ?? readAttachmentRecordFromFirestore;
   const signUrl = dependencies.signUrl ?? storageGetSignedUrl;
-
   return async (req: Request, res: Response) => {
     try {
       const identity = await getIdentity(req);
@@ -130,19 +174,40 @@ export function createAttachmentPreviewHandler(dependencies: {
       const previewRequest = parsePreviewRequest(req.query as Record<string, unknown>);
       if (!previewRequest) return res.status(400).json({ error: 'طلب معاينة المرفق غير صالح.' });
       const record = await readRecord(identity, previewRequest.ownerUid, previewRequest.recordType, previewRequest.recordId);
-      if (!record || record.userId !== previewRequest.ownerUid || !Array.isArray(record.attachments)) {
-        return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
-      }
+      if (!record || record.userId !== previewRequest.ownerUid || !Array.isArray(record.attachments)) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
       const attachment = record.attachments.find((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && (item as Record<string, unknown>).id === previewRequest.attachmentId);
       const storageKey = attachment && getAttachmentStorageKey(attachment, previewRequest.ownerUid, previewRequest.recordType, previewRequest.recordId);
       if (!storageKey) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
       return res.json({ url: await signUrl(storageKey) });
     } catch (error) {
-      if (isMissingStorageObject(error)) {
-        return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
-      }
+      if (isMissingStorageObject(error)) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
       console.error('[Attachments] preview failed', error);
       return res.status(500).json({ error: 'تعذر فتح المرفق حالياً. حاول مجدداً.' });
+    }
+  };
+}
+
+export function createAttachmentReviewHandler(dependencies: { getIdentity?: (req: Request) => Promise<AttachmentIdentity | null>; readRecord?: AttachmentRecordReader; writeAttachments?: AttachmentRecordWriter; now?: () => Date } = {}) {
+  const getIdentity = dependencies.getIdentity ?? getFirebaseIdentity;
+  const readRecord = dependencies.readRecord ?? readAttachmentRecordFromFirestore;
+  const writeAttachments = dependencies.writeAttachments ?? writeAttachmentRecordToFirestore;
+  const now = dependencies.now ?? (() => new Date());
+  return async (req: Request, res: Response) => {
+    try {
+      const identity = await getIdentity(req);
+      if (!identity) return res.status(401).json({ error: 'يجب تسجيل الدخول قبل تحديث مراجعة المرفق.' });
+      const reviewRequest = parseReviewRequest(req.body);
+      if (!reviewRequest) return res.status(400).json({ error: 'طلب مراجعة المرفق غير صالح.' });
+      const record = await readRecord(identity, reviewRequest.ownerUid, reviewRequest.recordType, reviewRequest.recordId);
+      if (!record || record.userId !== reviewRequest.ownerUid || !Array.isArray(record.attachments)) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية تعديله.' });
+      const attachments = record.attachments as FinancialAttachment[];
+      if (!attachments.some((attachment) => attachment && attachment.id === reviewRequest.attachmentId)) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية تعديله.' });
+      const updatedAttachments = updateAttachmentReview(attachments, reviewRequest.attachmentId, reviewRequest.update, now().toISOString(), getReviewActor(identity));
+      await writeAttachments(identity, reviewRequest.ownerUid, reviewRequest.recordType, reviewRequest.recordId, updatedAttachments);
+      return res.json({ attachments: updatedAttachments });
+    } catch (error) {
+      console.error('[Attachments] review update failed', error);
+      return res.status(500).json({ error: 'تعذر حفظ مراجعة المرفق حالياً. حاول مجدداً.' });
     }
   };
 }
@@ -152,7 +217,6 @@ export function createAttachmentUploadHandler(dependencies: { getUid?: (req: Req
   const put = dependencies.put ?? storagePut;
   const createId = dependencies.createId ?? randomUUID;
   const now = dependencies.now ?? (() => new Date());
-
   return async (req: Request, res: Response) => {
     try {
       const uid = await getUid(req);
@@ -172,4 +236,5 @@ export function createAttachmentUploadHandler(dependencies: { getUid?: (req: Req
 export function registerAttachmentRoutes(app: Express) {
   app.post('/api/attachments/upload', createAttachmentUploadHandler());
   app.get('/api/attachments/preview', createAttachmentPreviewHandler());
+  app.post('/api/attachments/review', createAttachmentReviewHandler());
 }

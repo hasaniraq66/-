@@ -22,10 +22,10 @@ describe('attachment access contracts', () => {
     expect(attachmentComponent).toContain('ownerUid, recordType, recordId, attachmentId: attachment.id');
   });
 
-  it('persists review state and internal notes only through the authorised record edit flow', () => {
+  it('persists review state and internal notes through the authenticated server review flow', () => {
     expect(firestoreRules).toContain('function canAccessUser(userId)');
     expect(firestoreRules).toContain('return isOwner(userId) || isSubUserOf(userId);');
-    expect(attachmentComponent).toContain('updateAttachmentReview(attachments, attachment.id, update)');
+    expect(attachmentComponent).toContain("fetch('/api/attachments/review'");
     expect(attachmentComponent).toContain('ملاحظة داخلية');
     expect(attachmentComponent).toContain("reviewStatus: isReviewed ? 'pending_review' : 'reviewed'");
   });

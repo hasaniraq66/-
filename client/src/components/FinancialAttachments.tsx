@@ -1,8 +1,8 @@
 import { ChangeEvent, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock3, ExternalLink, FileImage, FileText, LoaderCircle, MessageSquare, Paperclip, Save, Trash2, Upload, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock3, ExternalLink, FileImage, FileText, History, LoaderCircle, MessageSquare, Paperclip, Save, Trash2, Upload, X } from 'lucide-react';
 import { auth } from '../utils/firebaseService';
 import type { FinancialAttachment } from '../types';
-import { getAttachmentReviewStatus, getAttachmentReviewSummary, MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH, updateAttachmentReview } from '../lib/attachmentReview';
+import { describeAttachmentReviewAuditEntry, getAttachmentReviewAuditLog, getAttachmentReviewStatus, getAttachmentReviewSummary, MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH } from '../lib/attachmentReview';
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS = 10;
@@ -15,6 +15,13 @@ async function toDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
     reader.readAsDataURL(file);
   });
+}
+
+function formatAuditTimestamp(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime())
+    ? timestamp
+    : new Intl.DateTimeFormat('ar-IQ', { dateStyle: 'medium', timeStyle: 'medium' }).format(parsed);
 }
 
 interface FinancialAttachmentsProps {
@@ -37,17 +44,37 @@ export default function FinancialAttachments({ ownerUid, recordId, recordType, a
   const [isResolvingPreview, setIsResolvingPreview] = useState(false);
   const [previewingAttachmentId, setPreviewingAttachmentId] = useState<string | null>(null);
   const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null);
+  const [savingReviewId, setSavingReviewId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
 
   const reviewSummary = getAttachmentReviewSummary(attachments);
 
-  const saveReview = (attachment: FinancialAttachment, update: { reviewStatus?: 'pending_review' | 'reviewed'; internalNote?: string }) => {
-    onChange(updateAttachmentReview(attachments, attachment.id, update));
+  const saveReview = async (attachment: FinancialAttachment, update: { reviewStatus?: 'pending_review' | 'reviewed'; internalNote?: string }) => {
+    const user = auth.currentUser;
+    if (!user) return setError('سجّل الدخول أولاً قبل تحديث مراجعة المرفق.');
     setError('');
-    setSuccessMessage(update.reviewStatus
-      ? (update.reviewStatus === 'reviewed' ? `تم تعليم «${attachment.name}» كمراجع.` : `أُعيد «${attachment.name}» إلى قيد المراجعة.`)
-      : `تم حفظ الملاحظة الداخلية لـ «${attachment.name}».`);
+    setSuccessMessage('');
+    setSavingReviewId(attachment.id);
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/attachments/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ ownerUid, recordType, recordId, attachmentId: attachment.id, ...update }),
+      });
+      const body = await response.json() as { attachments?: FinancialAttachment[]; error?: string };
+      if (!response.ok || !body.attachments) throw new Error(body.error || 'تعذر حفظ مراجعة المرفق.');
+      onChange(body.attachments);
+      setSuccessMessage(update.reviewStatus
+        ? (update.reviewStatus === 'reviewed' ? `تم تعليم «${attachment.name}» كمراجع وتوثيق العملية.` : `أُعيد «${attachment.name}» إلى قيد المراجعة مع توثيق العملية.`)
+        : `تم حفظ الملاحظة الداخلية وتوثيق التغيير لـ «${attachment.name}».`);
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : 'تعذر حفظ مراجعة المرفق.');
+    } finally {
+      setSavingReviewId(null);
+    }
   };
 
   const removeAttachment = (attachment: FinancialAttachment) => {
@@ -125,12 +152,16 @@ export default function FinancialAttachments({ ownerUid, recordId, recordType, a
         const reviewStatus = getAttachmentReviewStatus(attachment);
         const isReviewed = reviewStatus === 'reviewed';
         const isEditingNote = editingNoteId === attachment.id;
+        const isSavingThisAttachment = savingReviewId === attachment.id;
         const isPreviewingThisAttachment = isResolvingPreview && previewingAttachmentId === attachment.id;
         const isOpeningThisAttachment = openingAttachmentId === attachment.id;
+        const auditLog = getAttachmentReviewAuditLog(attachment);
+        const isAuditExpanded = expandedAuditId === attachment.id;
         return <li key={attachment.id} className="rounded-lg bg-slate-50 p-2">
           <div className="flex items-center gap-2"><button type="button" onClick={() => void handlePreview(attachment)} disabled={isResolvingPreview} className="min-w-0 flex flex-1 items-center gap-2 text-right text-xs font-bold text-sky-700 transition duration-150 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60">{isPreviewingThisAttachment ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" /> : attachment.mimeType === 'application/pdf' ? <FileText className="h-4 w-4 shrink-0" /> : <FileImage className="h-4 w-4 shrink-0" />}<span className="truncate">{isPreviewingThisAttachment ? 'يجري تجهيز المعاينة…' : attachment.name}</span></button><button type="button" onClick={() => void handleOpenInNewTab(attachment)} disabled={isOpeningThisAttachment} aria-label={`فتح ${attachment.name} في نافذة جديدة`} className="rounded p-1 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 disabled:opacity-60">{isOpeningThisAttachment ? <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" /> : <ExternalLink className="h-3.5 w-3.5" />}</button><button type="button" onClick={() => removeAttachment(attachment)} aria-label={`إزالة مرفق ${attachment.name} من السجل`} className="rounded p-1 text-rose-500 transition hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button></div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5"><button type="button" onClick={() => saveReview(attachment, { reviewStatus: isReviewed ? 'pending_review' : 'reviewed' })} aria-label={isReviewed ? `إعادة ${attachment.name} إلى قيد المراجعة` : `تعليم ${attachment.name} كمراجع`} className={`inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${isReviewed ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}>{isReviewed ? <CheckCircle2 className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}{isReviewed ? 'تمت المراجعة' : 'قيد المراجعة'}</button><button type="button" onClick={() => startEditingNote(attachment)} aria-label={`إضافة أو تعديل ملاحظة داخلية لـ ${attachment.name}`} className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[10px] font-bold text-slate-600 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"><MessageSquare className="h-3 w-3" />{attachment.internalNote ? 'تعديل الملاحظة' : 'ملاحظة داخلية'}</button></div>
-          {isEditingNote ? <div className="mt-2"><textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value.slice(0, MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH))} maxLength={MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH} placeholder="ملاحظة للفريق المصرح له…" aria-label={`ملاحظة داخلية لـ ${attachment.name}`} className="min-h-16 w-full resize-y rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100" /><div className="mt-1 flex items-center justify-between gap-2"><span className="text-[10px] text-slate-400">{noteDraft.length}/{MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH}</span><div className="flex gap-1"><button type="button" onClick={() => { setEditingNoteId(null); setNoteDraft(''); }} className="rounded-md px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-200">إلغاء</button><button type="button" onClick={() => { saveReview(attachment, { internalNote: noteDraft }); setEditingNoteId(null); setNoteDraft(''); }} className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-2 py-1 text-[10px] font-bold text-white transition duration-150 hover:bg-sky-500 active:scale-[0.98] motion-reduce:transform-none"><Save className="h-3 w-3" />حفظ</button></div></div></div> : attachment.internalNote ? <p className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] leading-5 text-slate-600"><span className="font-bold text-slate-700">ملاحظة داخلية: </span>{attachment.internalNote}</p> : null}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5"><button type="button" onClick={() => void saveReview(attachment, { reviewStatus: isReviewed ? 'pending_review' : 'reviewed' })} disabled={isSavingThisAttachment} aria-label={isReviewed ? `إعادة ${attachment.name} إلى قيد المراجعة` : `تعليم ${attachment.name} كمراجع`} className={`inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60 ${isReviewed ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}>{isSavingThisAttachment ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : isReviewed ? <CheckCircle2 className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}{isSavingThisAttachment ? 'يجري الحفظ…' : isReviewed ? 'تمت المراجعة' : 'قيد المراجعة'}</button><button type="button" onClick={() => startEditingNote(attachment)} disabled={isSavingThisAttachment} aria-label={`إضافة أو تعديل ملاحظة داخلية لـ ${attachment.name}`} className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[10px] font-bold text-slate-600 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60"><MessageSquare className="h-3 w-3" />{attachment.internalNote ? 'تعديل الملاحظة' : 'ملاحظة داخلية'}</button><button type="button" onClick={() => setExpandedAuditId(isAuditExpanded ? null : attachment.id)} aria-expanded={isAuditExpanded} aria-controls={`attachment-audit-${attachment.id}`} className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[10px] font-bold text-slate-600 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"><History className="h-3 w-3" />سجل التدقيق {auditLog.length ? `(${auditLog.length})` : ''}</button></div>
+          {isEditingNote ? <div className="mt-2"><textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value.slice(0, MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH))} maxLength={MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH} placeholder="ملاحظة للفريق المصرح له…" aria-label={`ملاحظة داخلية لـ ${attachment.name}`} className="min-h-16 w-full resize-y rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100" /><div className="mt-1 flex items-center justify-between gap-2"><span className="text-[10px] text-slate-400">{noteDraft.length}/{MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH}</span><div className="flex gap-1"><button type="button" onClick={() => { setEditingNoteId(null); setNoteDraft(''); }} className="rounded-md px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-200">إلغاء</button><button type="button" disabled={isSavingThisAttachment} onClick={() => { void saveReview(attachment, { internalNote: noteDraft }).then(() => { setEditingNoteId(null); setNoteDraft(''); }); }} className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-2 py-1 text-[10px] font-bold text-white transition duration-150 hover:bg-sky-500 active:scale-[0.98] motion-reduce:transform-none disabled:opacity-60"><Save className="h-3 w-3" />حفظ</button></div></div></div> : attachment.internalNote ? <p className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] leading-5 text-slate-600"><span className="font-bold text-slate-700">ملاحظة داخلية: </span>{attachment.internalNote}</p> : null}
+          {isAuditExpanded && <div id={`attachment-audit-${attachment.id}`} className="mt-2 rounded-lg border border-slate-200 bg-white p-2" aria-label={`سجل تدقيق ${attachment.name}`}><div className="mb-1 flex items-center gap-1 text-[10px] font-bold text-slate-700"><History className="h-3.5 w-3.5 text-sky-600" />سجل المراجعة</div>{auditLog.length === 0 ? <p className="text-[10px] leading-5 text-slate-500">لم تُسجّل مراجعة بعد. سيظهر هنا اسم المراجع والوقت الدقيق لأول تغيير.</p> : <ol className="space-y-2">{auditLog.map((entry) => <li key={entry.id} className="border-r-2 border-sky-200 pr-2 text-[10px] leading-5 text-slate-600"><p className="font-bold text-slate-700">{describeAttachmentReviewAuditEntry(entry)}</p><p>بواسطة <span className="font-bold text-sky-700">{entry.reviewer.displayName}</span>{entry.reviewer.email ? <span className="text-slate-400"> · {entry.reviewer.email}</span> : null}</p><time dateTime={entry.occurredAt} className="block text-[9px] text-slate-500">{formatAuditTimestamp(entry.occurredAt)} <span dir="ltr">({entry.occurredAt})</span></time></li>)}</ol>}</div>}
         </li>;
       })}</ul>}
       {isUploading && <div role="status" className="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-2"><div className="flex items-center gap-2 text-[11px] font-bold text-sky-800"><LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /><span className="truncate">يجري رفع {activeUploadName || 'المرفق'}…</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sky-100"><div className="h-full w-2/3 rounded-full bg-sky-500 animate-pulse motion-reduce:animate-none" /></div><p className="mt-1 text-[10px] text-sky-700">لا تغلق هذه النافذة حتى يكتمل الحفظ.</p></div>}

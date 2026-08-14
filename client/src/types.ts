@@ -9,6 +9,23 @@ export interface PaymentInstallment {
 
 export type AttachmentReviewStatus = 'pending_review' | 'reviewed';
 
+export interface AttachmentReviewActor {
+  uid: string;
+  displayName: string;
+  email?: string;
+}
+
+export type AttachmentReviewAuditAction = 'status_changed' | 'note_updated';
+
+export interface AttachmentReviewAuditEntry {
+  id: string;
+  action: AttachmentReviewAuditAction;
+  occurredAt: string;
+  reviewer: AttachmentReviewActor;
+  previousStatus?: AttachmentReviewStatus;
+  nextStatus?: AttachmentReviewStatus;
+}
+
 export interface FinancialAttachment {
   id: string;
   name: string;
@@ -20,6 +37,7 @@ export interface FinancialAttachment {
   reviewStatus?: AttachmentReviewStatus;
   internalNote?: string;
   reviewUpdatedAt?: string;
+  reviewAuditLog?: AttachmentReviewAuditEntry[];
 }
 
 export interface Debt {
