@@ -60,6 +60,39 @@ export function matchesReferenceSearch(
   return normalizedReference.includes(normalizedTerm);
 }
 
+export type ReferenceLookupResult<DebtRecord extends ReferenceRecord, ExpenseRecord extends ReferenceRecord> =
+  | { kind: 'debt'; record: DebtRecord; referenceNumber: string }
+  | { kind: 'expense'; record: ExpenseRecord; referenceNumber: string };
+
+/**
+ * يستخرج سجلاً واحداً عبر الرقم المرجعي الكامل. يقبل صيغة العرض العربية
+ * والفواصل المختلفة، لكنه يتعمد المطابقة التامة لتفادي فتح سجل غير مقصود.
+ */
+export function findRecordByReference<DebtRecord extends ReferenceRecord, ExpenseRecord extends ReferenceRecord>(
+  debts: DebtRecord[],
+  expenses: ExpenseRecord[],
+  searchTerm: string,
+): ReferenceLookupResult<DebtRecord, ExpenseRecord> | null {
+  const normalizedTerm = normalizeReferenceSearchValue(searchTerm);
+  if (!normalizedTerm) return null;
+
+  const debt = debts.find((record) => (
+    normalizeReferenceSearchValue(getDisplayReferenceNumber(record, 'DBT')) === normalizedTerm
+  ));
+  if (debt) {
+    return { kind: 'debt', record: debt, referenceNumber: getDisplayReferenceNumber(debt, 'DBT') };
+  }
+
+  const expense = expenses.find((record) => (
+    normalizeReferenceSearchValue(getDisplayReferenceNumber(record, 'INV')) === normalizedTerm
+  ));
+  if (expense) {
+    return { kind: 'expense', record: expense, referenceNumber: getDisplayReferenceNumber(expense, 'INV') };
+  }
+
+  return null;
+}
+
 export type ClipboardWriter = Pick<Clipboard, 'writeText'>;
 
 /**

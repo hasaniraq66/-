@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { copyReferenceNumber, createNextReferenceNumber, getDisplayReferenceNumber, matchesReferenceSearch } from '../client/src/utils/recordReferences';
+import { copyReferenceNumber, createNextReferenceNumber, findRecordByReference, getDisplayReferenceNumber, matchesReferenceSearch } from '../client/src/utils/recordReferences';
 
 describe('record reference numbers', () => {
   it('increments the next debt number inside the same calendar year', () => {
@@ -37,6 +37,25 @@ describe('record reference numbers', () => {
   it('matches the stable archive reference for a legacy invoice', () => {
     expect(matchesReferenceSearch({ id: 'expense-xyz789' }, 'INV', 'INV-ARCH-XYZ789')).toBe(true);
     expect(matchesReferenceSearch({ id: 'expense-xyz789' }, 'INV', 'ف#inv arch xyz789')).toBe(true);
+  });
+
+  it('extracts a debt record from its full reference in Arabic display format', () => {
+    const debt = { id: 'debt-one', referenceNumber: 'DBT-2026-0001', personName: 'اختبار' };
+    const result = findRecordByReference([debt], [], 'د#dbt 2026 0001');
+
+    expect(result).toEqual({ kind: 'debt', record: debt, referenceNumber: 'DBT-2026-0001' });
+  });
+
+  it('extracts a legacy invoice but rejects incomplete or unknown references', () => {
+    const expense = { id: 'expense-xyz789', category: 'اختبار' };
+
+    expect(findRecordByReference([], [expense], 'ف#INV ARCH XYZ789')).toEqual({
+      kind: 'expense',
+      record: expense,
+      referenceNumber: 'INV-ARCH-XYZ789',
+    });
+    expect(findRecordByReference([], [expense], 'INV-ARCH')).toBeNull();
+    expect(findRecordByReference([], [expense], 'INV-2026-9999')).toBeNull();
   });
 
   it('copies a trimmed reference through the supplied clipboard writer', async () => {

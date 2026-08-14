@@ -34,6 +34,7 @@ import { formatCurrency, formatDate, generateAlerts, generateWhatsAppLink } from
 import CashFlowChart from './CashFlowChart';
 import QuickEntry from './QuickEntry';
 import BudgetBurndownChart from './BudgetBurndownChart';
+import ReferenceQuickLookup from './ReferenceQuickLookup';
 
 interface DashboardProps {
   debts: Debt[];
@@ -455,6 +456,13 @@ export default function Dashboard({
           </motion.button>
         </div>
       </div>
+
+      <ReferenceQuickLookup
+        debts={debts}
+        expenses={expenses}
+        currency={currency}
+        onNavigate={onNavigate}
+      />
 
       {/* Capital & Cash Balance Overview Card */}
       <div 
