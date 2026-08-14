@@ -42,6 +42,8 @@ import {
 } from './utils/firebaseService';
 import AuthScreen from './components/AuthScreen';
 import ConfirmModal from './components/ConfirmModal';
+import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './components/DataLoadingExperience';
+import type { DataLoadingStage } from './lib/loadingExperience';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
@@ -74,18 +76,14 @@ const initialExpenses: Expense[] = [];
 const initialBudgets: Budget[] = [];
 
 function DeferredViewLoader({ label }: { label: string }) {
-  return (
-    <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-3xl border border-slate-200 bg-white text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400" role="status">
-      <Loader2 className="h-7 w-7 animate-spin text-sky-600" aria-hidden="true" />
-      <span className="text-xs font-black">جاري فتح {label}...</span>
-    </div>
-  );
+  return <DeferredSectionLoadingExperience label={label} />;
 }
 
 export default function App() {
   // Authentication states
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [loadingStage, setLoadingStage] = useState<DataLoadingStage>('auth');
   
   // User Profile configuration
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -169,6 +167,7 @@ export default function App() {
       if (firebaseUser) {
         setCurrentUser(firebaseUser);
         setIsAuthLoading(true);
+        setLoadingStage('profile');
         try {
           // Fetch user profile and preferences
           const profile = await fetchUserProfile(firebaseUser.uid);
@@ -201,6 +200,7 @@ export default function App() {
           }
 
           // Fetch user-isolated cloud collections from Firestore using final database owner ID
+          setLoadingStage('records');
           const [loadedDebts, loadedExpenses, loadedBudgets, loadedProjects, loadedEmployees, loadedPayments] = await Promise.all([
             fetchCollection<Debt>(finalUid, 'debts'),
             fetchCollection<Expense>(finalUid, 'expenses'),
@@ -242,6 +242,7 @@ export default function App() {
       } else {
         setCurrentUser(null);
         setUserProfile(null);
+        setLoadingStage('auth');
         setIsAuthLoading(false);
         // Clear sensitive states on logout
         setDebts([]);
@@ -931,12 +932,7 @@ export default function App() {
   };
 
   if (isAuthLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4 text-slate-300 font-sans" id="auth-loading-screen">
-        <Loader2 className="w-10 h-10 animate-spin text-sky-500" />
-        <span className="text-xs font-bold tracking-wider">جاري تحميل بياناتك الآمنة...</span>
-      </div>
-    );
+    return <AppDataLoadingExperience stage={loadingStage} />;
   }
 
   if (!currentUser) {
