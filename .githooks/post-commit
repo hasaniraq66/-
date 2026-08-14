@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# يدفع كل التزام جديد على الفرع الرئيسي إلى GitHub مباشرةً.
+set -eu
+
+if [ "${DIYUNI_GITHUB_AUTOSYNC_ACTIVE:-}" = "1" ]; then
+  exit 0
+fi
+
+if [ "$(git branch --show-current)" != "main" ]; then
+  exit 0
+fi
+
+if ! git remote get-url github >/dev/null 2>&1; then
+  printf '%s\n' '[GitHub auto-sync] remote "github" غير مُعد؛ لم يتم الدفع.' >&2
+  exit 0
+fi
+
+printf '%s\n' '[GitHub auto-sync] دفع الالتزام الجديد إلى github/main…'
+if DIYUNI_GITHUB_AUTOSYNC_ACTIVE=1 git push github main; then
+  printf '%s\n' '[GitHub auto-sync] اكتملت مزامنة main بنجاح.'
+else
+  printf '%s\n' '[GitHub auto-sync] فشل الدفع؛ الالتزام محفوظ محلياً ويجب إعادة المحاولة عند توفر المصادقة أو الشبكة.' >&2
+fi
