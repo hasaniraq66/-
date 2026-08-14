@@ -26,10 +26,14 @@ import {
   Clock,
   Activity,
   CheckCircle2,
-  Printer
+  Printer,
+  AlertTriangle,
+  RotateCcw,
+  TrendingUp
 } from 'lucide-react';
 import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
+import { getAccountStatementDebts } from '../utils/debtRecords';
 import AttachmentSelector from './AttachmentSelector';
 import ConfirmModal from './ConfirmModal';
 
@@ -45,6 +49,13 @@ export interface ActivityEvent {
   notes?: string;
   category?: string;
   photo?: string;
+}
+
+function getDateOffsetString(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 export function getPersonActivityHistory(personDebts: Debt[]): ActivityEvent[] {
@@ -129,6 +140,8 @@ export default function DebtsManager({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid' | 'overdue'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [dueFilter, setDueFilter] = useState<'all' | 'overdue' | 'this_week' | 'upcoming'>('all');
+  const [sortBy, setSortBy] = useState<'priority' | 'amount' | 'recent'>('priority');
 
   // Modal forms State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -381,6 +394,30 @@ export default function DebtsManager({
     return Array.from(new Set(nonProjectDebts.map(d => d.personName.trim()))).filter(Boolean);
   }, [nonProjectDebts]);
 
+  const debtSummary = useMemo(() => {
+    const today = getLocalDateString();
+    const weekLimit = getDateOffsetString(7);
+    const activeDebts = nonProjectDebts.filter(debt => debt.status !== 'paid');
+    const totalValue = nonProjectDebts.reduce((sum, debt) => sum + debt.amount, 0);
+    const totalPaid = nonProjectDebts.reduce((sum, debt) => sum + debt.paidAmount, 0);
+
+    return {
+      toMe: activeDebts.filter(debt => debt.type === 'to_me').reduce((sum, debt) => sum + Math.max(0, debt.amount - debt.paidAmount), 0),
+      toOthers: activeDebts.filter(debt => debt.type === 'to_others').reduce((sum, debt) => sum + Math.max(0, debt.amount - debt.paidAmount), 0),
+      overdue: activeDebts.filter(debt => debt.dueDate < today).length,
+      upcoming: activeDebts.filter(debt => debt.dueDate >= today && debt.dueDate <= weekLimit).length,
+      settlementRate: totalValue > 0 ? Math.round((totalPaid / totalValue) * 100) : 0,
+    };
+  }, [nonProjectDebts]);
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setCategoryFilter('all');
+    setDueFilter('all');
+    setSortBy('priority');
+  };
+
   // Generate WhatsApp Account Statement
   const generateAccountWhatsAppLink = (accName: string, accDebts: Debt[]) => {
     let msg = `*كشف حساب الديون والالتزامات*\n`;
@@ -456,9 +493,21 @@ export default function DebtsManager({
       // 4. Category filter
       if (categoryFilter !== 'all' && d.category !== categoryFilter) return false;
 
+      const todayStr = getLocalDateString();
+      const weekLimit = getDateOffsetString(7);
+      if (dueFilter === 'overdue' && (d.status === 'paid' || d.dueDate >= todayStr)) return false;
+      if (dueFilter === 'this_week' && (d.status === 'paid' || d.dueDate < todayStr || d.dueDate > weekLimit)) return false;
+      if (dueFilter === 'upcoming' && (d.status === 'paid' || d.dueDate < todayStr)) return false;
+
       return true;
+    }).sort((first, second) => {
+      if (sortBy === 'amount') return (second.amount - second.paidAmount) - (first.amount - first.paidAmount);
+      if (sortBy === 'recent') return new Date(second.startDate || second.dueDate).getTime() - new Date(first.startDate || first.dueDate).getTime();
+      const firstPriority = first.status !== 'paid' && first.dueDate < getLocalDateString() ? 1 : 0;
+      const secondPriority = second.status !== 'paid' && second.dueDate < getLocalDateString() ? 1 : 0;
+      return secondPriority - firstPriority || first.dueDate.localeCompare(second.dueDate);
     });
-  }, [nonProjectDebts, activeTab, searchTerm, statusFilter, categoryFilter]);
+  }, [nonProjectDebts, activeTab, searchTerm, statusFilter, categoryFilter, dueFilter, sortBy]);
 
   // Group filtered debts by Person / Account
   const groupedAccounts = useMemo(() => {
@@ -534,8 +583,13 @@ export default function DebtsManager({
         activities,
         latestActivity: activities[0] || null
       };
-    }).sort((a, b) => b.debtCount - a.debtCount);
-  }, [filteredDebts]);
+    }).sort((first, second) => {
+      if (sortBy === 'amount') return second.remAmount - first.remAmount;
+      if (sortBy === 'recent') return new Date(second.latestActivity?.date || 0).getTime() - new Date(first.latestActivity?.date || 0).getTime();
+      const overdueCount = (account: { debts: Debt[] }) => account.debts.filter(debt => debt.status !== 'paid' && debt.dueDate < getLocalDateString()).length;
+      return overdueCount(second) - overdueCount(first) || second.remAmount - first.remAmount;
+    });
+  }, [filteredDebts, sortBy]);
 
   // Global activity history calculation for all non-project debts
   const allGlobalActivities = useMemo(() => {
@@ -559,6 +613,35 @@ export default function DebtsManager({
           <span>إضافة دين جديد</span>
         </button>
       </div>
+
+      {activeTab !== 'accounts' && activeTab !== 'history' && (
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-label="ملخص سجل الديون">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-600 to-cyan-500 p-4 text-white shadow-sm">
+            <ArrowDownLeft className="absolute -left-2 -bottom-3 w-16 h-16 text-white/10" />
+            <span className="relative text-xs font-bold text-sky-100">مستحق لك الآن</span>
+            <strong className="relative mt-1 block text-lg font-black">{formatCurrency(debtSummary.toMe, currency)}</strong>
+            <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-white/80"><Wallet className="w-3 h-3" /> تحصيلات قيد المتابعة</span>
+          </div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-600 to-orange-500 p-4 text-white shadow-sm">
+            <ArrowUpRight className="absolute -left-2 -bottom-3 w-16 h-16 text-white/10" />
+            <span className="relative text-xs font-bold text-rose-100">التزامات عليك</span>
+            <strong className="relative mt-1 block text-lg font-black">{formatCurrency(debtSummary.toOthers, currency)}</strong>
+            <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-white/80"><CreditCard className="w-3 h-3" /> رتّب أولويات السداد</span>
+          </div>
+          <button type="button" onClick={() => setDueFilter('overdue')} className="text-right relative overflow-hidden rounded-2xl bg-amber-50 border border-amber-200 p-4 shadow-sm transition-colors hover:bg-amber-100 cursor-pointer">
+            <AlertTriangle className="absolute -left-2 -bottom-3 w-16 h-16 text-amber-500/10" />
+            <span className="relative block text-xs font-bold text-amber-800">بنود متأخرة</span>
+            <strong className="relative mt-1 block text-lg font-black text-amber-900">{debtSummary.overdue} بند</strong>
+            <span className="relative mt-2 block text-[10px] font-bold text-amber-700">انقر لعرضها ومعالجتها</span>
+          </button>
+          <div className="relative overflow-hidden rounded-2xl bg-emerald-50 border border-emerald-200 p-4 shadow-sm">
+            <TrendingUp className="absolute -left-2 -bottom-3 w-16 h-16 text-emerald-600/10" />
+            <span className="relative block text-xs font-bold text-emerald-800">معدل السداد</span>
+            <strong className="relative mt-1 block text-lg font-black text-emerald-900">{debtSummary.settlementRate}%</strong>
+            <span className="relative mt-2 block text-[10px] font-bold text-emerald-700">{debtSummary.upcoming} استحقاق خلال 7 أيام</span>
+          </div>
+        </section>
+      )}
 
       {/* Tabs and Filters Control */}
       <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 space-y-4" id="debts-filters-panel">
@@ -686,7 +769,7 @@ export default function DebtsManager({
         {/* Row 3: Secondary Filters */}
         {activeTab !== 'accounts' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" id="debts-sub-filters">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3" id="debts-sub-filters">
               {/* Search bar */}
               <div className="relative" id="filter-search-container">
                 <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -713,6 +796,7 @@ export default function DebtsManager({
                   <option value="unpaid">غير مسددة</option>
                   <option value="partial">مسددة جزئياً</option>
                   <option value="paid">مسددة بالكامل</option>
+                  <option value="overdue">متأخرة</option>
                 </select>
               </div>
 
@@ -731,7 +815,45 @@ export default function DebtsManager({
                   ))}
                 </select>
               </div>
+
+              <div className="flex items-center gap-2" id="filter-due-container">
+                <span className="text-xs text-slate-400 shrink-0">الاستحقاق:</span>
+                <select
+                  id="debt-due-select"
+                  value={dueFilter}
+                  onChange={(e) => setDueFilter(e.target.value as typeof dueFilter)}
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
+                >
+                  <option value="all">كل المواعيد</option>
+                  <option value="overdue">متأخر</option>
+                  <option value="this_week">خلال 7 أيام</option>
+                  <option value="upcoming">قادمة</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2" id="filter-sort-container">
+                <span className="text-xs text-slate-400 shrink-0">الترتيب:</span>
+                <select
+                  id="debt-sort-select"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
+                >
+                  <option value="priority">الأولوية والاستحقاق</option>
+                  <option value="amount">الأعلى مبلغاً</option>
+                  <option value="recent">الأحدث</option>
+                </select>
+              </div>
             </div>
+
+            {(searchTerm || statusFilter !== 'all' || categoryFilter !== 'all' || dueFilter !== 'all' || sortBy !== 'priority') && (
+              <div className="flex items-center justify-between rounded-xl bg-sky-50/70 border border-sky-100 px-3 py-2 text-[11px]">
+                <span className="font-bold text-sky-800">تم تطبيق فلاتر على {filteredDebts.length} بند من سجل الديون.</span>
+                <button type="button" onClick={resetFilters} className="inline-flex items-center gap-1 font-black text-sky-700 hover:text-sky-900 cursor-pointer">
+                  <RotateCcw className="w-3.5 h-3.5" /> إعادة ضبط
+                </button>
+              </div>
+            )}
 
           </>
         )}
@@ -878,8 +1000,9 @@ export default function DebtsManager({
               groupedAccounts.map((acc) => (
                 <div
                   key={acc.personName}
-                  className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs space-y-4 flex flex-col justify-between hover:border-sky-300 transition-all"
+                  className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs space-y-4 flex flex-col justify-between hover:border-sky-300 hover:shadow-sm transition-all"
                 >
+                  <div className={`absolute inset-x-0 top-0 h-1 ${acc.netBalance > 0 ? 'bg-sky-500' : acc.netBalance < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                   <div className="space-y-3">
                     {/* Card Header */}
                     <div className="flex justify-between items-start gap-2">
@@ -912,6 +1035,21 @@ export default function DebtsManager({
                         )}
                       </div>
                     </div>
+
+                    {(() => {
+                      const today = getLocalDateString();
+                      const overdueItems = acc.debts.filter(debt => debt.status !== 'paid' && debt.dueDate < today).length;
+                      const nextDue = acc.debts.filter(debt => debt.status !== 'paid' && debt.dueDate >= today).sort((first, second) => first.dueDate.localeCompare(second.dueDate))[0];
+                      return (
+                        <div className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-[10px] font-bold ${overdueItems > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200/70' : 'bg-slate-50 text-slate-600 border border-slate-100'}`}>
+                          <span className="inline-flex items-center gap-1.5">
+                            {overdueItems > 0 ? <AlertTriangle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5 text-sky-600" />}
+                            {overdueItems > 0 ? `${overdueItems} بند متأخر يتطلب متابعة` : nextDue ? `أقرب استحقاق: ${formatDate(nextDue.dueDate)}` : 'لا توجد استحقاقات مفتوحة'}
+                          </span>
+                          <button type="button" onClick={() => setSelectedAccountPerson(acc.personName)} className="shrink-0 text-sky-700 hover:text-sky-900 underline cursor-pointer">فتح السجل</button>
+                        </div>
+                      );
+                    })()}
 
                     {/* Financial Summary Box */}
                     <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl text-center text-xs">
@@ -1009,6 +1147,7 @@ export default function DebtsManager({
                           {acc.debts.map((debt, index) => {
                             const remaining = debt.amount - debt.paidAmount;
                             const percentage = Math.min(Math.round((debt.paidAmount / debt.amount) * 100), 100);
+                            const isOverdue = debt.status !== 'paid' && debt.dueDate < getLocalDateString();
 
                             return (
                               <div
@@ -1016,6 +1155,8 @@ export default function DebtsManager({
                                 className={`p-3.5 rounded-xl border text-xs space-y-2.5 transition-all ${
                                   debt.status === 'paid'
                                     ? 'bg-emerald-50/25 border-emerald-200/70'
+                                    : isOverdue
+                                    ? 'bg-amber-50/30 border-amber-200 shadow-3xs'
                                     : debt.type === 'to_me'
                                     ? 'bg-sky-50/20 border-sky-100 shadow-3xs'
                                     : 'bg-rose-50/20 border-rose-100 shadow-3xs'
@@ -1031,6 +1172,7 @@ export default function DebtsManager({
                                     <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-0.5">
                                       <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">{debt.category}</span>
                                       <span>تاريخ الاستحقاق: <strong className="text-slate-700">{formatDate(debt.dueDate)}</strong></span>
+                                      {isOverdue && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 font-black text-amber-800"><AlertTriangle className="w-3 h-3" /> متأخر</span>}
                                     </div>
                                   </div>
 
@@ -1061,6 +1203,16 @@ export default function DebtsManager({
                                   <div>
                                     <span className="text-slate-400 block">المتبقي</span>
                                     <span className="font-extrabold text-rose-600">{formatCurrency(remaining, currency)}</span>
+                                  </div>
+                                </div>
+
+                                <div className="rounded-lg bg-white/80 border border-slate-100 p-2">
+                                  <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold">
+                                    <span className="text-slate-500">تقدم السداد</span>
+                                    <span className={percentage === 100 ? 'text-emerald-700' : 'text-slate-700'}>{percentage}%</span>
+                                  </div>
+                                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100} aria-label={`تقدم سداد دين ${debt.personName}`}>
+                                    <div className={`h-full rounded-full transition-all ${percentage === 100 ? 'bg-emerald-500' : debt.type === 'to_me' ? 'bg-sky-500' : 'bg-rose-500'}`} style={{ width: `${percentage}%` }} />
                                   </div>
                                 </div>
 
@@ -2036,9 +2188,7 @@ export default function DebtsManager({
 
       {/* Detailed Person Account Modal */}
       {selectedAccountPerson && (() => {
-        const personDebts = nonProjectDebts.filter(
-          (d) => d.personName.trim().toLowerCase() === selectedAccountPerson.trim().toLowerCase()
-        );
+        const personDebts = getAccountStatementDebts(nonProjectDebts, selectedAccountPerson);
         let totalToMeRem = 0;
         let totalToOthersRem = 0;
         personDebts.forEach((d) => {

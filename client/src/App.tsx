@@ -43,6 +43,7 @@ import ConfirmModal from './components/ConfirmModal';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
+import { createIndependentDebt } from './utils/debtRecords';
 
 // Import components
 import Dashboard from './components/Dashboard';
@@ -436,63 +437,14 @@ export default function App() {
 
   // 1. Debt operations
   const handleAddDebt = (newDebtData: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => {
-    // Check if an existing debt record exists for this person and debt type
-    const normalizedName = newDebtData.personName.trim().toLowerCase();
-    const existing = debts.find(
-      (d) =>
-        d.personName.trim().toLowerCase() === normalizedName &&
-        d.type === newDebtData.type &&
-        (d.projectId || '') === (newDebtData.projectId || '')
+    const newDebt = createIndependentDebt(
+      { ...newDebtData, amount: sanitizeFinancialValue(Number(newDebtData.amount) || 0) },
+      `debt-${generateId()}`,
     );
 
-    if (existing) {
-      const addedAmount = sanitizeFinancialValue(Number(newDebtData.amount) || 0);
-      const newTotalAmount = existing.amount + addedAmount;
-      const remaining = newTotalAmount - existing.paidAmount;
-      
-      let newStatus: Debt['status'] = 'unpaid';
-      if (remaining <= 0) {
-        newStatus = 'paid';
-      } else if (existing.paidAmount > 0) {
-        newStatus = 'partial';
-      }
-
-      const updatedDesc = newDebtData.description
-        ? (existing.description ? `${existing.description} | +${addedAmount} (${newDebtData.description})` : newDebtData.description)
-        : existing.description;
-
-      const updatedNote = newDebtData.note
-        ? (existing.note ? `${existing.note}\n+${addedAmount}: ${newDebtData.note}` : newDebtData.note)
-        : existing.note;
-
-      const updatedDebt: Debt = {
-        ...existing,
-        amount: newTotalAmount,
-        status: newStatus,
-        dueDate: newDebtData.dueDate || existing.dueDate,
-        startDate: newDebtData.startDate || existing.startDate,
-        category: newDebtData.category || existing.category,
-        description: updatedDesc,
-        note: updatedNote,
-        photo: newDebtData.photo || existing.photo,
-      };
-
-      setDebts((prev) => prev.map((d) => (d.id === existing.id ? updatedDebt : d)));
-      if (currentUser && targetUid) {
-        saveDocument(targetUid, 'debts', existing.id, updatedDebt);
-      }
-    } else {
-      const newDebt: Debt = {
-        ...newDebtData,
-        id: `debt-${generateId()}`,
-        paidAmount: 0,
-        status: 'unpaid',
-        installments: [],
-      };
-      setDebts((prev) => [newDebt, ...prev]);
-      if (currentUser && targetUid) {
-        saveDocument(targetUid, 'debts', newDebt.id, newDebt);
-      }
+    setDebts((prev) => [newDebt, ...prev]);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'debts', newDebt.id, newDebt);
     }
   };
 
