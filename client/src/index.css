@@ -1,177 +1,342 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
-@import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+@theme {
+  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cairo", ui-sans-serif, system-ui, sans-serif;
 }
 
-:root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
+body {
+  font-family: "Cairo", ui-sans-serif, system-ui, sans-serif;
+  direction: rtl;
+  text-align: right;
+  background-color: #f8fafc;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
+/* Custom scrollbar styling for a modern look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ==========================================
+   Dark Mode Custom Style Overrides (Eye-Safe Theme)
+   ========================================== */
 .dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground:  oklch(0.92 0.005 65);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground:  oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+  color-scheme: dark;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+.dark body {
+  background-color: #0b0f19 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Background overrides in dark mode */
+.dark .bg-white {
+  background-color: #121826 !important;
+}
+
+.dark #app-container {
+  background-color: #0b0f19 !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: #1a2235 !important;
+}
+
+.dark .bg-slate-50\/50 {
+  background-color: rgba(26, 34, 53, 0.5) !important;
+}
+
+.dark .bg-slate-100 {
+  background-color: #242f47 !important;
+}
+
+.dark .hover\:bg-slate-50:hover {
+  background-color: #1a2235 !important;
+}
+
+.dark .hover\:bg-slate-100:hover {
+  background-color: #242f47 !important;
+}
+
+/* Text overrides in dark mode */
+.dark .text-slate-950,
+.dark .text-slate-900,
+.dark .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+
+.dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Border overrides in dark mode */
+.dark .border-slate-100 {
+  border-color: #1e293b !important;
+}
+
+.dark .border-slate-200 {
+  border-color: #2e3c54 !important;
+}
+
+.dark .border-slate-200\/60 {
+  border-color: rgba(46, 60, 84, 0.6) !important;
+}
+
+/* Form Elements (select, input) in dark mode */
+.dark select,
+.dark input {
+  background-color: #1a2235 !important;
+  color: #f1f5f9 !important;
+  border-color: #2e3c54 !important;
+}
+
+.dark select:focus,
+.dark input:focus {
+  border-color: #0284c7 !important;
+}
+
+/* Status Alert boxes adjustments for readability and contrast in dark mode */
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+.dark .text-emerald-800 {
+  color: #34d399 !important;
+}
+.dark .border-emerald-100 {
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+.dark .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.1) !important;
+}
+.dark .text-rose-800,
+.dark .text-rose-600 {
+  color: #fb7185 !important;
+}
+.dark .border-rose-100 {
+  border-color: rgba(244, 63, 94, 0.2) !important;
+}
+
+.dark .bg-sky-50 {
+  background-color: rgba(14, 165, 233, 0.1) !important;
+}
+.dark .text-sky-700,
+.dark .text-sky-800 {
+  color: #38bdf8 !important;
+}
+.dark .border-sky-100 {
+  border-color: rgba(14, 165, 233, 0.2) !important;
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+.dark .text-amber-800 {
+  color: #fbbf24 !important;
+}
+.dark .border-amber-100 {
+  border-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+/* Secondary background elements */
+.dark .bg-sky-50\/80 {
+  background-color: rgba(14, 165, 233, 0.15) !important;
+}
+.dark .bg-rose-50\/80 {
+  background-color: rgba(244, 63, 94, 0.15) !important;
+}
+.dark .bg-amber-50\/80 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+.dark .bg-emerald-50\/80 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+/* Tabs & Segment controls inside settings modal */
+.dark #quick-entry-tabs {
+  background-color: #0b0f19 !important;
+  border-color: #1e293b !important;
+}
+
+.dark #quick-entry-tab-expense:not(.bg-emerald-600) {
+  color: #94a3b8 !important;
+}
+.dark #quick-entry-tab-expense:hover:not(.bg-emerald-600) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.dark #quick-entry-tab-debt:not(.bg-sky-600) {
+  color: #94a3b8 !important;
+}
+.dark #quick-entry-tab-debt:hover:not(.bg-sky-600) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Modals */
+.dark .bg-white.rounded-2xl,
+.dark .bg-white.rounded-3xl {
+  background-color: #121826 !important;
+  border-color: #2e3c54 !important;
+}
+
+.dark .border-b.border-slate-100 {
+  border-color: #1e293b !important;
+}
+
+.dark .border-t.border-slate-100 {
+  border-color: #1e293b !important;
+}
+
+/* Table rows and headers */
+.dark .bg-slate-50\/40 {
+  background-color: rgba(26, 34, 53, 0.4) !important;
+}
+
+.dark tr {
+  border-color: #1e293b !important;
+}
+
+.dark th {
+  background-color: #1a2235 !important;
+  color: #cbd5e1 !important;
+}
+
+.dark td {
+  color: #cbd5e1 !important;
+}
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #2e3c54 !important;
+}
+
+/* Calendar input picker indicator */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+/* Scrollbar dark mode thumb adjustments */
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Ensure ultra-clear high-contrast text and values for all input types (especially on mobile/webview platforms) */
+input, select, textarea {
+  color: #0f172a !important; /* Force high-contrast deep slate color in light mode */
+  opacity: 1 !important;
+  -webkit-text-fill-color: #0f172a !important; /* Prevent browser overrides (like iOS Safari or Chrome on Android) from fading the text */
+}
+
+.dark input, .dark select, .dark textarea {
+  color: #f1f5f9 !important; /* Force highly legible off-white color in dark mode */
+  -webkit-text-fill-color: #f1f5f9 !important;
+}
+
+/* Specific high-contrast overrides for the always-dark Authentication screen inputs */
+#auth-viewport input, #auth-viewport select, #auth-viewport textarea {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  font-family: "Cairo", ui-sans-serif, system-ui, sans-serif !important;
+  background-color: #090f1d !important;
+}
+
+#auth-viewport input::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+
+/* Ensure autocomplete / autofill matches the dark background and stays crisp white */
+#auth-viewport input:-webkit-autofill,
+#auth-viewport input:-webkit-autofill:hover, 
+#auth-viewport input:-webkit-autofill:focus, 
+#auth-viewport input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #090f1d inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Clear, legible placeholder styles across all browsers */
+input::placeholder, textarea::placeholder {
+  color: #4b5563 !important; /* Force highly legible slate/gray-600 color for placeholders in light mode */
+  -webkit-text-fill-color: #4b5563 !important;
+  opacity: 1 !important;
+}
+
+.dark input::placeholder, .dark textarea::placeholder {
+  color: #94a3b8 !important; /* Slate-400 for placeholders in dark mode */
+  -webkit-text-fill-color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+/* Enhance styling for date inputs to guarantee visibility of placeholder/value */
+input[type="date"] {
+  position: relative;
+  min-height: 38px;
+}
+
+/* Print CSS rules for crisp PDF and Paper Printing */
+@media print {
+  body * {
+    visibility: hidden;
   }
-  body {
-    @apply bg-background text-foreground;
+  #pdf-report-content, #pdf-report-content * {
+    visibility: visible;
   }
-  button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
-  [type="button"]:not(:disabled),
-  [type="submit"]:not(:disabled),
-  [type="reset"]:not(:disabled),
-  a[href],
-  select:not(:disabled),
-  input[type="checkbox"]:not(:disabled),
-  input[type="radio"]:not(:disabled) {
-    @apply cursor-pointer;
+  #pdf-report-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 20px !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  #export-reports-modal {
+    display: none !important;
   }
 }
 
-@layer components {
-  /**
-   * Custom container utility that centers content and adds responsive padding.
-   *
-   * This overrides Tailwind's default container behavior to:
-   * - Auto-center content (mx-auto)
-   * - Add responsive horizontal padding
-   * - Set max-width for large screens
-   *
-   * Usage: <div className="container">...</div>
-   *
-   * For custom widths, use max-w-* utilities directly:
-   * <div className="max-w-6xl mx-auto px-4">...</div>
-   */
-  .container {
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
-    padding-right: 1rem;
-  }
 
-  .flex {
-    min-height: 0;
-    min-width: 0;
-  }
-
-  @media (min-width: 640px) {
-    .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
-      padding-right: 1.5rem;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .container {
-      padding-left: 2rem; /* 32px - desktop padding */
-      padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
-    }
-  }
-}

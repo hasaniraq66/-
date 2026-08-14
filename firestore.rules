@@ -1,0 +1,187 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth validation helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isSubUserOf(userId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(userId)/subUsers/$(request.auth.uid));
+    }
+
+    function canAccessUser(userId) {
+      return isOwner(userId) || isSubUserOf(userId);
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Entity validation blueprints to prevent value poisoning, shadow updates, and negative numbers.
+    
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'displayName']) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() <= 200 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 256)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 50)) &&
+             (!('currency' in data) || (data.currency is string && data.currency.size() <= 10)) &&
+             (!('adminId' in data) || (data.adminId is string && data.adminId.size() <= 128)) &&
+             (!('allowedTabs' in data) || (data.allowedTabs is list && data.allowedTabs.size() <= 20));
+    }
+
+    function isValidDebt(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'type', 'personName', 'amount', 'paidAmount', 'status']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == userId &&
+             (data.type == 'to_me' || data.type == 'to_others') &&
+             data.personName is string && data.personName.size() <= 200 &&
+             (data.status == 'paid' || data.status == 'partial' || data.status == 'unpaid') &&
+             data.amount is number && data.amount >= 0 &&
+             data.paidAmount is number && data.paidAmount >= 0 &&
+             (!('dueDate' in data) || (data.dueDate is string && data.dueDate.size() <= 100)) &&
+             (!('startDate' in data) || (data.startDate is string && data.startDate.size() <= 100)) &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             (!('projectId' in data) || (data.projectId is string && data.projectId.size() <= 128)) &&
+             (!('installments' in data) || (data.installments is list && data.installments.size() <= 100));
+    }
+
+    function isValidExpense(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'amount', 'category', 'date']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == userId &&
+             data.amount is number && data.amount >= 0 &&
+             data.category is string && data.category.size() <= 100 &&
+             data.date is string && data.date.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             (!('linkedDebtId' in data) || (data.linkedDebtId is string && data.linkedDebtId.size() <= 128)) &&
+             (!('projectId' in data) || (data.projectId is string && data.projectId.size() <= 128)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 1000));
+    }
+
+    function isValidBudget(data, userId) {
+      return data.keys().hasAll(['month', 'userId', 'monthlyLimit']) &&
+             data.month is string && data.month.size() <= 20 &&
+             data.userId == userId &&
+             data.monthlyLimit is number && data.monthlyLimit >= 0 &&
+             (!('categoryLimits' in data) || (data.categoryLimits is map));
+    }
+
+    function isValidProject(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'budget', 'debtCeiling', 'status']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == userId &&
+             data.name is string && data.name.size() <= 200 &&
+             data.budget is number && data.budget >= 0 &&
+             data.debtCeiling is number && data.debtCeiling >= 0 &&
+             (data.status == 'active' || data.status == 'completed' || data.status == 'on_hold') &&
+             (!('clientName' in data) || (data.clientName is string && data.clientName.size() <= 200)) &&
+             (!('startDate' in data) || (data.startDate is string && data.startDate.size() <= 100)) &&
+             (!('endDate' in data) || (data.endDate is string && data.endDate.size() <= 100)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000));
+    }
+
+    function isValidEmployee(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'projectId', 'name', 'salaryAmount']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == userId &&
+             data.projectId is string && data.projectId.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.salaryAmount is number && data.salaryAmount >= 0 &&
+             (!('role' in data) || (data.role is string && data.role.size() <= 200)) &&
+             (!('hireDate' in data) || (data.hireDate is string && data.hireDate.size() <= 100));
+    }
+
+    function isValidSalaryPayment(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'employeeId', 'projectId', 'amount', 'paymentDate', 'month']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == userId &&
+             data.employeeId is string && data.employeeId.size() <= 128 &&
+             data.projectId is string && data.projectId.size() <= 128 &&
+             data.amount is number && data.amount >= 0 &&
+             data.paymentDate is string && data.paymentDate.size() <= 100 &&
+             data.month is string && data.month.size() <= 20 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+    }
+
+    function isValidSubUser(data) {
+      return data.keys().hasAll(['id', 'displayName', 'email', 'allowedTabs']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.displayName is string && data.displayName.size() <= 200 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.allowedTabs is list && data.allowedTabs.size() <= 20 &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 100));
+    }
+
+    // User Profile matching
+    match /users/{userId} {
+      allow read: if canAccessUser(userId);
+      allow write: if (
+                     (isSignedIn() && (resource == null ? incoming().adminId == request.auth.uid : existing().adminId == request.auth.uid)) ||
+                     (isOwner(userId) && (resource == null || !('adminId' in existing()) || (incoming().adminId == existing().adminId && incoming().allowedTabs == existing().allowedTabs)))
+                   ) && isValidUserProfile(incoming());
+
+      // Debts
+      match /debts/{debtId} {
+        allow read: if canAccessUser(userId);
+        allow write: if canAccessUser(userId) && isValidId(debtId) && isValidDebt(incoming(), userId);
+      }
+
+      // Expenses
+      match /expenses/{expenseId} {
+        allow read: if canAccessUser(userId);
+        allow write: if canAccessUser(userId) && isValidId(expenseId) && isValidExpense(incoming(), userId);
+      }
+
+      // Budgets
+      match /budgets/{budgetId} {
+        allow read: if canAccessUser(userId);
+        allow write: if canAccessUser(userId) && isValidId(budgetId) && isValidBudget(incoming(), userId);
+      }
+
+      // Projects
+      match /projects/{projectId} {
+        allow read: if canAccessUser(userId);
+        allow write: if canAccessUser(userId) && isValidId(projectId) && isValidProject(incoming(), userId);
+      }
+
+      // Employees
+      match /employees/{employeeId} {
+        allow read: if canAccessUser(userId);
+        allow write: if canAccessUser(userId) && isValidId(employeeId) && isValidEmployee(incoming(), userId);
+      }
+
+      // Salary Payments
+      match /salaryPayments/{paymentId} {
+        allow read: if canAccessUser(userId);
+        allow write: if canAccessUser(userId) && isValidId(paymentId) && isValidSalaryPayment(incoming(), userId);
+      }
+
+      // Sub-Users Management (Only the main owner can create, edit, or delete helpers)
+      match /subUsers/{subUserId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidId(subUserId) && isValidSubUser(incoming());
+      }
+    }
+  }
+}

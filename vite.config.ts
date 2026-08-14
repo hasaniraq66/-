@@ -167,6 +167,17 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          firebase: ["firebase/app", "firebase/auth", "firebase/firestore"],
+          charts: ["recharts"],
+          pdf: ["html2canvas", "jspdf"],
+          motion: ["motion", "motion/react"],
+          icons: ["lucide-react"],
+        },
+      },
+    },
   },
   server: {
     host: true,
