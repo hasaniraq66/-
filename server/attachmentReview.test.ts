@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FinancialAttachment } from '../client/src/types';
 import {
   DEFAULT_ATTACHMENT_REVIEW_STATUS,
+  getAttachmentReviewSummary,
   getAttachmentReviewStatus,
   MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH,
   updateAttachmentReview,
@@ -19,6 +20,16 @@ const baseAttachment: FinancialAttachment = {
 describe('attachment review workflow', () => {
   it('treats legacy attachments with no review metadata as pending review', () => {
     expect(getAttachmentReviewStatus(baseAttachment)).toBe(DEFAULT_ATTACHMENT_REVIEW_STATUS);
+  });
+
+  it('summarizes reviewed and pending attachments for visible UI state indicators', () => {
+    const summary = getAttachmentReviewSummary([
+      baseAttachment,
+      { ...baseAttachment, id: 'attachment-002', reviewStatus: 'reviewed' },
+      { ...baseAttachment, id: 'attachment-003', reviewStatus: 'pending_review' },
+    ]);
+
+    expect(summary).toEqual({ total: 3, reviewed: 1, pendingReview: 2 });
   });
 
   it('updates only the selected attachment review status and preserves other metadata', () => {

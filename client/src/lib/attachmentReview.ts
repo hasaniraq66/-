@@ -7,6 +7,15 @@ export function getAttachmentReviewStatus(attachment: FinancialAttachment): Atta
   return attachment.reviewStatus ?? DEFAULT_ATTACHMENT_REVIEW_STATUS;
 }
 
+export function getAttachmentReviewSummary(attachments: FinancialAttachment[]) {
+  const reviewed = attachments.filter((attachment) => getAttachmentReviewStatus(attachment) === 'reviewed').length;
+  return {
+    total: attachments.length,
+    reviewed,
+    pendingReview: attachments.length - reviewed,
+  };
+}
+
 export function updateAttachmentReview(
   attachments: FinancialAttachment[],
   attachmentId: string,
