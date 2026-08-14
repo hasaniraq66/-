@@ -36,6 +36,11 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidAttachments(data) {
+      return !('attachments' in data) ||
+             (data.attachments is list && data.attachments.size() <= 10);
+    }
+
     // Entity validation blueprints to prevent value poisoning, shadow updates, and negative numbers.
     
     function isValidUserProfile(data) {
@@ -63,7 +68,8 @@ service cloud.firestore {
              (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
              (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
              (!('projectId' in data) || (data.projectId is string && data.projectId.size() <= 128)) &&
-             (!('installments' in data) || (data.installments is list && data.installments.size() <= 100));
+             (!('installments' in data) || (data.installments is list && data.installments.size() <= 100)) &&
+             isValidAttachments(data);
     }
 
     function isValidExpense(data, userId) {
@@ -76,7 +82,8 @@ service cloud.firestore {
              (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
              (!('linkedDebtId' in data) || (data.linkedDebtId is string && data.linkedDebtId.size() <= 128)) &&
              (!('projectId' in data) || (data.projectId is string && data.projectId.size() <= 128)) &&
-             (!('note' in data) || (data.note is string && data.note.size() <= 1000));
+             (!('note' in data) || (data.note is string && data.note.size() <= 1000)) &&
+             isValidAttachments(data);
     }
 
     function isValidBudget(data, userId) {

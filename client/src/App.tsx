@@ -1381,6 +1381,7 @@ export default function App() {
               <DebtsManager
                 debts={debts}
                 currency={currency}
+                ownerUid={targetUid}
                 onAddDebt={handleAddDebt}
                 onEditDebt={handleEditDebt}
                 onDeleteDebt={handleDeleteDebt}
@@ -1394,6 +1395,7 @@ export default function App() {
                 expenses={expenses}
                 budgets={budgets}
                 currency={currency}
+                ownerUid={targetUid}
                 onSetBudget={handleSetBudget}
                 onAddExpense={handleAddExpense}
                 onEditExpense={handleEditExpense}

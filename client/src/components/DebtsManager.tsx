@@ -39,6 +39,7 @@ import { isPaymentWithinRemainingBalance, isPositiveFinancialAmount } from '../u
 import AttachmentSelector from './AttachmentSelector';
 import ConfirmModal from './ConfirmModal';
 import ReferenceCopyButton from './ReferenceCopyButton';
+import FinancialAttachments from './FinancialAttachments';
 
 export interface ActivityEvent {
   id: string;
@@ -131,6 +132,7 @@ export function getPersonActivityHistory(personDebts: Debt[]): ActivityEvent[] {
 interface DebtsManagerProps {
   debts: Debt[];
   currency: string;
+  ownerUid: string;
   onAddDebt: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
   onEditDebt: (debt: Debt) => void;
   onDeleteDebt: (id: string) => void;
@@ -141,6 +143,7 @@ interface DebtsManagerProps {
 export default function DebtsManager({
   debts,
   currency,
+  ownerUid,
   onAddDebt,
   onEditDebt,
   onDeleteDebt,
@@ -1260,6 +1263,7 @@ export default function DebtsManager({
                                       <div className="flex items-center gap-1">
                                         <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600" title="الرقم المرجعي للدين">{getArabicReferenceLabel(getDisplayReferenceNumber(debt, 'DBT'))}</span>
                                         <ReferenceCopyButton referenceNumber={getDisplayReferenceNumber(debt, 'DBT')} recordType="دين" />
+                                        <FinancialAttachments ownerUid={ownerUid} recordId={debt.id} recordType="debt" attachments={debt.attachments} onChange={(attachments) => onEditDebt({ ...debt, attachments })} />
                                       </div>
                                       <span>{debt.description || debt.category}</span>
                                     </div>

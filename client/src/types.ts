@@ -7,6 +7,16 @@ export interface PaymentInstallment {
   notes: string;
 }
 
+export interface FinancialAttachment {
+  id: string;
+  name: string;
+  url: string;
+  storageKey?: string;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+  size: number;
+  uploadedAt: string;
+}
+
 export interface Debt {
   id: string;
   referenceNumber?: string; // رقم مرجعي تلقائي مثل DBT-2026-0001
@@ -22,6 +32,7 @@ export interface Debt {
   installments: PaymentInstallment[];
   note?: string;
   photo?: string; // base64 representation
+  attachments?: FinancialAttachment[];
   guarantor?: string; // اسم الكفيل أو الضامن
   projectId?: string; // Linked Work Project if any
 }
@@ -36,6 +47,7 @@ export interface Expense {
   linkedDebtId?: string; // If this expense is a payment for a debt we owe
   note?: string;
   photo?: string; // base64 representation
+  attachments?: FinancialAttachment[];
   projectId?: string; // Linked Work Project if any
 }
 

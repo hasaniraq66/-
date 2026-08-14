@@ -25,11 +25,13 @@ import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSea
 import { isPositiveFinancialAmount, isValidBudgetLimit } from '../utils/financialInputValidation';
 import AttachmentSelector from './AttachmentSelector';
 import ReferenceCopyButton from './ReferenceCopyButton';
+import FinancialAttachments from './FinancialAttachments';
 
 interface BudgetManagerProps {
   expenses: Expense[];
   budgets: Budget[];
   currency: string;
+  ownerUid: string;
   onSetBudget: (month: string, limit: number, categoryLimits?: { [category: string]: number }) => void;
   onAddExpense: (expense: Omit<Expense, 'id'>) => void;
   onEditExpense: (expense: Expense) => void;
@@ -56,6 +58,7 @@ export default function BudgetManager({
   expenses,
   budgets,
   currency,
+  ownerUid,
   onSetBudget,
   onAddExpense,
   onEditExpense,
@@ -823,6 +826,7 @@ export default function BudgetManager({
                       <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-slate-600">
                         <span>{getArabicReferenceLabel(getDisplayReferenceNumber(exp, 'INV'))}</span>
                         <ReferenceCopyButton referenceNumber={getDisplayReferenceNumber(exp, 'INV')} recordType="فاتورة" />
+                        <FinancialAttachments ownerUid={ownerUid} recordId={exp.id} recordType="expense" attachments={exp.attachments} onChange={(attachments) => onEditExpense({ ...exp, attachments })} />
                       </div>
                     </td>
                     <td className="p-4 whitespace-nowrap">
