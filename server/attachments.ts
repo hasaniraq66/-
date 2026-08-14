@@ -1,4 +1,5 @@
 import firebaseConfig from '../client/firebase-applet-config.json';
+import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { storageGetSignedUrl, storagePut } from './storage';
 
@@ -149,7 +150,7 @@ export function createAttachmentPreviewHandler(dependencies: {
 export function createAttachmentUploadHandler(dependencies: { getUid?: (req: Request) => Promise<string | null>; put?: AttachmentStorageWriter; createId?: () => string; now?: () => Date } = {}) {
   const getUid = dependencies.getUid ?? getFirebaseUid;
   const put = dependencies.put ?? storagePut;
-  const createId = dependencies.createId ?? (() => crypto.randomUUID());
+  const createId = dependencies.createId ?? randomUUID;
   const now = dependencies.now ?? (() => new Date());
 
   return async (req: Request, res: Response) => {
@@ -160,7 +161,7 @@ export function createAttachmentUploadHandler(dependencies: { getUid?: (req: Req
       if (!validated.ok) return res.status(400).json({ error: validated.error });
       const attachmentId = createId();
       const stored = await put(buildAttachmentStoragePath(uid, validated.recordType, validated.recordId, validated.safeName), validated.data, validated.mimeType);
-      return res.json({ id: attachmentId, name: validated.name, url: buildAttachmentPreviewPath(uid, validated.recordType, validated.recordId, attachmentId), storageKey: stored.key, mimeType: validated.mimeType, size: validated.data.length, uploadedAt: now().toISOString() });
+      return res.json({ id: attachmentId, name: validated.name, url: buildAttachmentPreviewPath(uid, validated.recordType, validated.recordId, attachmentId), storageKey: stored.key, mimeType: validated.mimeType, size: validated.data.length, uploadedAt: now().toISOString(), reviewStatus: 'pending_review' });
     } catch (error) {
       console.error('[Attachments] upload failed', error);
       return res.status(500).json({ error: 'تعذر حفظ المرفق حالياً. حاول مجدداً.' });

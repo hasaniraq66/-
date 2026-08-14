@@ -7,6 +7,8 @@ export interface PaymentInstallment {
   notes: string;
 }
 
+export type AttachmentReviewStatus = 'pending_review' | 'reviewed';
+
 export interface FinancialAttachment {
   id: string;
   name: string;
@@ -15,6 +17,9 @@ export interface FinancialAttachment {
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
   size: number;
   uploadedAt: string;
+  reviewStatus?: AttachmentReviewStatus;
+  internalNote?: string;
+  reviewUpdatedAt?: string;
 }
 
 export interface Debt {
