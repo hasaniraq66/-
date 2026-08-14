@@ -26,4 +26,4 @@ node scripts/install-github-autosync.mjs
 
 ## دليل اختبار الدفع التلقائي
 
-بعد تفعيل الخطاف، أُنشئ الالتزام `f768f89` بعنوان `chore: enable direct github main autosync` من دون تنفيذ أمر دفع يدوي. شغّل خطاف `post-commit` تلقائياً، ودفع الالتزام إلى `github/main`، ثم تأكد تطابق الرأس البعيد مع `f768f89e3ae98f027be41a3dcab09bf0f245f0c3`.
+بعد تفعيل الخطاف، أُنشئ الالتزام `f768f89` بعنوان `chore: enable direct github main autosync` من دون تنفيذ أمر دفع يدوي. شغّل خطاف `post-commit` تلقائياً، ودفع الالتزام إلى `github/main`، ثم تأكد تطابق الرأس البعيد مع `f768f89e3ae98f027be41a3dcab09bf0f245f0c3`. سُجل هذا الاختبار قبل إعادة بناء سجل GitHub، وتبقى سياسة الخطاف والسكربت ضمن النسخة الجديدة الحالية.
