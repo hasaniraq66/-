@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Expense, Budget, ExpenseTemplate } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, getCurrentMonthString } from '../utils';
+import { getArabicReferenceLabel, getDisplayReferenceNumber } from '../utils/recordReferences';
 import AttachmentSelector from './AttachmentSelector';
 
 interface BudgetManagerProps {
@@ -714,6 +715,7 @@ export default function BudgetManager({
               <thead>
                 <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
                   <th className="p-4">التاريخ</th>
+                  <th className="p-4">رقم الفاتورة</th>
                   <th className="p-4">الفئة</th>
                   <th className="p-4">المبلغ</th>
                   <th className="p-4">التفاصيل / البيان</th>
@@ -726,6 +728,9 @@ export default function BudgetManager({
                     <td className="p-4 whitespace-nowrap font-medium text-slate-500 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{formatDate(exp.date)}</span>
+                    </td>
+                    <td className="p-4 whitespace-nowrap font-mono text-[10px] font-bold text-slate-600" title="الرقم المرجعي للفاتورة">
+                      {getArabicReferenceLabel(getDisplayReferenceNumber(exp, 'INV'))}
                     </td>
                     <td className="p-4 whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-md font-medium text-[10px] ${
@@ -1243,4 +1248,3 @@ export default function BudgetManager({
     </div>
   );
 }
-

@@ -9,6 +9,7 @@ export interface PaymentInstallment {
 
 export interface Debt {
   id: string;
+  referenceNumber?: string; // رقم مرجعي تلقائي مثل DBT-2026-0001
   type: DebtType;
   personName: string;
   amount: number;
@@ -27,6 +28,7 @@ export interface Debt {
 
 export interface Expense {
   id: string;
+  referenceNumber?: string; // رقم فاتورة تلقائي مثل INV-2026-0001
   amount: number;
   category: string; // طعام, فواتير, مواصلات, سكن, صحة, تسديد ديون, ترفيه, أخرى
   date: string;
@@ -112,4 +114,3 @@ export interface SubUser {
   allowedTabs: string[];
   createdAt: string;
 }
-

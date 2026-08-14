@@ -34,6 +34,7 @@ import {
 import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
 import { getAccountStatementDebts } from '../utils/debtRecords';
+import { getArabicReferenceLabel, getDisplayReferenceNumber } from '../utils/recordReferences';
 import AttachmentSelector from './AttachmentSelector';
 import ConfirmModal from './ConfirmModal';
 
@@ -436,7 +437,7 @@ export default function DebtsManager({
       const typeStr = d.type === 'to_me' ? '📥 مستحق لك' : '📤 مستحق عليك';
       const statusStr = d.status === 'paid' ? '✅ مسدد' : d.status === 'partial' ? '⏳ مسدد جزئياً' : '🔴 غير مسدد';
       
-      msg += `${idx + 1}. ${typeStr} - ${formatCurrency(d.amount, currency)} (${statusStr})\n`;
+      msg += `${idx + 1}. [${getArabicReferenceLabel(getDisplayReferenceNumber(d, 'DBT'))}] ${typeStr} - ${formatCurrency(d.amount, currency)} (${statusStr})\n`;
       msg += `   المتبقي: ${formatCurrency(rem, currency)} | تاريخ الاستحقاق: ${formatDate(d.dueDate)}\n`;
       if (d.description) msg += `   ملاحظة: ${d.description}\n`;
       msg += `\n`;
@@ -1166,7 +1167,7 @@ export default function DebtsManager({
                                 <div className="flex justify-between items-start gap-2">
                                   <div>
                                     <div className="flex items-center gap-1.5 font-extrabold text-slate-800">
-                                      <span className="text-slate-400 text-[11px]">#{index + 1}</span>
+                                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600" title="الرقم المرجعي للدين">{getArabicReferenceLabel(getDisplayReferenceNumber(debt, 'DBT'))}</span>
                                       <span>{debt.description || debt.category}</span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-0.5">
@@ -2741,7 +2742,7 @@ export default function DebtsManager({
                   <table className="w-full text-right text-xs">
                     <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
                       <tr>
-                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">المرجع</th>
                         <th className="p-2.5">النوع</th>
                         <th className="p-2.5">البيان والتفاصيل</th>
                         <th className="p-2.5">الكفيل/الضامن</th>
@@ -2757,7 +2758,7 @@ export default function DebtsManager({
                         const rem = d.amount - d.paidAmount;
                         return (
                           <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <td className="p-2.5 font-bold">{i + 1}</td>
+                            <td className="p-2.5 font-mono font-bold text-[10px] text-slate-600 dark:text-slate-300">{getArabicReferenceLabel(getDisplayReferenceNumber(d, 'DBT'))}</td>
                             <td className="p-2.5">
                               <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                                 d.type === 'to_me' ? 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200'

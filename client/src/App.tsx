@@ -44,6 +44,7 @@ import ConfirmModal from './components/ConfirmModal';
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
 import { createIndependentDebt } from './utils/debtRecords';
+import { createNextReferenceNumber } from './utils/recordReferences';
 
 // Import components
 import Dashboard from './components/Dashboard';
@@ -438,7 +439,11 @@ export default function App() {
   // 1. Debt operations
   const handleAddDebt = (newDebtData: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => {
     const newDebt = createIndependentDebt(
-      { ...newDebtData, amount: sanitizeFinancialValue(Number(newDebtData.amount) || 0) },
+      {
+        ...newDebtData,
+        amount: sanitizeFinancialValue(Number(newDebtData.amount) || 0),
+        referenceNumber: createNextReferenceNumber(debts, 'DBT', newDebtData.startDate),
+      },
       `debt-${generateId()}`,
     );
 
@@ -507,6 +512,7 @@ export default function App() {
       
       const newExpense: Expense = {
         id: `exp-${generateId()}`,
+        referenceNumber: createNextReferenceNumber(expenses, 'INV', date),
         amount: sanitizeFinancialValue(amount),
         category: 'تسديد ديون',
         date,
@@ -593,6 +599,7 @@ export default function App() {
     const newExpense: Expense = {
       ...newExpenseData,
       id: `exp-${generateId()}`,
+      referenceNumber: createNextReferenceNumber(expenses, 'INV', newExpenseData.date),
     };
     setExpenses((prev) => [newExpense, ...prev]);
     if (currentUser && targetUid) {
@@ -760,6 +767,7 @@ export default function App() {
     
     const newExpense: Expense = {
       id: `salary-exp-${paymentId}`,
+      referenceNumber: createNextReferenceNumber(expenses, 'INV', newPaymentData.paymentDate),
       amount: newPaymentData.amount,
       category: 'عمل',
       date: newPaymentData.paymentDate,
