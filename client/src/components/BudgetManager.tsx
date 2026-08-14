@@ -23,6 +23,7 @@ import { Expense, Budget, ExpenseTemplate } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, getCurrentMonthString } from '../utils';
 import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
 import AttachmentSelector from './AttachmentSelector';
+import ReferenceCopyButton from './ReferenceCopyButton';
 
 interface BudgetManagerProps {
   expenses: Expense[];
@@ -730,8 +731,11 @@ export default function BudgetManager({
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{formatDate(exp.date)}</span>
                     </td>
-                    <td className="p-4 whitespace-nowrap font-mono text-[10px] font-bold text-slate-600" title="الرقم المرجعي للفاتورة">
-                      {getArabicReferenceLabel(getDisplayReferenceNumber(exp, 'INV'))}
+                    <td className="p-4 whitespace-nowrap" title="الرقم المرجعي للفاتورة">
+                      <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-slate-600">
+                        <span>{getArabicReferenceLabel(getDisplayReferenceNumber(exp, 'INV'))}</span>
+                        <ReferenceCopyButton referenceNumber={getDisplayReferenceNumber(exp, 'INV')} recordType="فاتورة" />
+                      </div>
                     </td>
                     <td className="p-4 whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-md font-medium text-[10px] ${

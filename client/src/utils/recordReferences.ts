@@ -59,3 +59,27 @@ export function matchesReferenceSearch(
   const normalizedReference = normalizeReferenceSearchValue(getDisplayReferenceNumber(record, prefix));
   return normalizedReference.includes(normalizedTerm);
 }
+
+export type ClipboardWriter = Pick<Clipboard, 'writeText'>;
+
+/**
+ * ينسخ الرقم الخام القابل للبحث، ويرجع false بدلاً من رمي استثناء إن كانت
+ * صلاحية الحافظة غير متاحة أو رفضها المتصفح.
+ */
+export async function copyReferenceNumber(
+  referenceNumber: string,
+  clipboardWriter?: ClipboardWriter | null,
+): Promise<boolean> {
+  const value = referenceNumber.trim();
+  if (!value) return false;
+
+  const clipboard = clipboardWriter ?? (typeof navigator !== 'undefined' ? navigator.clipboard : undefined);
+  if (!clipboard?.writeText) return false;
+
+  try {
+    await clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}

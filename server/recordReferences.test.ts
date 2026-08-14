@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { createNextReferenceNumber, getDisplayReferenceNumber, matchesReferenceSearch } from '../client/src/utils/recordReferences';
+import { describe, expect, it, vi } from 'vitest';
+import { copyReferenceNumber, createNextReferenceNumber, getDisplayReferenceNumber, matchesReferenceSearch } from '../client/src/utils/recordReferences';
 
 describe('record reference numbers', () => {
   it('increments the next debt number inside the same calendar year', () => {
@@ -37,5 +37,17 @@ describe('record reference numbers', () => {
   it('matches the stable archive reference for a legacy invoice', () => {
     expect(matchesReferenceSearch({ id: 'expense-xyz789' }, 'INV', 'INV-ARCH-XYZ789')).toBe(true);
     expect(matchesReferenceSearch({ id: 'expense-xyz789' }, 'INV', 'ف#inv arch xyz789')).toBe(true);
+  });
+
+  it('copies a trimmed reference through the supplied clipboard writer', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    await expect(copyReferenceNumber('  DBT-2026-0001  ', { writeText })).resolves.toBe(true);
+    expect(writeText).toHaveBeenCalledWith('DBT-2026-0001');
+  });
+
+  it('fails safely when the clipboard is unavailable or rejects the write', async () => {
+    await expect(copyReferenceNumber('', null)).resolves.toBe(false);
+    await expect(copyReferenceNumber('INV-2026-0001', { writeText: vi.fn().mockRejectedValue(new Error('denied')) })).resolves.toBe(false);
   });
 });
