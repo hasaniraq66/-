@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   CreditCard, 
@@ -24,7 +24,9 @@ import {
   Sun,
   Moon,
   Settings,
-  History
+  History,
+  Command as CommandIcon,
+  Search
 } from 'lucide-react';
 
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -50,14 +52,16 @@ import { createNextReferenceNumber } from './utils/recordReferences';
 import Dashboard from './components/Dashboard';
 import DebtsManager from './components/DebtsManager';
 import BudgetManager from './components/BudgetManager';
-import Reports from './components/Reports';
 import AlertsPanel from './components/AlertsPanel';
-import BackupRestore from './components/BackupRestore';
 import LockScreen from './components/LockScreen';
-import ProjectManager from './components/ProjectManager';
-import SmartAdvisor from './components/SmartAdvisor';
-import PermissionsManager from './components/PermissionsManager';
-import ActivityLog from './components/ActivityLog';
+import CommandPalette from './components/CommandPalette';
+
+const Reports = lazy(() => import('./components/Reports'));
+const BackupRestore = lazy(() => import('./components/BackupRestore'));
+const ProjectManager = lazy(() => import('./components/ProjectManager'));
+const SmartAdvisor = lazy(() => import('./components/SmartAdvisor'));
+const PermissionsManager = lazy(() => import('./components/PermissionsManager'));
+const ActivityLog = lazy(() => import('./components/ActivityLog'));
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -68,6 +72,15 @@ const initialDebts: Debt[] = [];
 const initialExpenses: Expense[] = [];
 
 const initialBudgets: Budget[] = [];
+
+function DeferredViewLoader({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-3xl border border-slate-200 bg-white text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400" role="status">
+      <Loader2 className="h-7 w-7 animate-spin text-sky-600" aria-hidden="true" />
+      <span className="text-xs font-black">جاري فتح {label}...</span>
+    </div>
+  );
+}
 
 export default function App() {
   // Authentication states
@@ -119,6 +132,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Theme state (light / dark)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -304,6 +318,30 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('app_pin_code', savedPin);
   }, [savedPin]);
+
+  // Global, non-destructive access shortcut. Ctrl/Cmd + K opens the command palette.
+  useEffect(() => {
+    const handleCommandShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleCommandShortcut);
+    return () => window.removeEventListener('keydown', handleCommandShortcut);
+  }, []);
+
+  // Keep mobile navigation focused: prevent the page behind the open drawer from scrolling.
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isSidebarOpen]);
 
   // Save changes to username & currency to Firestore profile
   useEffect(() => {
@@ -932,6 +970,17 @@ export default function App() {
     return tabIds.some(hasTabPermission);
   };
 
+  const navigateFromCommandPalette = (tab: string) => {
+    if (!hasTabPermission(tab)) return;
+    setActiveTab(tab);
+    setIsSidebarOpen(false);
+  };
+
+  const focusReferenceLookupFromCommandPalette = () => {
+    navigateFromCommandPalette('dashboard');
+    window.setTimeout(() => document.getElementById('reference-quick-lookup-input')?.focus(), 80);
+  };
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f8fafc]" id="app-container">
       
@@ -942,25 +991,50 @@ export default function App() {
           <span className="font-extrabold text-sm tracking-tight">مدير الديون الشخصي</span>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            id="mobile-command-palette-trigger"
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className="min-h-11 min-w-11 rounded-lg bg-slate-800 p-1.5 text-sky-300 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            aria-label="فتح الأوامر السريعة"
+            title="الأوامر السريعة"
+          >
+            <Search className="h-4 w-4" aria-hidden="true" />
+          </button>
           {unreadAlertsCount > 0 && (
             <button 
               id="mobile-alerts-badge"
               onClick={() => { setActiveTab('alerts'); setIsSidebarOpen(false); }}
-              className="relative p-1 bg-slate-800 rounded-lg text-rose-400"
+              className="relative min-h-11 min-w-11 rounded-lg bg-slate-800 p-1 text-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400"
+              aria-label={`فتح مركز التنبيهات، لديك ${unreadAlertsCount} تنبيه غير مقروء`}
+              title="فتح مركز التنبيهات"
             >
-              <Bell className="w-4 h-4" />
-              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-rose-500 rounded-full"></span>
+              <Bell className="w-4 h-4" aria-hidden="true" />
+              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-rose-500 rounded-full" aria-hidden="true"></span>
             </button>
           )}
           <button 
             id="mobile-menu-toggle"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1.5 bg-slate-800 rounded-lg text-slate-300"
+            className="min-h-11 min-w-11 rounded-lg bg-slate-800 p-1.5 text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            aria-expanded={isSidebarOpen}
+            aria-controls="app-sidebar"
+            aria-label={isSidebarOpen ? 'إغلاق قائمة التنقل' : 'فتح قائمة التنقل'}
+            title={isSidebarOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
           >
-            {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isSidebarOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
           </button>
         </div>
       </header>
+
+      {isSidebarOpen && (
+        <button
+          type="button"
+          id="mobile-sidebar-backdrop"
+          className="fixed inset-0 z-[45] bg-slate-950/55 backdrop-blur-[1px] md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-label="إغلاق قائمة التنقل والعودة إلى المحتوى"
+        />
+      )}
 
       {/* Responsive Sidebar */}
       <aside 
@@ -984,8 +1058,10 @@ export default function App() {
             <button 
               onClick={() => setIsSidebarOpen(false)} 
               className="md:hidden p-1.5 bg-slate-900 rounded-lg hover:text-white border border-slate-800/80 transition-colors"
+              aria-label="إغلاق قائمة التنقل"
+              title="إغلاق القائمة"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
@@ -1041,7 +1117,7 @@ export default function App() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="space-y-4" id="sidebar-nav">
+          <nav className="space-y-4" id="sidebar-nav" aria-label="التنقل الرئيسي">
             {/* Category 1: Overview */}
             {hasCategoryPermission(['dashboard', 'advisor']) && (
               <div className="space-y-1">
@@ -1326,12 +1402,14 @@ export default function App() {
             )}
 
             {activeTab === 'reports' && (
-              <Reports 
-                debts={debts}
-                expenses={expenses}
-                budgets={budgets}
-                currency={currency}
-              />
+              <Suspense fallback={<DeferredViewLoader label="التقارير" />}>
+                <Reports 
+                  debts={debts}
+                  expenses={expenses}
+                  budgets={budgets}
+                  currency={currency}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'alerts' && (
@@ -1347,69 +1425,79 @@ export default function App() {
             )}
 
             {activeTab === 'activity_log' && (
-              <ActivityLog
-                debts={debts}
-                expenses={expenses}
-                budgets={budgets}
-                projects={projects}
-                employees={employees}
-                salaryPayments={salaryPayments}
-                currency={currency}
-                onNavigate={setActiveTab}
-              />
+              <Suspense fallback={<DeferredViewLoader label="سجل العمليات" />}>
+                <ActivityLog
+                  debts={debts}
+                  expenses={expenses}
+                  budgets={budgets}
+                  projects={projects}
+                  employees={employees}
+                  salaryPayments={salaryPayments}
+                  currency={currency}
+                  onNavigate={setActiveTab}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'backup' && (
-              <BackupRestore
-                onImportData={handleImportBackupData}
-                onResetData={handleResetAllData}
-                exportPayload={exportPayload}
-              />
+              <Suspense fallback={<DeferredViewLoader label="النسخ الاحتياطي" />}>
+                <BackupRestore
+                  onImportData={handleImportBackupData}
+                  onResetData={handleResetAllData}
+                  exportPayload={exportPayload}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'projects' && (
-              <ProjectManager
-                projects={projects}
-                employees={employees}
-                salaryPayments={salaryPayments}
-                debts={debts}
-                expenses={expenses}
-                currency={currency}
-                onAddProject={handleAddProject}
-                onEditProject={handleEditProject}
-                onDeleteProject={handleDeleteProject}
-                onAddEmployee={handleAddEmployee}
-                onEditEmployee={handleEditEmployee}
-                onDeleteEmployee={handleDeleteEmployee}
-                onAddSalaryPayment={handleAddSalaryPayment}
-                onDeleteSalaryPayment={handleDeleteSalaryPayment}
-                onAddDebt={handleAddDebt}
-                onAddExpense={handleAddExpense}
-                onEditDebt={handleEditDebt}
-                onDeleteDebt={handleDeleteDebt}
-                onAddInstallment={handleAddInstallment}
-                onDeleteInstallment={handleDeleteInstallment}
-                onEditExpense={handleEditExpense}
-                onDeleteExpense={handleDeleteExpense}
-              />
+              <Suspense fallback={<DeferredViewLoader label="المشاريع والموظفين" />}>
+                <ProjectManager
+                  projects={projects}
+                  employees={employees}
+                  salaryPayments={salaryPayments}
+                  debts={debts}
+                  expenses={expenses}
+                  currency={currency}
+                  onAddProject={handleAddProject}
+                  onEditProject={handleEditProject}
+                  onDeleteProject={handleDeleteProject}
+                  onAddEmployee={handleAddEmployee}
+                  onEditEmployee={handleEditEmployee}
+                  onDeleteEmployee={handleDeleteEmployee}
+                  onAddSalaryPayment={handleAddSalaryPayment}
+                  onDeleteSalaryPayment={handleDeleteSalaryPayment}
+                  onAddDebt={handleAddDebt}
+                  onAddExpense={handleAddExpense}
+                  onEditDebt={handleEditDebt}
+                  onDeleteDebt={handleDeleteDebt}
+                  onAddInstallment={handleAddInstallment}
+                  onDeleteInstallment={handleDeleteInstallment}
+                  onEditExpense={handleEditExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'advisor' && (
-              <SmartAdvisor
-                debts={debts}
-                expenses={expenses}
-                budgets={budgets}
-                projects={projects}
-                employees={employees}
-                salaryPayments={salaryPayments}
-                currency={currency}
-                userName={userName}
-                currentUser={currentUser}
-              />
+              <Suspense fallback={<DeferredViewLoader label="المستشار المالي" />}>
+                <SmartAdvisor
+                  debts={debts}
+                  expenses={expenses}
+                  budgets={budgets}
+                  projects={projects}
+                  employees={employees}
+                  salaryPayments={salaryPayments}
+                  currency={currency}
+                  userName={userName}
+                  currentUser={currentUser}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'permissions' && !userProfile?.adminId && currentUser && (
-              <PermissionsManager currentUserId={currentUser.uid} currency={currency} />
+              <Suspense fallback={<DeferredViewLoader label="صلاحيات المساعدين" />}>
+                <PermissionsManager currentUserId={currentUser.uid} currency={currency} />
+              </Suspense>
             )}
           </motion.div>
         </AnimatePresence>
@@ -1428,22 +1516,49 @@ export default function App() {
         </footer>
       </main>
 
+      <button
+        id="command-palette-trigger"
+        type="button"
+        onClick={() => setIsCommandPaletteOpen(true)}
+        className="fixed bottom-6 left-6 z-30 hidden items-center gap-2 rounded-2xl border border-sky-200 bg-white/95 px-3 py-2.5 text-xs font-black text-sky-800 shadow-[0_12px_28px_rgba(14,116,144,0.18)] backdrop-blur transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/95 dark:text-sky-300 dark:hover:bg-slate-800 md:inline-flex"
+        aria-label="فتح الأوامر السريعة عبر Control K"
+        title="أوامر سريعة (Ctrl + K)"
+      >
+        <CommandIcon className="h-4 w-4" aria-hidden="true" />
+        <span>أوامر سريعة</span>
+        <kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">Ctrl K</kbd>
+      </button>
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNavigate={navigateFromCommandPalette}
+        onFocusReferenceLookup={focusReferenceLookupFromCommandPalette}
+        onToggleTheme={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}
+        onOpenSettings={userProfile?.adminId ? undefined : () => setIsSettingsOpen(true)}
+        allowedTabs={hasTabPermission}
+      />
+
       {/* Mobile Bottom Tab Bar */}
-      <div 
+      <nav 
         className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/60 dark:border-slate-800/60 py-2.5 px-3 flex justify-around items-center z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] pb-safe" 
         id="mobile-bottom-nav"
+        aria-label="التنقل السريع للجوال"
       >
         {/* Tab 1: Dashboard */}
         {hasTabPermission('dashboard') && (
           <button
+            id="mobile-nav-dashboard"
             onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+            className={`flex min-h-12 flex-col items-center justify-center gap-0.5 py-1 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${
               activeTab === 'dashboard'
                 ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
             }`}
+            aria-label="الانتقال إلى لوحة التحكم الرئيسية"
+            aria-current={activeTab === 'dashboard' ? 'page' : undefined}
           >
-            <LayoutDashboard className="w-5 h-5 transition-transform duration-200" />
+            <LayoutDashboard className="w-5 h-5 transition-transform duration-200" aria-hidden="true" />
             <span className="text-[10px]">الرئيسية</span>
             {activeTab === 'dashboard' && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
           </button>
@@ -1452,14 +1567,17 @@ export default function App() {
         {/* Tab 2: Debts */}
         {hasTabPermission('debts') && (
           <button
+            id="mobile-nav-debts"
             onClick={() => setActiveTab('debts')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+            className={`flex min-h-12 flex-col items-center justify-center gap-0.5 py-1 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${
               activeTab === 'debts'
                 ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
             }`}
+            aria-label="الانتقال إلى الديون والالتزامات"
+            aria-current={activeTab === 'debts' ? 'page' : undefined}
           >
-            <CreditCard className="w-5 h-5 transition-transform duration-200" />
+            <CreditCard className="w-5 h-5 transition-transform duration-200" aria-hidden="true" />
             <span className="text-[10px]">الديون</span>
             {activeTab === 'debts' && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
           </button>
@@ -1468,14 +1586,17 @@ export default function App() {
         {/* Tab 3: Budget */}
         {hasTabPermission('budget') && (
           <button
+            id="mobile-nav-budget"
             onClick={() => setActiveTab('budget')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+            className={`flex min-h-12 flex-col items-center justify-center gap-0.5 py-1 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${
               activeTab === 'budget'
                 ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
             }`}
+            aria-label="الانتقال إلى الميزانية والمصروفات"
+            aria-current={activeTab === 'budget' ? 'page' : undefined}
           >
-            <Wallet className="w-5 h-5 transition-transform duration-200" />
+            <Wallet className="w-5 h-5 transition-transform duration-200" aria-hidden="true" />
             <span className="text-[10px]">الميزانية</span>
             {activeTab === 'budget' && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
           </button>
@@ -1483,18 +1604,21 @@ export default function App() {
 
         {/* Tab 4: Settings */}
         <button
+          id="mobile-nav-settings"
           onClick={() => setIsSettingsOpen(true)}
-          className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all cursor-pointer ${
+          className={`flex min-h-12 flex-col items-center justify-center gap-0.5 py-1 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${
             isSettingsOpen
               ? 'text-sky-600 dark:text-sky-400 font-black scale-105'
               : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 font-bold'
           }`}
+          aria-label="فتح إعدادات الحساب والعملة"
+          aria-current={isSettingsOpen ? 'page' : undefined}
         >
-          <Settings className={`w-5 h-5 transition-transform duration-200 ${isSettingsOpen ? 'rotate-45' : ''}`} />
+          <Settings className={`w-5 h-5 transition-transform duration-200 ${isSettingsOpen ? 'rotate-45' : ''}`} aria-hidden="true" />
           <span className="text-[10px]">الإعدادات</span>
           {isSettingsOpen && <span className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-0.5 animate-pulse"></span>}
         </button>
-      </div>
+      </nav>
 
       {/* Quick Settings Overlay/Modal */}
       {isSettingsOpen && (
@@ -1502,8 +1626,8 @@ export default function App() {
           <div className="bg-white rounded-2xl max-w-sm w-full shadow-xl border border-slate-100">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h2 className="text-base font-bold text-slate-800">إعدادات الحساب والعملة ⚙️</h2>
-              <button onClick={() => setIsSettingsOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
-                <X className="w-5 h-5" />
+              <button onClick={() => setIsSettingsOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50" aria-label="إغلاق الإعدادات" title="إغلاق الإعدادات">
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
             

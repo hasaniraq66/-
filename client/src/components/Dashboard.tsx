@@ -35,6 +35,7 @@ import CashFlowChart from './CashFlowChart';
 import QuickEntry from './QuickEntry';
 import BudgetBurndownChart from './BudgetBurndownChart';
 import ReferenceQuickLookup from './ReferenceQuickLookup';
+import DailyFinancialFocus from './DailyFinancialFocus';
 
 interface DashboardProps {
   debts: Debt[];
@@ -460,6 +461,14 @@ export default function Dashboard({
       <ReferenceQuickLookup
         debts={debts}
         expenses={expenses}
+        currency={currency}
+        onNavigate={onNavigate}
+      />
+
+      <DailyFinancialFocus
+        debts={debts}
+        expenses={expenses}
+        budget={budget}
         currency={currency}
         onNavigate={onNavigate}
       />

@@ -22,6 +22,7 @@ import {
 import { Expense, Budget, ExpenseTemplate } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, getCurrentMonthString } from '../utils';
 import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
+import { isPositiveFinancialAmount, isValidBudgetLimit } from '../utils/financialInputValidation';
 import AttachmentSelector from './AttachmentSelector';
 import ReferenceCopyButton from './ReferenceCopyButton';
 
@@ -42,6 +43,15 @@ const DEFAULT_TEMPLATES: ExpenseTemplate[] = [
   { id: 'tmpl-4', title: 'مشتريات البقالة والمواد الغذائية', amount: 350, category: 'طعام', description: 'مواد غذائية ومستلزمات منزلية' },
 ];
 
+function FormValidationAlert({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800" role="alert">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 export default function BudgetManager({
   expenses,
   budgets,
@@ -55,6 +65,12 @@ export default function BudgetManager({
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthString());
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+
+  const hasActiveExpenseFilters = Boolean(searchTerm.trim() || categoryFilter !== 'all');
+  const resetExpenseFilters = () => {
+    setSearchTerm('');
+    setCategoryFilter('all');
+  };
 
   // Modals state
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
@@ -74,6 +90,7 @@ export default function BudgetManager({
   const [expenseCategory, setExpenseCategory] = useState('طعام');
   const [expenseDate, setExpenseDate] = useState(getLocalDateString());
   const [expenseDescription, setExpenseDescription] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Selected for edit
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -126,6 +143,7 @@ export default function BudgetManager({
   };
 
   const openAddTemplateModal = () => {
+    setFormError(null);
     setEditingTemplate(null);
     setTemplateTitle('');
     setTemplateAmount('');
@@ -135,6 +153,7 @@ export default function BudgetManager({
   };
 
   const openEditTemplateModal = (tmpl: ExpenseTemplate) => {
+    setFormError(null);
     setEditingTemplate(tmpl);
     setTemplateTitle(tmpl.title);
     setTemplateAmount(tmpl.amount);
@@ -145,7 +164,15 @@ export default function BudgetManager({
 
   const handleSaveTemplateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!templateTitle.trim() || !templateAmount || Number(templateAmount) <= 0) return;
+    if (!templateTitle.trim()) {
+      setFormError('أدخل عنواناً واضحاً للقالب السريع قبل حفظه.');
+      return;
+    }
+    if (!isPositiveFinancialAmount(templateAmount)) {
+      setFormError('أدخل مبلغاً أكبر من صفر للقالب السريع.');
+      return;
+    }
+    setFormError(null);
 
     if (editingTemplate) {
       setTemplates((prev) =>
@@ -251,6 +278,7 @@ export default function BudgetManager({
 
   // Open budget modal
   const openBudgetModal = () => {
+    setFormError(null);
     setBudgetLimit(currentBudget || '');
     const initialLimits: Record<string, number> = {};
     expenseCategories.forEach((cat) => {
@@ -262,6 +290,7 @@ export default function BudgetManager({
 
   // Open add expense modal
   const openAddExpenseModal = () => {
+    setFormError(null);
     setExpenseAmount('');
     setExpenseCategory('طعام');
     setExpenseDate(getLocalDateString());
@@ -273,6 +302,7 @@ export default function BudgetManager({
 
   // Open edit expense modal
   const openEditExpenseModal = (exp: Expense) => {
+    setFormError(null);
     setSelectedExpense(exp);
     setExpenseAmount(exp.amount);
     setExpenseCategory(exp.category);
@@ -286,7 +316,15 @@ export default function BudgetManager({
   // Submit set budget
   const handleBudgetSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (budgetLimit === '') return;
+    const numericBudgetLimit = Number(budgetLimit);
+    if (!isValidBudgetLimit(budgetLimit)) {
+      setFormError('أدخل حداً شهرياً صحيحاً يساوي صفراً أو أكثر.');
+      return;
+    }
+    if (modalCategoriesSum > numericBudgetLimit) {
+      setFormError('لا يمكن أن يتجاوز مجموع حدود التصنيفات الحد الشهري الكلي.');
+      return;
+    }
     
     const cleanedCategoryLimits: Record<string, number> = {};
     (Object.entries(modalCategoryLimits) as [string, number | undefined][]).forEach(([cat, val]) => {
@@ -295,14 +333,23 @@ export default function BudgetManager({
       }
     });
 
-    onSetBudget(selectedMonth, Number(budgetLimit), cleanedCategoryLimits);
+    setFormError(null);
+    onSetBudget(selectedMonth, numericBudgetLimit, cleanedCategoryLimits);
     setIsBudgetModalOpen(false);
   };
 
   // Submit add expense
   const handleExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!expenseAmount || !expenseDate) return;
+    if (!isPositiveFinancialAmount(expenseAmount)) {
+      setFormError('أدخل مبلغ مصروف أكبر من صفر قبل الحفظ.');
+      return;
+    }
+    if (!expenseDate) {
+      setFormError('اختر تاريخ المصروف قبل الحفظ.');
+      return;
+    }
+    setFormError(null);
     onAddExpense({
       amount: Number(expenseAmount),
       category: expenseCategory,
@@ -317,7 +364,16 @@ export default function BudgetManager({
   // Submit edit expense
   const handleEditExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedExpense || !expenseAmount || !expenseDate) return;
+    if (!selectedExpense) return;
+    if (!isPositiveFinancialAmount(expenseAmount)) {
+      setFormError('أدخل مبلغ مصروف أكبر من صفر قبل حفظ التعديلات.');
+      return;
+    }
+    if (!expenseDate) {
+      setFormError('اختر تاريخ المصروف قبل حفظ التعديلات.');
+      return;
+    }
+    setFormError(null);
     onEditExpense({
       ...selectedExpense,
       amount: Number(expenseAmount),
@@ -363,8 +419,10 @@ export default function BudgetManager({
             id="prev-month-btn"
             onClick={() => changeMonth('prev')}
             className="p-1.5 hover:bg-white rounded-lg transition-colors cursor-pointer text-slate-600"
+            aria-label="عرض الشهر السابق"
+            title="الشهر السابق"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </button>
           
           <span className="text-xs font-extrabold text-slate-800 px-3">
@@ -375,8 +433,10 @@ export default function BudgetManager({
             id="next-month-btn"
             onClick={() => changeMonth('next')}
             className="p-1.5 hover:bg-white rounded-lg transition-colors cursor-pointer text-slate-600"
+            aria-label="عرض الشهر التالي"
+            title="الشهر التالي"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -597,16 +657,18 @@ export default function BudgetManager({
                           onClick={() => openEditTemplateModal(tmpl)}
                           className="p-1 text-slate-400 hover:text-sky-600 rounded hover:bg-slate-200/60 transition-colors"
                           title="تعديل القالب"
+                          aria-label={`تعديل قالب ${tmpl.title}`}
                         >
-                          <Edit3 className="w-3 h-3" />
+                          <Edit3 className="w-3 h-3" aria-hidden="true" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteTemplate(tmpl.id)}
                           className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-200/60 transition-colors"
                           title="حذف القالب"
+                          aria-label={`حذف قالب ${tmpl.title}`}
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3 h-3" aria-hidden="true" />
                         </button>
                       </div>
                     </div>
@@ -686,6 +748,18 @@ export default function BudgetManager({
               ))}
             </select>
           </div>
+
+          {hasActiveExpenseFilters && (
+            <button
+              id="reset-expense-filters-btn"
+              type="button"
+              onClick={resetExpenseFilters}
+              className="inline-flex items-center justify-center gap-1 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-black text-sky-700 transition hover:border-sky-200 hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+              مسح الفلاتر
+            </button>
+          )}
         </div>
 
         <button
@@ -708,8 +782,22 @@ export default function BudgetManager({
         {filteredExpenses.length === 0 ? (
           <div className="p-12 text-center text-slate-400" id="empty-expenses-list">
             <TrendingDown className="w-12 h-12 mx-auto text-slate-200 mb-2" />
-            <h4 className="font-bold text-slate-700 text-sm mb-1">لا توجد مصاريف مسجلة</h4>
-            <p className="text-xs max-w-xs mx-auto text-slate-400">سجل مصروفاتك اليومية ليتم احتسابها تلقائياً وخصمها من ميزانية الشهر.</p>
+            <h4 className="font-bold text-slate-700 text-sm mb-1">
+              {hasActiveExpenseFilters ? 'لا توجد مصاريف تطابق البحث أو الفئة' : 'لا توجد مصاريف مسجلة'}
+            </h4>
+            <p className="text-xs max-w-xs mx-auto text-slate-400">
+              {hasActiveExpenseFilters
+                ? 'جرّب مسح الفلاتر للعودة إلى كل مصاريف الشهر، أو غيّر رقم الفاتورة الذي تبحث عنه.'
+                : 'سجل مصروفاتك اليومية ليتم احتسابها تلقائياً وخصمها من ميزانية الشهر.'}
+            </p>
+            <button
+              type="button"
+              onClick={hasActiveExpenseFilters ? resetExpenseFilters : openAddExpenseModal}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3.5 py-2 text-xs font-black text-white transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+            >
+              {hasActiveExpenseFilters ? <X className="h-3.5 w-3.5" aria-hidden="true" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+              {hasActiveExpenseFilters ? 'مسح الفلاتر' : 'تسجيل أول مصروف'}
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto" id="expenses-table-container">
@@ -824,6 +912,7 @@ export default function BudgetManager({
             </div>
             
             <form onSubmit={handleBudgetSubmit} className="p-5 space-y-4 text-xs" id="set-budget-form">
+              {formError && <FormValidationAlert message={formError} />}
               <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-500 leading-normal">
                 أنت تقوم بتحديد السقف الأقصى للمصاريف لشهر:{' '}
                 <span className="font-bold text-slate-800">
@@ -925,6 +1014,7 @@ export default function BudgetManager({
             </div>
             
             <form onSubmit={handleExpenseSubmit} className="p-5 space-y-4 text-xs" id="add-expense-form">
+              {formError && <FormValidationAlert message={formError} />}
               {/* Amount */}
               <div className="space-y-1.5">
                 <label className="block text-slate-500 font-semibold">المبلغ المصروف ({currency})</label>
@@ -1034,6 +1124,7 @@ export default function BudgetManager({
             </div>
             
             <form onSubmit={handleEditExpenseSubmit} className="p-5 space-y-4 text-xs" id="edit-expense-form">
+              {formError && <FormValidationAlert message={formError} />}
               {/* Amount */}
               <div className="space-y-1.5">
                 <label className="block text-slate-500 font-semibold">المبلغ المصروف ({currency})</label>
@@ -1144,6 +1235,7 @@ export default function BudgetManager({
             </div>
 
             <form onSubmit={handleSaveTemplateSubmit} className="p-5 space-y-4 text-xs" id="template-form">
+              {formError && <FormValidationAlert message={formError} />}
               {/* Template Title */}
               <div className="space-y-1.5">
                 <label className="block text-slate-500 font-semibold">اسم القالب (عنوان المصروف المتكرر)</label>

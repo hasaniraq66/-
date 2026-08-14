@@ -35,6 +35,7 @@ import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
 import { getAccountStatementDebts } from '../utils/debtRecords';
 import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
+import { isPaymentWithinRemainingBalance, isPositiveFinancialAmount } from '../utils/financialInputValidation';
 import AttachmentSelector from './AttachmentSelector';
 import ConfirmModal from './ConfirmModal';
 import ReferenceCopyButton from './ReferenceCopyButton';
@@ -58,6 +59,15 @@ function getDateOffsetString(days: number): string {
   date.setDate(date.getDate() + days);
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return localDate.toISOString().slice(0, 10);
+}
+
+function FormValidationAlert({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800" role="alert">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>{message}</span>
+    </div>
+  );
 }
 
 export function getPersonActivityHistory(personDebts: Debt[]): ActivityEvent[] {
@@ -162,6 +172,7 @@ export default function DebtsManager({
   const [category, setCategory] = useState('شخصي');
   const [description, setDescription] = useState('');
   const [guarantor, setGuarantor] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Selected item for Edit/Payment
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
@@ -222,6 +233,7 @@ export default function DebtsManager({
 
   // Handle open add modal (accepts optional preset person name or preset debt type)
   const openAddModal = (presetName = '', presetType: DebtType = 'to_me') => {
+    setFormError(null);
     setPersonName(presetName);
     setType(presetType);
     setAmount('');
@@ -237,6 +249,7 @@ export default function DebtsManager({
 
   // Handle open edit modal
   const openEditModal = (debt: Debt) => {
+    setFormError(null);
     setSelectedDebt(debt);
     setPersonName(debt.personName);
     setType(debt.type);
@@ -253,6 +266,7 @@ export default function DebtsManager({
 
   // Handle open payment modal
   const openPaymentModal = (debt: Debt) => {
+    setFormError(null);
     setSelectedDebt(debt);
     setPaymentAmount('');
     setPaymentDate(getLocalDateString());
@@ -264,7 +278,19 @@ export default function DebtsManager({
   // Submit Add
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!personName || !amount || !dueDate) return;
+    if (!personName.trim()) {
+      setFormError('أدخل اسم الشخص أو الجهة قبل حفظ سجل الدين.');
+      return;
+    }
+    if (!isPositiveFinancialAmount(amount)) {
+      setFormError('أدخل قيمة دين أكبر من صفر قبل الحفظ.');
+      return;
+    }
+    if (!dueDate) {
+      setFormError('اختر تاريخ الاستحقاق قبل حفظ سجل الدين.');
+      return;
+    }
+    setFormError(null);
     onAddDebt({
       personName,
       type,
@@ -283,7 +309,20 @@ export default function DebtsManager({
   // Submit Edit
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDebt || !personName || !amount || !dueDate) return;
+    if (!selectedDebt) return;
+    if (!personName.trim()) {
+      setFormError('أدخل اسم الشخص أو الجهة قبل حفظ التعديلات.');
+      return;
+    }
+    if (!isPositiveFinancialAmount(amount)) {
+      setFormError('أدخل قيمة دين أكبر من صفر قبل حفظ التعديلات.');
+      return;
+    }
+    if (!dueDate) {
+      setFormError('اختر تاريخ الاستحقاق قبل حفظ التعديلات.');
+      return;
+    }
+    setFormError(null);
     onEditDebt({
       ...selectedDebt,
       personName,
@@ -303,7 +342,21 @@ export default function DebtsManager({
   // Submit Payment/Installment
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDebt || !paymentAmount) return;
+    if (!selectedDebt) return;
+    const remainingBalance = Math.max(selectedDebt.amount - selectedDebt.paidAmount, 0);
+    if (!isPositiveFinancialAmount(paymentAmount)) {
+      setFormError('أدخل مبلغ دفعة أكبر من صفر قبل تسجيلها.');
+      return;
+    }
+    if (!isPaymentWithinRemainingBalance(paymentAmount, remainingBalance)) {
+      setFormError(`لا يمكن أن تتجاوز الدفعة الرصيد المتبقي (${formatCurrency(remainingBalance, currency)}).`);
+      return;
+    }
+    if (!paymentDate) {
+      setFormError('اختر تاريخ الدفعة قبل تسجيلها.');
+      return;
+    }
+    setFormError(null);
     
     onAddInstallment(
       selectedDebt.id, 
@@ -610,9 +663,9 @@ export default function DebtsManager({
         <button
           id="add-debt-main-btn"
           onClick={() => openAddModal()}
-          className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-white text-sm font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+          className="min-h-11 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-white text-sm font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" aria-hidden="true" />
           <span>إضافة دين جديد</span>
         </button>
       </div>
@@ -631,8 +684,8 @@ export default function DebtsManager({
             <strong className="relative mt-1 block text-lg font-black">{formatCurrency(debtSummary.toOthers, currency)}</strong>
             <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-white/80"><CreditCard className="w-3 h-3" /> رتّب أولويات السداد</span>
           </div>
-          <button type="button" onClick={() => setDueFilter('overdue')} className="text-right relative overflow-hidden rounded-2xl bg-amber-50 border border-amber-200 p-4 shadow-sm transition-colors hover:bg-amber-100 cursor-pointer">
-            <AlertTriangle className="absolute -left-2 -bottom-3 w-16 h-16 text-amber-500/10" />
+          <button type="button" onClick={() => setDueFilter('overdue')} aria-label={`عرض ${debtSummary.overdue} من البنود المتأخرة`} className="min-h-28 text-right relative overflow-hidden rounded-2xl bg-amber-50 border border-amber-200 p-4 shadow-sm transition-colors hover:bg-amber-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2">
+            <AlertTriangle className="absolute -left-2 -bottom-3 w-16 h-16 text-amber-500/10" aria-hidden="true" />
             <span className="relative block text-xs font-bold text-amber-800">بنود متأخرة</span>
             <strong className="relative mt-1 block text-lg font-black text-amber-900">{debtSummary.overdue} بند</strong>
             <span className="relative mt-2 block text-[10px] font-bold text-amber-700">انقر لعرضها ومعالجتها</span>
@@ -649,10 +702,12 @@ export default function DebtsManager({
       {/* Tabs and Filters Control */}
       <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 space-y-4" id="debts-filters-panel">
         {/* Row 1: Primary Tabs */}
-        <div className="flex border-b border-slate-100 pb-2 overflow-x-auto gap-1" id="debts-type-tabs">
+        <div className="flex border-b border-slate-100 pb-2 overflow-x-auto gap-1" id="debts-type-tabs" role="tablist" aria-label="أقسام سجل الديون">
           <button
             id="tab-all-debts"
             onClick={() => setActiveTab('all')}
+            role="tab"
+            aria-selected={activeTab === 'all'}
             className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap relative ${
               activeTab === 'all' 
                 ? 'text-sky-600 border-b-2 border-sky-600' 
@@ -664,6 +719,8 @@ export default function DebtsManager({
           <button
             id="tab-to-me-debts"
             onClick={() => setActiveTab('to_me')}
+            role="tab"
+            aria-selected={activeTab === 'to_me'}
             className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap relative ${
               activeTab === 'to_me' 
                 ? 'text-sky-600 border-b-2 border-sky-600' 
@@ -675,6 +732,8 @@ export default function DebtsManager({
           <button
             id="tab-to-others-debts"
             onClick={() => setActiveTab('to_others')}
+            role="tab"
+            aria-selected={activeTab === 'to_others'}
             className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap relative ${
               activeTab === 'to_others' 
                 ? 'text-sky-600 border-b-2 border-sky-600' 
@@ -686,6 +745,8 @@ export default function DebtsManager({
           <button
             id="tab-accounts-directory"
             onClick={() => setActiveTab('accounts')}
+            role="tab"
+            aria-selected={activeTab === 'accounts'}
             className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 relative ${
               activeTab === 'accounts' 
                 ? 'text-sky-600 border-b-2 border-sky-600 font-extrabold' 
@@ -699,6 +760,8 @@ export default function DebtsManager({
           <button
             id="tab-history-feed"
             onClick={() => setActiveTab('history')}
+            role="tab"
+            aria-selected={activeTab === 'history'}
             className={`px-3.5 py-2 text-xs md:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 relative ${
               activeTab === 'history' 
                 ? 'text-emerald-600 border-b-2 border-emerald-600 font-extrabold' 
@@ -741,9 +804,11 @@ export default function DebtsManager({
                   >
                     <button
                       onClick={() => setSearchTerm(acc.personName)}
-                      className="flex items-center gap-1 cursor-pointer"
+                      aria-pressed={isSelected}
+                      aria-label={`تصفية السجل باسم ${acc.personName}`}
+                      className="flex min-h-8 items-center gap-1 rounded-md px-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
                     >
-                      <User className="w-3 h-3 opacity-70" />
+                      <User className="w-3 h-3 opacity-70" aria-hidden="true" />
                       <span>{acc.personName}</span>
                       <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
                         isSelected ? 'bg-sky-700 text-sky-100' : 'bg-slate-200 text-slate-600'
@@ -753,14 +818,15 @@ export default function DebtsManager({
                     </button>
                     <button
                       onClick={() => openAddModal(acc.personName)}
-                      className={`p-0.5 rounded-lg transition-colors cursor-pointer ${
+                      aria-label={`إضافة دين جديد إلى حساب ${acc.personName}`}
+                      className={`min-h-8 min-w-8 p-0.5 rounded-lg transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-1 ${
                         isSelected 
                           ? 'bg-sky-500 hover:bg-sky-400 text-white' 
                           : 'bg-sky-100 hover:bg-sky-200 text-sky-700'
                       }`}
                       title={`إضافة دين إضافي لـ ${acc.personName}`}
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 );
@@ -782,6 +848,7 @@ export default function DebtsManager({
                   placeholder="ابحث بالاسم أو التفاصيل أو رقم الدين DBT..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  aria-label="البحث في سجل الديون بالاسم أو التفاصيل أو الرقم المرجعي"
                   className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"
                 />
               </div>
@@ -793,6 +860,7 @@ export default function DebtsManager({
                   id="debt-status-select"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
+                  aria-label="تصفية الديون بحسب الحالة"
                   className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
                 >
                   <option value="all">الكل</option>
@@ -810,6 +878,7 @@ export default function DebtsManager({
                   id="debt-category-select"
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
+                  aria-label="تصفية الديون بحسب الفئة"
                   className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
                 >
                   <option value="all">الكل</option>
@@ -825,6 +894,7 @@ export default function DebtsManager({
                   id="debt-due-select"
                   value={dueFilter}
                   onChange={(e) => setDueFilter(e.target.value as typeof dueFilter)}
+                  aria-label="تصفية الديون بحسب موعد الاستحقاق"
                   className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
                 >
                   <option value="all">كل المواعيد</option>
@@ -840,6 +910,7 @@ export default function DebtsManager({
                   id="debt-sort-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  aria-label="ترتيب نتائج الديون"
                   className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"
                 >
                   <option value="priority">الأولوية والاستحقاق</option>
@@ -852,8 +923,8 @@ export default function DebtsManager({
             {(searchTerm || statusFilter !== 'all' || categoryFilter !== 'all' || dueFilter !== 'all' || sortBy !== 'priority') && (
               <div className="flex items-center justify-between rounded-xl bg-sky-50/70 border border-sky-100 px-3 py-2 text-[11px]">
                 <span className="font-bold text-sky-800">تم تطبيق فلاتر على {filteredDebts.length} بند من سجل الديون.</span>
-                <button type="button" onClick={resetFilters} className="inline-flex items-center gap-1 font-black text-sky-700 hover:text-sky-900 cursor-pointer">
-                  <RotateCcw className="w-3.5 h-3.5" /> إعادة ضبط
+                <button type="button" onClick={resetFilters} className="inline-flex min-h-8 items-center gap-1 rounded-md px-1 font-black text-sky-700 hover:text-sky-900 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-400">
+                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> إعادة ضبط
                 </button>
               </div>
             )}
@@ -996,8 +1067,25 @@ export default function DebtsManager({
             {groupedAccounts.length === 0 ? (
               <div className="col-span-full bg-white p-12 rounded-2xl text-center border border-slate-100 text-slate-400">
                 <Users className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                <h3 className="font-bold text-slate-700 mb-1">لا توجد حسابات ديون مطابقة للخيارات</h3>
-                <p className="text-xs max-w-sm mx-auto">ابدأ بإضافة دين جديد لحساب شخص عبر زر "إضافة دين جديد".</p>
+                {nonProjectDebts.length === 0 ? (
+                  <>
+                    <h3 className="font-bold text-slate-700 mb-1">لا توجد حسابات ديون مسجلة بعد</h3>
+                    <p className="text-xs max-w-sm mx-auto">ابدأ بإضافة أول دين لحساب شخص أو جهة، وسيظهر كشفه تلقائياً هنا.</p>
+                    <button type="button" onClick={() => openAddModal()} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2">
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      إضافة دين جديد
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-bold text-slate-700 mb-1">لا توجد حسابات تطابق البحث أو المرشحات الحالية</h3>
+                    <p className="text-xs max-w-sm mx-auto">جرّب مسح البحث أو إعادة ضبط المرشحات لعرض جميع الحسابات المسجلة.</p>
+                    <button type="button" onClick={resetFilters} className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-black text-sky-700 transition hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2">
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      مسح البحث والمرشحات
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               groupedAccounts.map((acc) => (
@@ -1554,6 +1642,7 @@ export default function DebtsManager({
             </div>
             
             <form onSubmit={handleAddSubmit} className="p-5 space-y-4 text-xs" id="add-debt-form">
+              {formError && <FormValidationAlert message={formError} />}
               {/* Type Switcher */}
               <div className="space-y-1.5">
                 <span className="block text-slate-500 font-semibold">نوع الدين</span>
@@ -1763,6 +1852,7 @@ export default function DebtsManager({
             </div>
             
             <form onSubmit={handleEditSubmit} className="p-5 space-y-4 text-xs" id="edit-debt-form">
+              {formError && <FormValidationAlert message={formError} />}
               {/* Type Switcher */}
               <div className="space-y-1.5">
                 <span className="block text-slate-500 font-semibold">نوع الدين</span>
@@ -1946,6 +2036,7 @@ export default function DebtsManager({
               </div>
               
               <form onSubmit={handlePaymentSubmit} className="p-5 space-y-4 text-xs" id="payment-form">
+                {formError && <FormValidationAlert message={formError} />}
                 {/* Selector if person has multiple debts */}
                 {personDebts.length > 1 && (
                   <div className="space-y-1.5 bg-sky-50/80 p-3 rounded-xl border border-sky-100">
