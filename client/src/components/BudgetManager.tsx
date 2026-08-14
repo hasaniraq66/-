@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { Expense, Budget, ExpenseTemplate } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, getCurrentMonthString } from '../utils';
-import { getArabicReferenceLabel, getDisplayReferenceNumber } from '../utils/recordReferences';
+import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
 import AttachmentSelector from './AttachmentSelector';
 
 interface BudgetManagerProps {
@@ -332,12 +332,13 @@ export default function BudgetManager({
   // Filtered expense list for display
   const filteredExpenses = useMemo(() => {
     return monthlyExpensesList.filter((e) => {
-      // Search
+      // Search by description, category, or invoice reference number
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const matchesDesc = e.description.toLowerCase().includes(term);
         const matchesCat = e.category.toLowerCase().includes(term);
-        if (!matchesDesc && !matchesCat) return false;
+        const matchesReference = matchesReferenceSearch(e, 'INV', searchTerm);
+        if (!matchesDesc && !matchesCat && !matchesReference) return false;
       }
       // Category
       if (categoryFilter !== 'all' && e.category !== categoryFilter) return false;
@@ -662,7 +663,7 @@ export default function BudgetManager({
             <input
               id="expense-search-input"
               type="text"
-              placeholder="البحث في المصاريف..."
+                placeholder="البحث في المصاريف أو رقم الفاتورة INV..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white"

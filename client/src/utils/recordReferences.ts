@@ -34,3 +34,28 @@ export function getArabicReferenceLabel(referenceNumber: string): string {
   const prefix = referenceNumber.startsWith('INV-') ? 'INV' : 'DBT';
   return `${REFERENCE_LABELS[prefix]}#${referenceNumber}`;
 }
+
+/**
+ * يطبع إدخال البحث ومرجع السجل للمقارنة دون تأثر بحالة الأحرف أو الفواصل.
+ * يقبل أيضاً صيغة العرض العربية مثل «د#DBT-2026-0001» و«ف#INV-2026-0001».
+ */
+function normalizeReferenceSearchValue(value: string): string {
+  return value
+    .trim()
+    .replace(/^[دف]\s*#?\s*/, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+/** يطابق الرقم المرجعي، بما في ذلك المرجع الأرشيفي الثابت للسجلات القديمة. */
+export function matchesReferenceSearch(
+  record: ReferenceRecord,
+  prefix: ReferencePrefix,
+  searchTerm: string,
+): boolean {
+  const normalizedTerm = normalizeReferenceSearchValue(searchTerm);
+  if (!normalizedTerm) return false;
+
+  const normalizedReference = normalizeReferenceSearchValue(getDisplayReferenceNumber(record, prefix));
+  return normalizedReference.includes(normalizedTerm);
+}

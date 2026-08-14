@@ -34,7 +34,7 @@ import {
 import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
 import { getAccountStatementDebts } from '../utils/debtRecords';
-import { getArabicReferenceLabel, getDisplayReferenceNumber } from '../utils/recordReferences';
+import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
 import AttachmentSelector from './AttachmentSelector';
 import ConfirmModal from './ConfirmModal';
 
@@ -475,12 +475,13 @@ export default function DebtsManager({
       if (activeTab === 'to_me' && d.type !== 'to_me') return false;
       if (activeTab === 'to_others' && d.type !== 'to_others') return false;
 
-      // 2. Search filter (by person name or notes)
+      // 2. Search filter (by person name, details, or debt reference number)
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const matchesName = d.personName.toLowerCase().includes(term);
         const matchesDesc = d.description.toLowerCase().includes(term);
-        if (!matchesName && !matchesDesc) return false;
+        const matchesReference = matchesReferenceSearch(d, 'DBT', searchTerm);
+        if (!matchesName && !matchesDesc && !matchesReference) return false;
       }
 
       // 3. Status filter
@@ -777,7 +778,7 @@ export default function DebtsManager({
                 <input
                   id="debt-search-input"
                   type="text"
-                  placeholder="ابحث بالاسم أو التفاصيل..."
+                  placeholder="ابحث بالاسم أو التفاصيل أو رقم الدين DBT..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"

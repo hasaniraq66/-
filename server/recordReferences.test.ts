@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createNextReferenceNumber, getDisplayReferenceNumber } from '../client/src/utils/recordReferences';
+import { createNextReferenceNumber, getDisplayReferenceNumber, matchesReferenceSearch } from '../client/src/utils/recordReferences';
 
 describe('record reference numbers', () => {
   it('increments the next debt number inside the same calendar year', () => {
@@ -24,5 +24,18 @@ describe('record reference numbers', () => {
     ], 'INV', '2026-08-14');
 
     expect(reference).toBe('INV-2026-0004');
+  });
+
+  it('matches a debt reference regardless of case, separators, or Arabic display label', () => {
+    const record = { id: 'debt-search', referenceNumber: 'DBT-2026-0001' };
+
+    expect(matchesReferenceSearch(record, 'DBT', 'dbt-2026-0001')).toBe(true);
+    expect(matchesReferenceSearch(record, 'DBT', 'د#DBT 2026 0001')).toBe(true);
+    expect(matchesReferenceSearch(record, 'DBT', 'INV-2026-0001')).toBe(false);
+  });
+
+  it('matches the stable archive reference for a legacy invoice', () => {
+    expect(matchesReferenceSearch({ id: 'expense-xyz789' }, 'INV', 'INV-ARCH-XYZ789')).toBe(true);
+    expect(matchesReferenceSearch({ id: 'expense-xyz789' }, 'INV', 'ف#inv arch xyz789')).toBe(true);
   });
 });
