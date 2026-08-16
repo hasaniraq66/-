@@ -39,3 +39,12 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 2. إصلاح الاستيراد (استخدام `server/app.js` أو بناء منفصل لـ api).
 3. التزام، انتظار auto-sync، نشر Vercel (إعادة نشر من Vercel إن لزم)، ثم إعادة اختبار الرفع في الإنتاج.
 4. تنظيف بيانات الاختبار (حساب qa.production ودين DBT-2026-0001) من Firestore بعد نجاح الاختبار.
+
+## حالة النشرات (21:35)
+النشرة الجديدة `dpl_HJvVZ1UiMLQBQjnYoi4C834jb1Cm` (المرتبطة بالتزام ecbe9b78) فشلت في البناء بالخطأ: `Error: Function Runtimes must have a valid version, for example now-php@1.0.0`. السبب: صيغة `nodejs22.x` غير معروفة لدى Vercel؛ الصيغة الصحيحة هي `nodejs22.x` ضمن صيغة اسم runtime معروفة مثل `@vercel/node` لا، بل يجب استخدام قيمة مثل `nodejs22.x` ضمن قائمة runtimes المدعومة: الصيغ المقبولة هي أسماء مثل `nodejs20.x`/`nodejs22.x` لكن Vercel يتطلب أحياناً صيغة `runtime` غير مدرجة في old builder. البديل الأضمن: إسقاط `functions.runtime` نهائياً (Vercel يستنتج runtime تلقائياً) أو استخدام `runtime: "nodejs22.x"` — لكن الخطأ يشير إلى أن builder قديم لا يفهمها، فالأفضل إسقاط الحقل.
+
+### معلومات Vercel MCP الأساسية
+- teamId: `team_uL2DiMwbChY7rfkQd8WzXQSf` (slug: hassan-s9-projects)
+- projectId: `prj_UU6ojo9kq2kAPJzBdsuBymWrXpW8` (اسمه "-")
+- رابط الإنتاج: https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app (محمي بـ Vercel Auth)
+- github/main = ecbe9b78 (آخر التزام إصلاح حزمة API)

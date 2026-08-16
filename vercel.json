@@ -4,7 +4,6 @@
   "outputDirectory": "dist/public",
   "functions": {
     "api/index.js": {
-      "runtime": "nodejs22.x",
       "includeFiles": "dist/server.js"
     }
   },
