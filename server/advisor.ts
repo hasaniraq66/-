@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "./_core/llm.js";
 import firebaseConfig from "../client/firebase-applet-config.json";
 
 type AdvisorRequest = {

@@ -1,11 +1,11 @@
 import express, { type Express } from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./_core/oauth";
-import { registerStorageProxy } from "./_core/storageProxy";
-import { appRouter } from "./routers";
-import { registerAdvisorRoutes } from "./advisor";
-import { registerAttachmentRoutes } from "./attachments";
-import { createContext } from "./_core/context";
+import { registerOAuthRoutes } from "./_core/oauth.js";
+import { registerStorageProxy } from "./_core/storageProxy.js";
+import { appRouter } from "./routers.js";
+import { registerAdvisorRoutes } from "./advisor.js";
+import { registerAttachmentRoutes } from "./attachments.js";
+import { createContext } from "./_core/context.js";
 
 /**
  * يجهز تطبيق Express من دون فتح منفذ. تستخدمه جلسة التطوير المحلية ودالة Vercel

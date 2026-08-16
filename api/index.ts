@@ -1,11 +1,10 @@
-// في بيئة Vercel يُخدم المخرج المُجمَّع dist/server.js الذي يعيد تصدير التطبيق بعد
-// حزم جميع اعتمادات الخادم (Firestore / S3 proxy / tRPC). يوجَّر هذا الملف إلى
-// الدالة عبر functions في vercel.json بحيث يصل الطلب إلى النسخة المجمّعة.
+// مدخل دالة Vercel الخادمية: يعيد إنشاء تطبيق Express الكامل (tRPC + المرفقات
+// + المستشار + وكيل التخزين) من المصدر مباشرة؛ Vercel يبني كامل شجرة الاستيراد
+// التي يبدأها هذا الملف، فلا حاجة إلى ملف حزمة خارجي داخل api/.
 import type { Request, Response } from "express";
-import type bundledHandler from "../dist/server";
-import actualHandler from "../dist/server.js";
+import { createApp } from "../server/app.js";
 
-const handler: (req: Request, res: Response) => void = actualHandler;
+const app = createApp();
 
 export function restoreForwardedApiPath(req: Pick<Request, "url">): void {
   const requestUrl = new URL(req.url ?? "/api", "https://vercel.internal");
@@ -24,5 +23,5 @@ export function restoreForwardedApiPath(req: Pick<Request, "url">): void {
  */
 export default function vercelApiHandler(req: Request, res: Response) {
   restoreForwardedApiPath(req);
-  return handler(req, res);
+  return app(req, res);
 }

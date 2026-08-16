@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
-import { buildAttachmentStoragePath, createAttachmentPreviewHandler, createAttachmentUploadHandler, readAttachmentRecordFromFirestore, validateAttachmentUpload } from './attachments';
+import { buildAttachmentStoragePath, createAttachmentPreviewHandler, createAttachmentUploadHandler, readAttachmentRecordFromFirestore, validateAttachmentUpload } from './attachments.js';
 
 describe('attachment upload validation', () => {
   const validPayload = {

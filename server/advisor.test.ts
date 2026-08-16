@@ -1,6 +1,6 @@
 import express from "express";
 import { afterEach, describe, expect, it } from "vitest";
-import { registerAdvisorRoutes } from "./advisor";
+import { registerAdvisorRoutes } from "./advisor.js";
 
 describe("financial advisor route", () => {
   let closeServer: (() => Promise<void>) | undefined;

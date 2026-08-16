@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPaymentWithinRemainingBalance, isPositiveFinancialAmount, isValidBudgetLimit } from '../client/src/utils/financialInputValidation';
+import { isPaymentWithinRemainingBalance, isPositiveFinancialAmount, isValidBudgetLimit } from '../client/src/utils/financialInputValidation.js';
 
 describe('financial input validation', () => {
   it('accepts only positive amounts for debts, expenses, and templates', () => {

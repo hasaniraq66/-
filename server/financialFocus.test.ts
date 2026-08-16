@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getFinancialFocusItems } from '../client/src/utils/financialFocus';
+import { getFinancialFocusItems } from '../client/src/utils/financialFocus.js';
 
 const today = new Date(2026, 7, 14);
 

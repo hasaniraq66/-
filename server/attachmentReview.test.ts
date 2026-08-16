@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FinancialAttachment } from '../client/src/types';
+import type { FinancialAttachment } from '../client/src/types.js';
 import {
   DEFAULT_ATTACHMENT_REVIEW_STATUS,
   describeAttachmentReviewAuditEntry,
@@ -8,7 +8,7 @@ import {
   getAttachmentReviewStatus,
   MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH,
   updateAttachmentReview,
-} from '../client/src/lib/attachmentReview';
+} from '../client/src/lib/attachmentReview.js';
 
 const baseAttachment: FinancialAttachment = {
   id: 'attachment-001',

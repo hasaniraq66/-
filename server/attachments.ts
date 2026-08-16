@@ -1,9 +1,9 @@
 import firebaseConfig from '../client/firebase-applet-config.json';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { updateAttachmentReview } from '../client/src/lib/attachmentReview';
-import type { AttachmentReviewActor, AttachmentReviewStatus, FinancialAttachment } from '../client/src/types';
-import { storageGetSignedUrl, storagePut } from './storage';
+import { updateAttachmentReview } from '../client/src/lib/attachmentReview.js';
+import type { AttachmentReviewActor, AttachmentReviewStatus, FinancialAttachment } from '../client/src/types.js';
+import { storageGetSignedUrl, storagePut } from './storage.js';
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);

@@ -3,39 +3,42 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dirname ?? __dirname, "..");
-const BUNDLE_PATH = join(ROOT, "dist/server.js");
 
 /**
- * يضمن أن حزمة دالة Vercel (dist/server.js) موجودة وقابلة للقراءة وتصدّر
- * معالج طلبات، وأن api/index.ts يشير إليها وليس إلى مصدر غير موجود في
- * بيئة الإنتاج (السبب السابق: ERR_MODULE_NOT_FOUND).
+ * يضمن أن مدخل دالة Vercel (api/index.ts) قابل للبناء من المصدر مباشرة:
+ * يستورد createApp من server/app (وليس حزمة خارجية dist/server.js التي لا
+ * توجد وقت بناء Vercel — السبب السابق لفشل النشرات: ERR_MODULE_NOT_FOUND
+ * لـ /var/task/server/app ثم تعارض includeFiles).
  */
-describe("Vercel API bundle contract", () => {
-  it("dist/server.js bundle exists", () => {
-    expect(existsSync(BUNDLE_PATH)).toBe(true);
-  });
-
-  it("api/index.ts re-exports the bundled handler instead of a raw server source", () => {
+describe("Vercel API entry contract", () => {
+  it("api/index.ts imports createApp from server/app.js", () => {
     const source = readFileSync(join(ROOT, "api/index.ts"), "utf8");
-    expect(source).toContain("../dist/server.js");
-    expect(source).not.toContain("createApp()");
+    expect(source).toContain('from "../server/app.js"');
+    expect(source).not.toContain("dist/server.js");
   });
 
-  it("vercel.json routes the API function to the bundle", () => {
+  it("all relative imports in server/ carry explicit .js extensions (Node ESM on Vercel)", () => {
+    const ts = readFileSync(join(ROOT, "server/app.ts"), "utf8");
+    const relativeWithoutExt = /from\s+["']\.\.?\/[^"']+(?<!\.(js|ts|mjs|json))["']/g;
+    const matches = (ts + "\n" + readFileSync(join(ROOT, "server/storage.ts"), "utf8")).match(relativeWithoutExt);
+    expect(matches).toBeNull();
+  });
+
+  it("api/index.ts exports a default request handler and path restorer", () => {
+    const source = readFileSync(join(ROOT, "api/index.ts"), "utf8");
+    expect(source).toContain("export default function");
+    expect(source).toContain("restoreForwardedApiPath");
+  });
+
+  it("vercel.json has no invalid functions section", () => {
     const config = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8")) as Record<string, unknown>;
-    const functions = config.functions as Record<string, unknown>;
-    expect(functions?.["api/index.ts"]).toMatchObject({ includeFiles: "dist/server.js" });
+    const functions = config.functions as Record<string, unknown> | undefined;
+    expect(functions?.["api/index.ts"]?.includeFiles).toBeUndefined();
   });
 
-  it("bundle contains the attachments upload route handler", () => {
-    const bundle = readFileSync(BUNDLE_PATH, "utf8");
-    expect(bundle).toContain("/api/attachments/upload");
-    expect(bundle).toContain("/api/attachments/preview");
-    expect(bundle).toContain("/api/attachments/review");
-  });
-
-  it("bundle loads as an ESM default-exported handler", async () => {
-    const imported = (await import(BUNDLE_PATH)) as { default?: unknown };
-    expect(typeof imported.default).toBe("function");
+  it("vercel.json rewrites /api routes to the single API function", () => {
+    const config = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8")) as Record<string, unknown>;
+    const rewrites = config.rewrites as Array<{ source: string; destination: string }> | undefined;
+    expect(rewrites?.some((r) => r.source === "/api/:path*" && r.destination === "/api?path=:path*")).toBe(true);
   });
 });

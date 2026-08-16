@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { copyReferenceNumber, createNextReferenceNumber, findRecordByReference, getDisplayReferenceNumber, matchesReferenceSearch } from '../client/src/utils/recordReferences';
+import { copyReferenceNumber, createNextReferenceNumber, findRecordByReference, getDisplayReferenceNumber, matchesReferenceSearch } from '../client/src/utils/recordReferences.js';
 
 describe('record reference numbers', () => {
   it('increments the next debt number inside the same calendar year', () => {

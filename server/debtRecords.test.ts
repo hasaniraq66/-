@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createIndependentDebt, getAccountStatementDebts } from "../client/src/utils/debtRecords";
+import { createIndependentDebt, getAccountStatementDebts } from "../client/src/utils/debtRecords.js";
 
 describe("debt account statement records", () => {
   it("creates a separate statement item for every new debt added to the same client", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Request, Response } from 'express';
-import { createAttachmentReviewHandler } from './attachments';
+import { createAttachmentReviewHandler } from './attachments.js';
 
 function createResponse() {
   let statusCode = 200;
