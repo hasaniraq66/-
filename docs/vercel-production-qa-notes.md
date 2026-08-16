@@ -122,3 +122,32 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 
 سجلات runtime أكدت: الدالة dpl_91mCNSXw تفشل على /api/attachments و /api/attachments/upload بخطأ `ERR_MODULE_NOT_FOUND: Cannot find package '@shared/const' imported from /var/task/server/_core/oauth.js`. السبب: Vercel يبني api/ بمعزل عن مجلد server/ في الـ bundler الافتراضي، ومسارات TypeScript alias مثل `@shared/const` (المعرّفة في tsconfig paths) تُحوَّل إلى استيراد نسبّي `../../shared/const` لكن bundler Vercel لا يضمّن ملفات shared/ خارج شجرة api/ إلى /var/task، فتفشل عند runtime. ملاحظة مهمة: نجاح POST الرفع سابقاً مع المرفق كان نجاح UI مبكراً، لكن مسار الخادم نفسه يفشل في هذا الـ deployment.
 الحل المطلوب: إزالة الاعتماد على alias @shared من شجرة api/server أو ضبط functions في vercel.json لتضمين shared. الحل الأنظف: إضافة `"shared/**"` ضمن files، أو تحويل الدالة إلى حزمة واحدة. في Vercel functions configuration يمكن استخدام `includeFiles`.
+
+## اختبار النشرة الجديدة dpl_FfWfQKS (21:58 UTC)
+
+النشرة الجديدة dpl_FfWfQKSFZTQPEtcjwzbvZmnqfEdx (التزام 4e173784، إصلاح @shared aliases) جاهزة و READY على الإنتاج. رابط وصول مؤقت (ساعة): https://1fjstwfyh-k2t0r4os9-hassan-s9-projects.vercel.app/?_vercel_share=LLyyhMGcNkG0d01bSj02ljSVGham6wSy
+تسجيل الدخول بحساب V2 (qa.production.v2.20260816215034@example.com / QATest#2026!) نجح بنجاح كامل (شاشة التحميل المتحركة ثم لوحة التحكم ظهرت). الخطوة التالية: صفحة الديون → فحص GET /api/attachments (هل يعمل الآن) → رفع مرفق PNG عبر نافذة الإرفاق → التحقق من POST upload → اختبار review → التنظيف (حذف المرفق + بيانات الاختبار) → التقرير النهائي.
+ملاحظة: النشرة القديمة 8ozrimmvz (4f10ab6b) كانت أيضاً فاشلة بسبب نفس الخطأ @shared.
+
+## النشرة الجديدة dpl_FfWfQKS (22:00 UTC)
+
+- تسجيل الدخول نجح ✅، لوحة التحكم ظهرت مع شاشة التحميل المتحركة.
+- لكن المسار /api/attachments/debt/list ما زال يرجع FUNCTION_INVOCATION_FAILED في الدالة الجديدة أيضاً.
+- سبب محتمل: buildCommand يعمل لكن Vercel قد لا يستخدمه عند النسخ من GitHub (Vercel GitHub import يدعم buildCommand لكن يجب التأكد من أن settings في Vercel لا تتجاوز vercel.json — الأهم: Vercel يتجاهل functions إذا لم يكن هناك api/index.ts؟ لا، النشرة السابقة نجحت في بناء dist.
+- الأهم: يجب فحص سجل البناء لهذه النشرة — قد يكون dist/server.js لم يُبنَ في /var/task (buildCommand ينتج في /vercel/output/static؟). الحل البديهي المتين: إلغاء functions rewrite إلى api/index وإرجاع api/index.ts ليحمّل dist/server.js عبر import ديناميكي مع path مطلق، أو جعل dpl تعمل من dist عبر includeFiles صحيح.
+
+## تشخيص جوهري (22:00 UTC)
+
+سجل بناء dpl_FfWfQKS يوضح: build:api نجح وأنتج dist/server.js (3.4MB)، لكن بعد ذلك قامت Vercel بتجميع api/index.ts بأنواع TypeScript (tsc من @vercel/build-utils) وفشلت لأن api/index.ts يستورد الحزمة dist/server.js (ملف JS عادي بلا أنواع + لا يمكن لـ tsc التحقق منه → أخطاء TS2344/2345/2349 + أخطاء types على ملفات server/*.ts عند التحقق من شجرة الاستيراد؟ لا — الأخطاء على server/routers.ts وserver/advisor.ts تعني أن tsc تحقق من شجرة المصدر كاملة). البناء فشل مع TS errors لكن النشرة وصلت حالة READY لأن Vercel قد يُكمل رغم أخطاء TS؟ لا — الأخطاء ظهرت في مرحلة "Building Functions" — FUNCTION_INVOCATION_FAILED بسبب أن الدالة لم تُنشر بشكل صحيح (failed build silently -> placeholder).
+الحل الحاسم: يجب إيقاف tsc verification للدالة. Vercel يجمع الدوال بـ esbuild فقط عادة — أخطاء TS هذه تظهر عند "Verifying TypeScript" إذا وُجد tsconfig. وجود tsconfig في الجذر يجعل Vercel ينفذ typecheck. الحل: إضافة `"compilerOptions": {"noEmit": true}` هو الموجود — لكن Vercel قد يتجاوز. الحل الأنظف والأكثر موثوقية: **تحويل api/index.ts إلى JavaScript خالص (api/index.js)** وكتابة منطق التوجيه كـ JS عادي يستورد dist/server.js عبر import ديناميكي لـ URL نسبي، وإزالة api/index.ts من Git، فتتخطى Vercel typecheck على الدالة (JS لا يُتحقق منه) أو تجمعه بـ esbuild بسهولة.
+
+## الحل المنفذ (22:02 UTC)
+
+1. التشخيص النهائي من سجل بناء dpl_FfWfQKS: build:api نجح وأنتج dist/server.js، لكن Vercel نفّذ typecheck على api/index.ts (tsc) ففشل شجرة server/ كاملة → FUNCTION_INVOCATION_FAILED صامتة في الدالة.
+2. الحل: استبدال api/index.ts بـ **api/index.js نقي** (JS بدون import type) مع إزالة index.ts من Git (نُقل إلى index.ts.bak-for-dev خارج المتابعة). يستورد createApp من ../server/app.js مباشرة.
+3. حالة الاختبارات: اختبار vercelApiBundle "rewrites /api routes" فشل لأن destination الفعلي في vercel.json هو "/api?path=:path*" وليس "/api?path=*". اختبار vercelDeployment فشل التحميل لأن api/index.js يستورد ../server/app.js الذي لا يحلّه vite في الاختبارات.
+4. المُتبقى: (أ) تصحيح التوقع في الاختبار الثاني إلى "/api?path=:path*"، (ب) جعل api/index.js غير مدرج في اختبارات vitest (استيراد ../api/index.js في vercelDeployment.test.ts يحمله عبر vite — يجب إما حذف هذا الاستيراد واستنساخ الدالة في الاختبار أو استبدال api/index.js بملف dev proxy، أو الأفضل: تحويل api/index.js ليقرأ استيراد require ديناميكي). أبسط حل: حذف import restoreForwardedApiPath من vercelDeployment.test.ts واستبدال الدالة المحلية بنسخة منفصلة (نسخة اختبارية) مع ملاحظة تطابقها.
+5. بيانات حساب الاختبار V2: qa.production.v2.20260816215034@example.com / QATest#2026! — نجح تسجيل الدخول في dpl_FfWfQKS، ومسار attachments ما زال يفشل FUNCTION_INVOCATION_FAILED.
+6. رابط الوصول المؤقت للنشرة الجديدة dpl_FfWfQKS: https://1fjstwfyh-k2t0r4os9-hassan-s9-projects.vercel.app/?_vercel_share=LLyyhMGcNkG0d01bSj02ljSVGham6wSy (ينتهي بعد ساعة).
+7. بعد الإصلاح: push تلقائي عبر خطاف GitHub (auto-sync) ثم مراقبة n=1 أحدث نشرات الإنتاج، ثم إعادة اختبار: تسجيل دخول → ديون → مرفق PNG → GET attachments → POST upload → review → تنظيف → تقرير نهائي.
+8. النشرات: dpl_FfWfQKS (التزام 4e173784، READY) | dpl_91mCNSXw (4f10ab6b، جاهز لكن يفشل runtime بسبب @shared) | aeoczdhyw (نشرة قديمة).

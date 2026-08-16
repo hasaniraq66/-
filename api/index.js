@@ -1,12 +1,14 @@
 // مدخل دالة Vercel الخادمية: يعيد إنشاء تطبيق Express الكامل (tRPC + المرفقات
 // + المستشار + وكيل التخزين) من المصدر مباشرة؛ Vercel يبني كامل شجرة الاستيراد
 // التي يبدأها هذا الملف، فلا حاجة إلى ملف حزمة خارجي داخل api/.
-import type { Request, Response } from "express";
+// ملاحظة: هذا الملف JavaScript خالص عمداً لتفادي فشل typecheck على مستوى Vercel
+// الذي يفشل عند التحقق من شجرة الاستيراد بـ tsc (شجرة server/ لا تتوافق مع بيئة
+// typecheck الخاصة بـ Vercel بسبب اختلاف إصدارات types).
 import { createApp } from "../server/app.js";
 
 const app = createApp();
 
-export function restoreForwardedApiPath(req: Pick<Request, "url">): void {
+export function restoreForwardedApiPath(req) {
   const requestUrl = new URL(req.url ?? "/api", "https://vercel.internal");
   const forwardedPath = requestUrl.searchParams.get("path");
 
@@ -21,7 +23,7 @@ export function restoreForwardedApiPath(req: Pick<Request, "url">): void {
  * مدخل Vercel لدالة API واحدة. تضيف إعادة الكتابة اسم المسار ضمن query لأن
  * Vercel يوجه جميع /api/* إلى هذا الملف، ثم يعيد Express تنفيذ المسار الأصلي.
  */
-export default function vercelApiHandler(req: Request, res: Response) {
+export default function vercelApiHandler(req, res) {
   restoreForwardedApiPath(req);
   return app(req, res);
 }

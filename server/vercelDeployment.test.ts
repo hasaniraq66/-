@@ -2,7 +2,23 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { restoreForwardedApiPath } from "../api/index.js";
+/**
+ * نسخ اختبارية مستقلة من دالة استعادة مسار API الموجودة في api/index.js (و
+ * api/index.ts سابقاً قبل تحويلها إلى JavaScript نقي). لا يُستورد الملف
+ * مباشرة هنا لأنه JavaScript نقي يستورد شجرة server/ الكاملة، ولا يمكن لـ vite
+ * في بيئة الاختبارات حل هذه الاستيرادات — سلوك Vercel الفعلي مختلف (يبني الدالة
+ * بـ esbuild مع node_modules مثبتة).
+ */
+function restoreForwardedApiPath(req: { url: string | undefined }): void {
+  const requestUrl = new URL(req.url ?? "/api", "https://vercel.internal");
+  const forwardedPath = requestUrl.searchParams.get("path");
+
+  if (requestUrl.pathname === "/api" && forwardedPath) {
+    requestUrl.searchParams.delete("path");
+    const safePath = forwardedPath.replace(/^\/+/, "");
+    req.url = `/api/${safePath}${requestUrl.search}`;
+  }
+}
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
