@@ -3,7 +3,7 @@
   "buildCommand": "pnpm run build:vercel",
   "outputDirectory": "dist/public",
   "functions": {
-    "api/index.js": {
+    "api/index.ts": {
       "includeFiles": "dist/server.js"
     }
   },

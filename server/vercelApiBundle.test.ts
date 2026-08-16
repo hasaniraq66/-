@@ -24,7 +24,7 @@ describe("Vercel API bundle contract", () => {
   it("vercel.json routes the API function to the bundle", () => {
     const config = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8")) as Record<string, unknown>;
     const functions = config.functions as Record<string, unknown>;
-    expect(functions?.["api/index.js"]).toMatchObject({ includeFiles: "dist/server.js" });
+    expect(functions?.["api/index.ts"]).toMatchObject({ includeFiles: "dist/server.js" });
   });
 
   it("bundle contains the attachments upload route handler", () => {
