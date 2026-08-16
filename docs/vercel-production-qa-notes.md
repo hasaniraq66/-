@@ -104,6 +104,17 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 
 استدعاء GET /api/attachments من وحدة التحكم على رابط 1fjstwfyh-8ozrimmvz أرجع 500 FUNCTION_INVOCATION_FAILED (نفس رسالة النشرة القديمة)، و /version.json يعيد HTML كامل SPA (يُعالج بـ SPA rewrite في vercel.json). كما أن window.firebaseApp غير معرّف في سياق التنفيذ في هذه النشرة (hasToken=false). التفسير الأرجح: النشرة 8ozrimmvz تعمل على نفس الدالة المعطوبة (أو أن خطأ التوثيق 401 يُعرض كـ 500). يجب فحص أخطاء runtime الفعلية في Vercel عبر MCP لهذه المنطقة الزمنية (21:52) ومعرفة أي deployment خدم الطلب.
 
+## الإصلاح الثالث: ERR_IMPORT_ATTRIBUTE_MISSING — استيراد JSON الثابت (2026-08-17)
+
+| البند | التفاصيل |
+|---|---|
+| الخطأ الإنتاجي | `TypeError [ERR_IMPORT_ATTRIBUTE_MISSING]` في `server/attachments.ts` عند استيراد `../client/firebase-applet-config.json` بدون `with { type: "json" }` |
+| البيئة | Node 22 في وضع ESM الصارم على Vercel: استيراد JSON الثابت يتطلب سمة `with { type: "json" }` صريحة، وإلا يُرفع خطأ وقت تشغيل |
+| الحل | وحدة جديدة `server/firebaseConfig.ts` تقرأ ملف التكوين في وقت التشغيل عبر `readFileSync` مع `import.meta.url` (بدون أي استيراد JSON ثابت)، وتحديث `server/attachments.ts` و`server/advisor.ts` لاستخدامها |
+| سبب اختيار fs | يحافظ على التوافق مع Vite في التطوير وحزمة Vercel في الإنتاج دون الاعتماد على سمة الاستيراد التي قد تتعارض مع بعض أدوات التجميع |
+| حماية من التكرار | اختبار وحدة جديد `server/firebaseConfig.test.ts` يفحص شجرة `server/` و`api/` بالكامل ويرفض أي استيراد JSON ثابت (فحص regress دائم) |
+| التحقق | 56 اختبار وحدة ناجح (شمل اختباران جديدان)، فحص TypeScript نظيف، بناء إنتاجي (vite + api) ناجح |
+
 ## حالة الاختبار الحالية (21:53 UTC) — ملخص قبل مواصلة
 
 - رابط الإنتاج الأصلي: https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app — يخدم دالة معطوبة (FUNCTION_INVOCATION_FAILED على /api/*).
@@ -151,3 +162,19 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 6. رابط الوصول المؤقت للنشرة الجديدة dpl_FfWfQKS: https://1fjstwfyh-k2t0r4os9-hassan-s9-projects.vercel.app/?_vercel_share=LLyyhMGcNkG0d01bSj02ljSVGham6wSy (ينتهي بعد ساعة).
 7. بعد الإصلاح: push تلقائي عبر خطاف GitHub (auto-sync) ثم مراقبة n=1 أحدث نشرات الإنتاج، ثم إعادة اختبار: تسجيل دخول → ديون → مرفق PNG → GET attachments → POST upload → review → تنظيف → تقرير نهائي.
 8. النشرات: dpl_FfWfQKS (التزام 4e173784، READY) | dpl_91mCNSXw (4f10ab6b، جاهز لكن يفشل runtime بسبب @shared) | aeoczdhyw (نشرة قديمة).
+
+## النشرة dpl_5utSh3oL (1fjstwfyh-4tcqqxtnd) — 2026-08-16 22:11
+- البناء نجح (Deployment completed، التزام c64ce03c) رغم تحذيرات tsc على Vercel (لا توقف البناء).
+- رابط وصول: https://1fjstwfyh-4tcqqxtnd-hassan-s9-projects.vercel.app/?_vercel_share=G07tZhtIiIzF9mLggmFzj4wweXlnEBEB
+- تسجيل الدخول بحساب V2 (qa.production.v2.20260816215034@example.com) نجح، والواجهة ورسوم التحميل تظهران بشكل صحيح.
+- المرفق الحالي للخطوة القادمة: اختبار GET /api/attachments و POST /api/attachments/upload ومسار المراجعة وسجل التدقيق في هذه النشرة، ثم التنظيف.
+
+## النشرة dpl_5utSh3oL (4tcqqxtnd) ما زالت فاشلة (22:12 UTC)
+
+GET /api/attachments أرجع 500 FUNCTION_INVOCATION_FAILED (dpl: fh6vg-1786918350271) رغم أن هذه النشرة بُنيت بـ api/index.js نقي دون استيرادات @shared. window.firebaseApp غير معرّف هنا (hasToken=false) — أي أن خطأ الدالة يحدث قبل الوصول للمصادقة، أي خطأ تحميل/تصريف الدالة نفسها. يجب فحص سجل runtime لهذه الدالة عبر MCP ومعرفة exception الكامل (قد تكون بنية handler مخالفة لواجهة Vercel أو خطأ require لملف غير موجود مثل _vercel_share handling أو missing firebase-applet-config.json runtime).
+
+## السبب الجذري النهائي (22:12 UTC) — ERR_IMPORT_ATTRIBUTE_MISSING
+
+سجل Vercel runtime أوضح الخطأ في كل النشرات الأخيرة (dpl_91mCNSXw: @shared missing، dpl_FfWfQKS و dpl_5utSh3oL):
+`TypeError [ERR_IMPORT_ATTRIBUTE_MISSING]: Module "file:///var/task/client/firebase-applet-config.json" needs an import attribute of "type: json"`
+أي أن الكود يستورد ملف JSON عبر import ESM دون `with { type: "json" }`، وNode 22 على Vercel يرفض ذلك منذ Node 22.9+ (المعيار أصبح إلزامياً). الحل: تحويل استيراد firebase-applet-config.json إلى fs.readFileSync بدلاً من import static، أو إضافة import attribute. الأمل: أن استيراد TS يُولّد import عادي — يجب تعديل طريقة قراءة الملف إلى require (لا يعمل في ESM) أو fs.readFileSync.

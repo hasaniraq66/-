@@ -1,4 +1,4 @@
-import firebaseConfig from '../client/firebase-applet-config.json';
+import { firebaseConfig } from './firebaseConfig.js';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { updateAttachmentReview } from '../client/src/lib/attachmentReview.js';

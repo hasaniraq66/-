@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { invokeLLM } from "./_core/llm.js";
-import firebaseConfig from "../client/firebase-applet-config.json";
+import { firebaseConfig } from "./firebaseConfig.js";
 
 type AdvisorRequest = {
   debts?: Array<Record<string, unknown>>;
