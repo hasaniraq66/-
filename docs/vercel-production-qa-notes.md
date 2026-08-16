@@ -48,3 +48,77 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 - projectId: `prj_UU6ojo9kq2kAPJzBdsuBymWrXpW8` (اسمه "-")
 - رابط الإنتاج: https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app (محمي بـ Vercel Auth)
 - github/main = ecbe9b78 (آخر التزام إصلاح حزمة API)
+
+## جولة الاختبار بعد الإصلاح الشامل (2026-08-16)
+
+- النشرة dpl_91mCNSXwXJ5bBz3KbJBXMSdcQLya بنيت ونشرت على الإنتاج بنجاح (READY) بعد:
+  1) إعادة api/index.ts لاستيراد createApp من ../server/app.js مباشرة.
+  2) إضافة امتدادات .js صريحة لجميع الاستيرادات النسبية (43 استيراداً) عبر scripts/add-ext.mjs.
+  3) إزالة functions من vercel.json.
+- رابط الوصول المؤقت (يُجدد عند انتهاء الصلاحية): https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/?_vercel_share=Y62wAN0sb4WaxahfAR69lEQw7WoSKdxA
+- تمت المصادقة في الإنتاج بحساب الاختبار "اختبار إنتاجي للرفع" وعرض لوحة التحكم وصفحة الديون (دين DBT-2026-0001 السابق موجود).
+- فُتحت نافذة إضافة دين جديد، أُدخل ملف PNG qa-upload-prod.png في حقل المرفق، وظهرت المعاينة "صورة مرفقة بنجاح ✓ تم إرفاق صورة".
+- الخطوة التالية: تعبئة الحقول (الشخص، المبلغ 50، استحقاق) وحفظ الدين للتحقق من نجاح POST /api/attachments/upload في الإنتاج.
+
+## نتيجة حفظ الدين مع المرفق (2026-08-16)
+
+نجح حفظ الدين الجديد DBT-2026-0002 (50 ر.س، استحقاق 10 سبتمبر 2026) مع مرفق PNG عبر مسار رفع التخزين في الإنتاج، إذ ظهرت المعاينة في السجل مباشرة داخل بيئة Vercel. هذا يعني أن POST /api/attachments/upload ومسار storagePut عملا بنجاح في وضع Serverless بعد الإصلاح (الامتدادات الصريحة واستيراد createApp من المصدر). بقي اختبار المسار التكميلي /api/attachments/review وسجل التدقيق ثم تنظيف بيانات الاختبار.
+
+## ملاحظات إضافية (2026-08-16)
+
+عرض الديون في الإنتاج يعمل، والمرفق PNG لسجل DBT-2026-0002 يظهر معاينة base64 صحيحة في السجل. استدعاء fetch مباشر إلى /api/attachments من وحدة التحكم (بدون Authorization header) أرجع FUNCTION_INVOCATION_FAILED 500 — قد يكون بسبب غياب التوثيق (مطلوب) أو خطأ تشغيل في مسار الجلب. أزرار "مرفق" في السجل تعرض "(0)" مع أن المعاينة ظاهرة (العدد من حقل مرفقات مستقل)، والمطلوب الآن: اختبار مسار المراجعة وسجل التدقيق عبر الواجهة ثم التنظيف.
+
+## تشخيص الخطأ 500 على /api/attachments (2026-08-16)
+
+أظهرت سجلات runtime في Vercel أن جميع أخطاء 500 (POST /api/attachments/upload عند 21:27 و GET /api/attachments عند 21:45-21:46) تعود للنشرة القديمة dpl_BfTYMfeT (التزام 3ead2669) التي تعيد خطأ ERR_MODULE_NOT_FOUND: /var/task/server/app. أما النشرة الحالية النشطة dpl_91mCNSXw (التزام 4f10ab6b، 21:41 UTC) فهي READY وتم فيها حفظ الدين DBT-2026-0002 مع مرفق PNG بنجاح، ما يعني أن مسار الرفع يعمل في النشرة الجديدة. طلب GET /api/attachments الذي أجرته وحدة التحكم في المتصفح أصاب النشرة القديمة بسبب تأخر نشر النشرة الجديدة آنذاك. المطلوب الآن: إعادة اختبار جلب/مراجعة المرفقات في النشرة الجديدة ثم التنظيف.
+
+## حالة الإنتاج الفعلية (21:48 UTC)
+
+طلب GET /api/attachments و POST /api/trpc/system.ping على رابط الإنتاج يرجعان FUNCTION_INVOCATION_FAILED، مما يشير إلى أن رابط الإنتاج https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app ما زال يخدم النشرة القديمة dpl_BfTYMfeT (3ead2669) ذات الخطأ ERR_MODULE_NOT_FOUND. النشرة الناجحة dpl_91mCNSXw (4f10ab6b) حالتها READY لكنها ربما لم تُربط بعد بـ alias الإنتاج، أو أن النجاح السابق لرفع المرفق حدث في نافذة قصيرة بين نشرتين. الإجراء التالي: التحقق من alias الإنتاج في Vercel وتحديد النشرة النشطة عليه، ثم تصحيح التوزيع.
+
+## الاكتشاف الحاسم (21:49 UTC)
+
+نشرة الإنتاج الناجحة dpl_91mCNSXw (commit 4f10ab6b) وُزعت على URL مختلف تماماً: https://1fjstwfyh-8ozrimmvz-hassan-s9-projects.vercel.app وليس على https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app الذي ما زال يعمل بـ dpl_6TPJKQt8. السبب المرجح: تم إنشاء مشروع Vercel جديد (أو alias مختلف) مرتبط بالـ repo عند إعادة بناء التاريخ في GitHub، فصار لدينا مشروعان/names متشابهان. الإجراء: اختبار الرابط الجديد 1fjstwfyh-8ozrimmvz للتأكد من أنه الإصدار المصحح، ثم توجيه المستخدم له، أو إعادة ربط المشروع الصحيح.
+
+## حساب اختبار V2 والنشرة الجديدة (21:50 UTC)
+
+الرابط الإنتاجي الجديد (النشرة المصححة 4f10ab6b، dpl_91mCNSXw): https://1fjstwfyh-8ozrimmvz-hassan-s9-projects.vercel.app/ — تم إنشاء حساب اختبار V2 وتسجيل الدخول بنجاح مع شاشة التحميل متعددة المراحل وعرض لوحة التحكم سليمة (v2.5.0).
+
+بيانات حساب الاختبار V2 (يُحذف بعد الاختبار):
+- البريد: qa.production.v2.20260816215034@example.com
+- كلمة المرور: QATest#2026!
+- الاسم: اختبار إنتاجي V2
+- رابط وصول مؤقت (ينتهي 17/8 20:49): https://1fjstwfyh-8ozrimmvz-hassan-s9-projects.vercel.app/?_vercel_share=Ye5kB4LSLOArxOBWudlvCuAP2x4Me0F4
+
+ملاحظة مهمة: رابط الإنتاج الأصلي https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app ما زال يعرض الدالة القديمة المعطوبة (FUNCTION_INVOCATION_FAILED) — يحتاج فحص alias الإنتاج في Vercel أو إبلاغ المستخدم بالرابط الجديد.
+
+## نجاح الاختبار في النشرة المصححة (21:51 UTC)
+
+تم حفظ دين DBT-2026-0001 (150 ر.س، دين لي، شخصي، استحقاق 30 سبتمبر 2026) بحساب "اختبار إنتاجي V2" في النشرة المصححة dpl_91mCNSXw (1fjstwfyh-8ozrimmvz) مع مرفق PNG — ظهرت المعاينة بنجاح داخل السجل. هذا يؤكد أن مسار رفع التخزين في الإنتاج يعمل بعد إصلاح الامتدادات الصريحة (43 استيراداً). يبقى: اختبار مسار المراجعة وسجل التدقيق، ثم التنظيف، ثم حسم قضية alias الإنتاج الأصلي (aeoczdhyw) الذي ما زال يعرض النشرة المعطوبة.
+
+## اختبار نافذة المرفقات في النشرة المصححة (21:52 UTC)
+
+فُتحت قائمة "فواتير وإيصالات" لسجل DBT-2026-0001 وتعرض حالة "لا توجد مرفقات بعد" و"إرفاق فاتورة أو إيصال" بنجاح (GET /api/attachments عمل). النافذة المنبثقة ظهرت لكن أزرارها ليست في قائمة العناصر بعد — الخطوة التالية: إدراج ملف PNG عبر DataTransfer في input[type=file] داخل النافذة ثم رفعه للتحقق من POST /api/attachments/upload في النشرة المصححة، ثم اختبار review وسجل التدقيق، ثم التنظيف.
+
+## اكتشاف مهم (21:53 UTC)
+
+استدعاء GET /api/attachments من وحدة التحكم على رابط 1fjstwfyh-8ozrimmvz أرجع 500 FUNCTION_INVOCATION_FAILED (نفس رسالة النشرة القديمة)، و /version.json يعيد HTML كامل SPA (يُعالج بـ SPA rewrite في vercel.json). كما أن window.firebaseApp غير معرّف في سياق التنفيذ في هذه النشرة (hasToken=false). التفسير الأرجح: النشرة 8ozrimmvz تعمل على نفس الدالة المعطوبة (أو أن خطأ التوثيق 401 يُعرض كـ 500). يجب فحص أخطاء runtime الفعلية في Vercel عبر MCP لهذه المنطقة الزمنية (21:52) ومعرفة أي deployment خدم الطلب.
+
+## حالة الاختبار الحالية (21:53 UTC) — ملخص قبل مواصلة
+
+- رابط الإنتاج الأصلي: https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app — يخدم دالة معطوبة (FUNCTION_INVOCATION_FAILED على /api/*).
+- رابط النشرة الجديدة: https://1fjstwfyh-8ozrimmvz-hassan-s9-projects.vercel.app (dpl_91mCNSXw، التزام 4f10ab6b).
+- نجح في 8ozrimmvz: تسجيل دخول بحساب V2، حفظ دين DBT-2026-0001 مع مرفق PNG (المعاينة base64 ظهرت في كشف الحركة).
+- فشل في 8ozrimmvz عند 21:52: GET /api/attachments → 500 FUNCTION_INVOCATION_FAILED (id: sfo1::w9nd2-1786917170690-6ffaffef2c20) — نفس رسالة الدالة المعطوبة.
+- get_runtime_errors يتطلب since نص (ISO) وليس رقم.
+- فرضيات: (أ) الطلب أصاب النشرة القديمة، (ب) النشرة الجديدة تفتقد متغيرات بيئة (JWT_SECRET/FIREBASE) في بيئة Vercel.
+- الخطوة التالية: فحص سجلات runtime بصيغة نصية since="-1d" أو similar، ثم التحقق من فحص الأخطاء حسب منطقة زمنية.
+
+### بيانات اختبار V2
+- البريد: qa.production.v2.20260816215034@example.com / كلمة: QATest#2026!
+- رابط وصول مؤقت لـ 8ozrimmvz (ينتهي 17/8 20:49): ?_vercel_share=Ye5kB4LSLOArxOBWudlvCuAP2x4Me0F4
+
+## تشخيص حاسم (21:53 UTC)
+
+سجلات runtime أكدت: الدالة dpl_91mCNSXw تفشل على /api/attachments و /api/attachments/upload بخطأ `ERR_MODULE_NOT_FOUND: Cannot find package '@shared/const' imported from /var/task/server/_core/oauth.js`. السبب: Vercel يبني api/ بمعزل عن مجلد server/ في الـ bundler الافتراضي، ومسارات TypeScript alias مثل `@shared/const` (المعرّفة في tsconfig paths) تُحوَّل إلى استيراد نسبّي `../../shared/const` لكن bundler Vercel لا يضمّن ملفات shared/ خارج شجرة api/ إلى /var/task، فتفشل عند runtime. ملاحظة مهمة: نجاح POST الرفع سابقاً مع المرفق كان نجاح UI مبكراً، لكن مسار الخادم نفسه يفشل في هذا الـ deployment.
+الحل المطلوب: إزالة الاعتماد على alias @shared من شجرة api/server أو ضبط functions في vercel.json لتضمين shared. الحل الأنظف: إضافة `"shared/**"` ضمن files، أو تحويل الدالة إلى حزمة واحدة. في Vercel functions configuration يمكن استخدام `includeFiles`.
