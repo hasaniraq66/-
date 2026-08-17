@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { updateAttachmentReview } from '../client/src/lib/attachmentReview.js';
 import type { AttachmentReviewActor, AttachmentReviewStatus, FinancialAttachment } from '../client/src/types.js';
-import { buildFirebaseStorageDownloadUrl, firebaseStoragePut } from './firebaseStorage.js';
+import { firebaseStorageDownload, firebaseStoragePut } from './firebaseStorage.js';
 import { isForgeStorageConfigured, storageGetSignedUrl, storagePut } from './storage.js';
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
@@ -169,10 +169,16 @@ function getReviewActor(identity: AttachmentIdentity): AttachmentReviewActor {
   };
 }
 
-export function createAttachmentPreviewHandler(dependencies: { getIdentity?: (req: Request) => Promise<AttachmentIdentity | null>; readRecord?: AttachmentRecordReader; signUrl?: (storageKey: string) => Promise<string> } = {}) {
+export function createAttachmentPreviewHandler(dependencies: {
+  getIdentity?: (req: Request) => Promise<AttachmentIdentity | null>;
+  readRecord?: AttachmentRecordReader;
+  signUrl?: (storageKey: string) => Promise<string>;
+  downloadFirebase?: (storageKey: string, downloadToken: string, idToken: string) => Promise<{ data: Buffer; contentType: string | null }>;
+} = {}) {
   const getIdentity = dependencies.getIdentity ?? getFirebaseIdentity;
   const readRecord = dependencies.readRecord ?? readAttachmentRecordFromFirestore;
   const signUrl = dependencies.signUrl ?? storageGetSignedUrl;
+  const downloadFirebase = dependencies.downloadFirebase ?? firebaseStorageDownload;
   return async (req: Request, res: Response) => {
     try {
       const identity = await getIdentity(req);
@@ -185,7 +191,16 @@ export function createAttachmentPreviewHandler(dependencies: { getIdentity?: (re
       const storageKey = attachment && getAttachmentStorageKey(attachment, previewRequest.ownerUid, previewRequest.recordType, previewRequest.recordId);
       if (!storageKey) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
       const firebaseDownloadToken = getAttachmentFirebaseDownloadToken(attachment);
-      if (firebaseDownloadToken) return res.json({ url: buildFirebaseStorageDownloadUrl(storageKey, firebaseDownloadToken), requiresAuthorization: true });
+      if (firebaseDownloadToken) {
+        if (req.query.download === '1') {
+          const file = await downloadFirebase(storageKey, firebaseDownloadToken, identity.idToken);
+          res.setHeader('Content-Type', file.contentType || (typeof attachment.mimeType === 'string' ? attachment.mimeType : 'application/octet-stream'));
+          res.setHeader('Cache-Control', 'private, no-store');
+          return res.status(200).send(file.data);
+        }
+        const downloadPath = new URLSearchParams({ ownerUid: previewRequest.ownerUid, recordType: previewRequest.recordType, recordId: previewRequest.recordId, attachmentId: previewRequest.attachmentId, download: '1' });
+        return res.json({ url: `/api/attachments/preview?${downloadPath.toString()}`, requiresAuthorization: true });
+      }
       return res.json({ url: await signUrl(storageKey) });
     } catch (error) {
       if (isMissingStorageObject(error)) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });

@@ -7,6 +7,11 @@ export type FirebaseStorageObject = {
   downloadToken: string;
 };
 
+export type FirebaseStorageDownload = {
+  data: Buffer;
+  contentType: string | null;
+};
+
 function getBucketName(): string {
   const bucket = firebaseConfig.storageBucket?.trim();
   if (!bucket) throw new Error('Firebase Storage bucket is not configured');
@@ -23,6 +28,26 @@ export function buildFirebaseStorageDownloadUrl(storageKey: string, downloadToke
   url.searchParams.set('alt', 'media');
   url.searchParams.set('token', downloadToken);
   return url.toString();
+}
+
+/**
+ * Downloads an object from Firebase Storage on the server with the record
+ * owner's ID token. Browsers then fetch the same-origin preview route, which
+ * avoids opening Firebase Storage CORS rules or public download URLs.
+ */
+export async function firebaseStorageDownload(storageKey: string, downloadToken: string, idToken: string): Promise<FirebaseStorageDownload> {
+  if (!idToken) throw new Error('Firebase Storage download requires an ID token');
+  const response = await fetch(buildFirebaseStorageDownloadUrl(storageKey, downloadToken), {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!response.ok) {
+    const message = await response.text().catch(() => response.statusText);
+    throw new Error(`Firebase Storage download failed (${response.status}): ${message}`);
+  }
+  return {
+    data: Buffer.from(await response.arrayBuffer()),
+    contentType: response.headers.get('content-type'),
+  };
 }
 
 /**

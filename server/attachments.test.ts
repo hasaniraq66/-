@@ -72,7 +72,7 @@ describe('attachment upload validation', () => {
 
 describe('attachment preview access', () => {
   const previewQuery = { ownerUid: 'owner-123', recordType: 'debt', recordId: 'debt_2026_0001', attachmentId: 'att-001' };
-  const response = () => ({ status: vi.fn().mockReturnThis(), json: vi.fn() });
+  const response = () => ({ status: vi.fn().mockReturnThis(), json: vi.fn(), send: vi.fn(), setHeader: vi.fn() });
 
   it('rejects a preview request without a verified Firebase identity', async () => {
     const signUrl = vi.fn();
@@ -154,7 +154,7 @@ describe('attachment preview access', () => {
     expect(res.json).toHaveBeenCalledWith({ url: 'https://signed.example/receipt' });
   });
 
-  it('returns a Firebase download URL only after record ownership is verified', async () => {
+  it('returns a same-origin Firebase download route only after record ownership is verified', async () => {
     const signUrl = vi.fn();
     const handler = createAttachmentPreviewHandler({
       getIdentity: async () => ({ uid: 'owner-123', idToken: 'token' }),
@@ -165,8 +165,27 @@ describe('attachment preview access', () => {
 
     await handler({ query: previewQuery } as unknown as Request, res as unknown as Response);
 
-    expect(res.json).toHaveBeenCalledWith({ url: expect.stringContaining('firebasestorage.googleapis.com'), requiresAuthorization: true });
+    expect(res.json).toHaveBeenCalledWith({ url: expect.stringContaining('/api/attachments/preview?'), requiresAuthorization: true });
+    expect(res.json).toHaveBeenCalledWith({ url: expect.stringContaining('download=1'), requiresAuthorization: true });
     expect(signUrl).not.toHaveBeenCalled();
+  });
+
+  it('streams a Firebase attachment only through the verified owner preview route', async () => {
+    const downloadFirebase = vi.fn().mockResolvedValue({ data: Buffer.from('safe-image'), contentType: 'image/png' });
+    const handler = createAttachmentPreviewHandler({
+      getIdentity: async () => ({ uid: 'owner-123', idToken: 'owner-token' }),
+      readRecord: async () => ({ userId: 'owner-123', attachments: [{ id: 'att-001', storageKey: 'financial-attachments/owner-123/debt/debt_2026_0001/receipt.png', storageDownloadToken: '12345678-1234-1234-1234-123456789abc', mimeType: 'image/png' }] }),
+      downloadFirebase,
+    });
+    const res = response();
+
+    await handler({ query: { ...previewQuery, download: '1' } } as unknown as Request, res as unknown as Response);
+
+    expect(downloadFirebase).toHaveBeenCalledWith('financial-attachments/owner-123/debt/debt_2026_0001/receipt.png', '12345678-1234-1234-1234-123456789abc', 'owner-token');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, no-store');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith(Buffer.from('safe-image'));
   });
 
   it('returns a safe 404 without a URL when the authorised record points to a missing storage object', async () => {
