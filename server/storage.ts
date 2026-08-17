@@ -4,11 +4,15 @@
 
 import { ENV } from "./_core/env.js";
 
+export function isForgeStorageConfigured(): boolean {
+  return Boolean(ENV.forgeApiUrl && ENV.forgeApiKey);
+}
+
 function getForgeConfig() {
   const forgeUrl = ENV.forgeApiUrl;
   const forgeKey = ENV.forgeApiKey;
 
-  if (!forgeUrl || !forgeKey) {
+  if (!isForgeStorageConfigured()) {
     throw new Error(
       "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY",
     );

@@ -58,6 +58,16 @@ describe('attachment upload validation', () => {
     expect(put).toHaveBeenCalledWith('financial-attachments/owner-A/expense/expense_2026_0001/receipt_august.pdf', expect.any(Buffer), 'application/pdf');
     expect(json).toHaveBeenCalledWith(expect.objectContaining({ id: expect.any(String), url: expect.stringContaining('/api/attachments/preview?'), storageKey: 'financial-attachments/owner-A/expense/expense_2026_0001/receipt_august_123.pdf' }));
   });
+
+  it('preserves a Firebase download token only when the storage writer returns one', async () => {
+    const put = vi.fn().mockResolvedValue({ key: 'financial-attachments/owner-A/expense/expense_2026_0001/receipt.pdf', url: 'https://storage.example/receipt', downloadToken: '12345678-1234-1234-1234-123456789abc' });
+    const handler = createAttachmentUploadHandler({ getUid: async () => 'owner-A', put, createId: () => 'att-123' });
+    const json = vi.fn();
+
+    await handler({ body: validPayload } as Request, { status: vi.fn().mockReturnThis(), json } as unknown as Response);
+
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({ id: 'att-123', storageDownloadToken: '12345678-1234-1234-1234-123456789abc' }));
+  });
 });
 
 describe('attachment preview access', () => {
@@ -142,6 +152,21 @@ describe('attachment preview access', () => {
 
     expect(signUrl).toHaveBeenCalledWith('financial-attachments/owner-123/debt/debt_2026_0001/receipt_123.pdf');
     expect(res.json).toHaveBeenCalledWith({ url: 'https://signed.example/receipt' });
+  });
+
+  it('returns a Firebase download URL only after record ownership is verified', async () => {
+    const signUrl = vi.fn();
+    const handler = createAttachmentPreviewHandler({
+      getIdentity: async () => ({ uid: 'owner-123', idToken: 'token' }),
+      readRecord: async () => ({ userId: 'owner-123', attachments: [{ id: 'att-001', storageKey: 'financial-attachments/owner-123/debt/debt_2026_0001/receipt.pdf', storageDownloadToken: '12345678-1234-1234-1234-123456789abc' }] }),
+      signUrl,
+    });
+    const res = response();
+
+    await handler({ query: previewQuery } as unknown as Request, res as unknown as Response);
+
+    expect(res.json).toHaveBeenCalledWith({ url: expect.stringContaining('firebasestorage.googleapis.com') });
+    expect(signUrl).not.toHaveBeenCalled();
   });
 
   it('returns a safe 404 without a URL when the authorised record points to a missing storage object', async () => {

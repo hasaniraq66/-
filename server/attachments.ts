@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { updateAttachmentReview } from '../client/src/lib/attachmentReview.js';
 import type { AttachmentReviewActor, AttachmentReviewStatus, FinancialAttachment } from '../client/src/types.js';
-import { storageGetSignedUrl, storagePut } from './storage.js';
+import { buildFirebaseStorageDownloadUrl, firebaseStoragePut } from './firebaseStorage.js';
+import { isForgeStorageConfigured, storageGetSignedUrl, storagePut } from './storage.js';
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -151,6 +152,11 @@ function getAttachmentStorageKey(attachment: Record<string, unknown>, ownerUid: 
   return storageKey.startsWith(expectedPrefix) ? storageKey : null;
 }
 
+function getAttachmentFirebaseDownloadToken(attachment: Record<string, unknown>): string | null {
+  const token = attachment.storageDownloadToken;
+  return typeof token === 'string' && /^[a-zA-Z0-9-]{20,128}$/.test(token) ? token : null;
+}
+
 function isMissingStorageObject(error: unknown): boolean {
   return error instanceof Error && /(?:\(|\s)404(?:\)|\s|:)/.test(error.message);
 }
@@ -178,6 +184,8 @@ export function createAttachmentPreviewHandler(dependencies: { getIdentity?: (re
       const attachment = record.attachments.find((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && (item as Record<string, unknown>).id === previewRequest.attachmentId);
       const storageKey = attachment && getAttachmentStorageKey(attachment, previewRequest.ownerUid, previewRequest.recordType, previewRequest.recordId);
       if (!storageKey) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
+      const firebaseDownloadToken = getAttachmentFirebaseDownloadToken(attachment);
+      if (firebaseDownloadToken) return res.json({ url: buildFirebaseStorageDownloadUrl(storageKey, firebaseDownloadToken) });
       return res.json({ url: await signUrl(storageKey) });
     } catch (error) {
       if (isMissingStorageObject(error)) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
@@ -212,8 +220,9 @@ export function createAttachmentReviewHandler(dependencies: { getIdentity?: (req
   };
 }
 
-export function createAttachmentUploadHandler(dependencies: { getUid?: (req: Request) => Promise<string | null>; put?: AttachmentStorageWriter; createId?: () => string; now?: () => Date } = {}) {
+export function createAttachmentUploadHandler(dependencies: { getUid?: (req: Request) => Promise<string | null>; getIdentity?: (req: Request) => Promise<AttachmentIdentity | null>; put?: AttachmentStorageWriter; createId?: () => string; now?: () => Date } = {}) {
   const getUid = dependencies.getUid ?? getFirebaseUid;
+  const getIdentity = dependencies.getIdentity ?? getFirebaseIdentity;
   const put = dependencies.put ?? storagePut;
   const createId = dependencies.createId ?? randomUUID;
   const now = dependencies.now ?? (() => new Date());
@@ -224,8 +233,25 @@ export function createAttachmentUploadHandler(dependencies: { getUid?: (req: Req
       const validated = validateAttachmentUpload(req.body as AttachmentUploadPayload);
       if (!validated.ok) return res.status(400).json({ error: validated.error });
       const attachmentId = createId();
-      const stored = await put(buildAttachmentStoragePath(uid, validated.recordType, validated.recordId, validated.safeName), validated.data, validated.mimeType);
-      return res.json({ id: attachmentId, name: validated.name, url: buildAttachmentPreviewPath(uid, validated.recordType, validated.recordId, attachmentId), storageKey: stored.key, mimeType: validated.mimeType, size: validated.data.length, uploadedAt: now().toISOString(), reviewStatus: 'pending_review' });
+      const storagePath = buildAttachmentStoragePath(uid, validated.recordType, validated.recordId, validated.safeName);
+      const stored: { key: string; url: string; downloadToken?: string } = dependencies.put || isForgeStorageConfigured()
+        ? await put(storagePath, validated.data, validated.mimeType)
+        : await (async () => {
+          const identity = await getIdentity(req);
+          if (!identity || identity.uid !== uid) throw new Error('Firebase Storage upload identity could not be verified');
+          return firebaseStoragePut(storagePath, validated.data, validated.mimeType, identity.idToken);
+        })();
+      return res.json({
+        id: attachmentId,
+        name: validated.name,
+        url: buildAttachmentPreviewPath(uid, validated.recordType, validated.recordId, attachmentId),
+        storageKey: stored.key,
+        ...(stored.downloadToken ? { storageDownloadToken: stored.downloadToken } : {}),
+        mimeType: validated.mimeType,
+        size: validated.data.length,
+        uploadedAt: now().toISOString(),
+        reviewStatus: 'pending_review',
+      });
     } catch (error) {
       console.error('[Attachments] upload failed', error);
       return res.status(500).json({ error: 'تعذر حفظ المرفق حالياً. حاول مجدداً.' });

@@ -31,6 +31,8 @@ export interface FinancialAttachment {
   name: string;
   url: string;
   storageKey?: string;
+  /** Token for a Firebase Storage object; it is returned only by the protected preview route. */
+  storageDownloadToken?: string;
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
   size: number;
   uploadedAt: string;

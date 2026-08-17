@@ -178,3 +178,17 @@ GET /api/attachments أرجع 500 FUNCTION_INVOCATION_FAILED (dpl: fh6vg-1786918
 سجل Vercel runtime أوضح الخطأ في كل النشرات الأخيرة (dpl_91mCNSXw: @shared missing، dpl_FfWfQKS و dpl_5utSh3oL):
 `TypeError [ERR_IMPORT_ATTRIBUTE_MISSING]: Module "file:///var/task/client/firebase-applet-config.json" needs an import attribute of "type: json"`
 أي أن الكود يستورد ملف JSON عبر import ESM دون `with { type: "json" }`، وNode 22 على Vercel يرفض ذلك منذ Node 22.9+ (المعيار أصبح إلزامياً). الحل: تحويل استيراد firebase-applet-config.json إلى fs.readFileSync بدلاً من import static، أو إضافة import attribute. الأمل: أن استيراد TS يُولّد import عادي — يجب تعديل طريقة قراءة الملف إلى require (لا يعمل في ESM) أو fs.readFileSync.
+
+## نتيجة اختبار QA بعد إصلاح JSON (2026-08-17)
+
+| البند | النتيجة |
+|---|---|
+| النشرة المختبرة | `1fjstwfyh-33dx7bpeq-hassan-s9-projects.vercel.app` عبر رابط وصول Vercel مؤقت |
+| المصادقة | نجح تسجيل الدخول بحساب QA V2 وظهرت لوحة التحكم وقائمة الديون |
+| مسارات الدالة | لم يعد خطأ `ERR_IMPORT_ATTRIBUTE_MISSING` يمنع تشغيل الدالة؛ وصلت واجهة الرفع إلى مسار `POST /api/attachments/upload` |
+| اختبار رفع PNG غير حساس | أرجع المسار رسالة الواجهة العامة الخاصة بـ 500؛ لم يُسجَّل مرفق صالح في كشف الحساب |
+| سبب المتابعة | `storagePut` و`/manus-storage/*` يعتمدان على `BUILT_IN_FORGE_API_URL` و`BUILT_IN_FORGE_API_KEY`، وهما غير متاحين في نشر Vercel المستقل، لذلك لا يكفي إصلاح ESM لرفع الملفات أو معاينتها |
+
+### الإصلاح المُعَد للنشر
+
+أُضيف مسار تخزين بديل في `server/firebaseStorage.ts`. عند توفر مفاتيح Forge يستمر النظام باستخدام التخزين الأصلي دون تغيير. أما عند غيابها في Vercel، فيرفع الخادم الملف إلى Firebase Storage باستخدام رمز Firebase ID الخاص بصاحب الطلب، ويكتب رمز تنزيل عشوائياً داخل بيانات المرفق. لا يعاد رابط Firebase إلا من مسار المعاينة المحمي بعد تأكيد ملكية سجل الدين أو المصروف في Firestore. يشمل الإصلاح اختبارات موحّدة للرفع وبناء الرابط وتفويض المعاينة؛ نتائج التحقق المحلي: **60 اختباراً ناجحاً**، وفحص TypeScript وبناء Vite ناجحان.
