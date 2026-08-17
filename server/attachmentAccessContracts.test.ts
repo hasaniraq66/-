@@ -15,7 +15,8 @@ describe('attachment access contracts', () => {
   });
 
   it('keeps preview and removal actions scoped to the current record attachment list', () => {
-    expect(attachmentComponent).toContain('getProtectedPreviewUrl');
+    expect(attachmentComponent).toContain('getProtectedPreview');
+    expect(attachmentComponent).toContain('resolveProtectedAttachmentPreview');
     expect(attachmentComponent).toContain('handlePreview(attachment)');
     expect(attachmentComponent).toContain('onChange(attachments.filter((item) => item.id !== attachment.id))');
     expect(attachmentComponent).toContain('src={previewUrl}');

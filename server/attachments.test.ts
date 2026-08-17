@@ -165,7 +165,7 @@ describe('attachment preview access', () => {
 
     await handler({ query: previewQuery } as unknown as Request, res as unknown as Response);
 
-    expect(res.json).toHaveBeenCalledWith({ url: expect.stringContaining('firebasestorage.googleapis.com') });
+    expect(res.json).toHaveBeenCalledWith({ url: expect.stringContaining('firebasestorage.googleapis.com'), requiresAuthorization: true });
     expect(signUrl).not.toHaveBeenCalled();
   });
 

@@ -1,8 +1,9 @@
-import { ChangeEvent, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, ExternalLink, FileImage, FileText, History, LoaderCircle, MessageSquare, Paperclip, Save, Trash2, Upload, X } from 'lucide-react';
 import { auth } from '../utils/firebaseService';
 import type { FinancialAttachment } from '../types';
 import { describeAttachmentReviewAuditEntry, getAttachmentReviewAuditLog, getAttachmentReviewStatus, getAttachmentReviewSummary, MAX_INTERNAL_ATTACHMENT_NOTE_LENGTH } from '../lib/attachmentReview';
+import { resolveProtectedAttachmentPreview, type ResolvedAttachmentPreview } from '../lib/protectedAttachmentPreview';
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS = 10;
@@ -48,8 +49,18 @@ export default function FinancialAttachments({ ownerUid, recordId, recordType, a
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const previewCleanupRef = useRef<(() => void) | null>(null);
 
   const reviewSummary = getAttachmentReviewSummary(attachments);
+
+  const closePreview = () => {
+    previewCleanupRef.current?.();
+    previewCleanupRef.current = null;
+    setPreviewAttachment(null);
+    setPreviewUrl(null);
+  };
+
+  useEffect(() => () => previewCleanupRef.current?.(), []);
 
   const saveReview = async (attachment: FinancialAttachment, update: { reviewStatus?: 'pending_review' | 'reviewed'; internalNote?: string }) => {
     const user = auth.currentUser;
@@ -88,20 +99,23 @@ export default function FinancialAttachments({ ownerUid, recordId, recordType, a
     setNoteDraft(attachment.internalNote ?? '');
   };
 
-  const getProtectedPreviewUrl = async (attachment: FinancialAttachment): Promise<string> => {
+  const getProtectedPreview = async (attachment: FinancialAttachment): Promise<ResolvedAttachmentPreview> => {
     const user = auth.currentUser;
     if (!user) throw new Error('سجّل الدخول أولاً قبل معاينة المرفقات.');
     const idToken = await user.getIdToken();
     const url = `/api/attachments/preview?${new URLSearchParams({ ownerUid, recordType, recordId, attachmentId: attachment.id }).toString()}`;
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
-    const body = await response.json() as { url?: string; error?: string };
-    if (!response.ok || !body.url) throw new Error(body.error || 'تعذر فتح المرفق.');
-    return body.url;
+    return resolveProtectedAttachmentPreview(url, idToken);
   };
 
   const handlePreview = async (attachment: FinancialAttachment) => {
     setError(''); setSuccessMessage(''); setPreviewingAttachmentId(attachment.id); setIsResolvingPreview(true);
-    try { setPreviewUrl(await getProtectedPreviewUrl(attachment)); setPreviewAttachment(attachment); }
+    try {
+      const preview = await getProtectedPreview(attachment);
+      previewCleanupRef.current?.();
+      previewCleanupRef.current = preview.revoke;
+      setPreviewUrl(preview.url);
+      setPreviewAttachment(attachment);
+    }
     catch (previewError) { setError(previewError instanceof Error ? previewError.message : 'تعذر فتح المرفق.'); }
     finally { setPreviewingAttachmentId(null); setIsResolvingPreview(false); }
   };
@@ -110,9 +124,10 @@ export default function FinancialAttachments({ ownerUid, recordId, recordType, a
     const newWindow = window.open('', '_blank', 'noopener,noreferrer');
     setError(''); setSuccessMessage(''); setOpeningAttachmentId(attachment.id);
     try {
-      const url = await getProtectedPreviewUrl(attachment);
-      if (newWindow) newWindow.location.replace(url);
-      else window.location.assign(url);
+      const preview = await getProtectedPreview(attachment);
+      if (newWindow) newWindow.location.replace(preview.url);
+      else window.location.assign(preview.url);
+      window.setTimeout(preview.revoke, 60_000);
     } catch (previewError) {
       newWindow?.close();
       setError(previewError instanceof Error ? previewError.message : 'تعذر فتح المرفق.');
@@ -170,6 +185,6 @@ export default function FinancialAttachments({ ownerUid, recordId, recordType, a
       <input ref={inputRef} type="file" accept={ACCEPT} onChange={handleFile} className="hidden" />
       <button type="button" disabled={isUploading || attachments.length >= MAX_ATTACHMENTS} onClick={() => inputRef.current?.click()} className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-bold text-white transition duration-150 hover:bg-sky-500 active:scale-[0.98] motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-60">{isUploading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Upload className="h-4 w-4" />}{isUploading ? 'يجري الرفع…' : attachments.length >= MAX_ATTACHMENTS ? `وصلت إلى الحد الأقصى (${MAX_ATTACHMENTS})` : 'إرفاق فاتورة أو إيصال'}</button>
     </div>}
-    {previewAttachment && previewUrl && <div role="dialog" aria-modal="true" aria-label={`معاينة ${previewAttachment.name}`} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" onMouseDown={() => { setPreviewAttachment(null); setPreviewUrl(null); }}><div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><div className="flex items-center justify-between border-b border-slate-100 p-3"><strong className="truncate text-sm text-slate-800">{previewAttachment.name}</strong><button type="button" onClick={() => { setPreviewAttachment(null); setPreviewUrl(null); }} aria-label="إغلاق المعاينة" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div><div className="max-h-[calc(90vh-60px)] overflow-auto bg-slate-100 p-3">{previewAttachment.mimeType === 'application/pdf' ? <iframe title={`معاينة ${previewAttachment.name}`} src={previewUrl} className="h-[70vh] w-full rounded-lg bg-white" /> : <img src={previewUrl} alt={`معاينة مرفق ${previewAttachment.name}`} className="mx-auto max-h-[70vh] max-w-full rounded-lg object-contain" />}</div></div></div>}
+    {previewAttachment && previewUrl && <div role="dialog" aria-modal="true" aria-label={`معاينة ${previewAttachment.name}`} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" onMouseDown={closePreview}><div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><div className="flex items-center justify-between border-b border-slate-100 p-3"><strong className="truncate text-sm text-slate-800">{previewAttachment.name}</strong><button type="button" onClick={closePreview} aria-label="إغلاق المعاينة" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div><div className="max-h-[calc(90vh-60px)] overflow-auto bg-slate-100 p-3">{previewAttachment.mimeType === 'application/pdf' ? <iframe title={`معاينة ${previewAttachment.name}`} src={previewUrl} className="h-[70vh] w-full rounded-lg bg-white" /> : <img src={previewUrl} alt={`معاينة مرفق ${previewAttachment.name}`} className="mx-auto max-h-[70vh] max-w-full rounded-lg object-contain" />}</div></div></div>}
   </div>;
 }

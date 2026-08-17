@@ -185,7 +185,7 @@ export function createAttachmentPreviewHandler(dependencies: { getIdentity?: (re
       const storageKey = attachment && getAttachmentStorageKey(attachment, previewRequest.ownerUid, previewRequest.recordType, previewRequest.recordId);
       if (!storageKey) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
       const firebaseDownloadToken = getAttachmentFirebaseDownloadToken(attachment);
-      if (firebaseDownloadToken) return res.json({ url: buildFirebaseStorageDownloadUrl(storageKey, firebaseDownloadToken) });
+      if (firebaseDownloadToken) return res.json({ url: buildFirebaseStorageDownloadUrl(storageKey, firebaseDownloadToken), requiresAuthorization: true });
       return res.json({ url: await signUrl(storageKey) });
     } catch (error) {
       if (isMissingStorageObject(error)) return res.status(404).json({ error: 'المرفق غير موجود أو لا تملك صلاحية الوصول إليه.' });
