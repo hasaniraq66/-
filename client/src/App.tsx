@@ -978,13 +978,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#f8fafc]" id="app-container">
+    <div className="min-h-screen flex flex-col md:flex-row" id="app-container">
       
       {/* Mobile Top Header */}
       <header className="md:hidden bg-slate-950 text-white p-4 flex justify-between items-center shadow-md z-40" id="mobile-top-header">
         <div className="flex items-center gap-2">
           <Coins className="w-5 h-5 text-sky-400" />
-          <span className="font-extrabold text-sm tracking-tight">مدير الديون الشخصي</span>
+          <span className="font-extrabold text-sm tracking-tight">ديوني وميزانيتي <span className="text-sky-300">برو</span></span>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -1035,7 +1035,7 @@ export default function App() {
       {/* Responsive Sidebar */}
       <aside 
         id="app-sidebar"
-        className={`fixed md:sticky top-0 right-0 h-full w-64 md:w-72 bg-[#090d16] text-slate-300 z-50 flex flex-col justify-between transition-all duration-300 transform md:transform-none border-l border-slate-800/40 shadow-xl ${
+        className={`vault-sidebar fixed md:sticky top-0 right-0 h-full w-64 md:w-72 text-slate-300 z-50 flex flex-col justify-between transition-all duration-300 transform md:transform-none border-l border-slate-800/40 shadow-xl ${
           isSidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         }`}
       >
@@ -1342,7 +1342,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full space-y-6" id="main-scrollable-content">
+      <main className="vault-content-shell flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full space-y-6" id="main-scrollable-content">
         
         {/* Dynamic active view injection */}
         <AnimatePresence mode="wait">

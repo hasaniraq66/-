@@ -8,10 +8,10 @@ export function AppDataLoadingExperience({ stage }: { stage: DataLoadingStage })
   const copy = getLoadingStageCopy(stage);
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-5 font-sans text-right text-slate-100" dir="rtl" aria-busy="true" aria-describedby="app-loading-status">
+    <main className="auth-vault-background relative flex min-h-screen items-center justify-center overflow-hidden px-5 font-sans text-right text-slate-100" dir="rtl" aria-busy="true" aria-describedby="app-loading-status">
       <div aria-hidden="true" className="absolute -right-32 top-[-8rem] h-80 w-80 rounded-full bg-sky-500/15 blur-3xl" />
       <div aria-hidden="true" className="absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl" />
-      <section className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-sky-950/50 backdrop-blur sm:p-8" role="status">
+      <section className="auth-vault-card relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/10 p-6 shadow-2xl shadow-sky-950/50 backdrop-blur sm:p-8" role="status">
         <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-gradient-to-l from-transparent via-sky-300/80 to-transparent" />
         <div className="flex items-start gap-4">
           <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-500/15 ring-1 ring-sky-300/20">

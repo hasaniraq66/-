@@ -9,7 +9,8 @@ import {
   Loader2, 
   Coins, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   createUserWithEmailAndPassword, 
@@ -193,27 +194,27 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden font-sans" id="auth-viewport">
+    <div className="auth-vault-background min-h-screen flex items-center justify-center p-4 relative overflow-hidden font-sans" id="auth-viewport">
       {/* Visual background flares */}
-      <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl animate-pulse delay-700"></div>
+      <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl animate-pulse motion-reduce:animate-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl animate-pulse delay-700 motion-reduce:animate-none"></div>
 
-      <div className="w-full max-w-md bg-[#0d1527] border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl relative z-10 space-y-6" id="auth-card">
+      <div className="auth-vault-card w-full max-w-md border border-sky-100/10 rounded-3xl p-6 md:p-8 shadow-2xl relative z-10 space-y-6" id="auth-card">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex p-3.5 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl text-white shadow-lg shadow-sky-500/20">
+          <div className="inline-flex p-3.5 bg-gradient-to-br from-sky-400 to-sky-600 rounded-2xl text-white shadow-lg shadow-sky-500/25 ring-1 ring-inset ring-white/20">
             <Coins className="w-8 h-8" />
           </div>
-          <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center justify-center gap-1.5">
+          <h1 className="auth-wordmark text-xl md:text-2xl font-black text-white tracking-tight flex items-center justify-center gap-1.5">
             ديوني وميزانيتي <span className="text-xs bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded-full font-black">برو</span>
           </h1>
           <p className="text-xs text-slate-400 font-medium">
-            نظام إدارة الالتزامات المالية والمشاريع والرواتب الآمن
+            خزينة مالية ذكية لإدارة التزاماتك ومشاريعك بثقة
           </p>
         </div>
 
         {/* Tabs for Login vs Signup */}
-        <div className="flex bg-[#070b15] p-1 rounded-xl border border-slate-800">
+        <div className="flex bg-[#070b15]/80 p-1 rounded-xl border border-slate-700/80 shadow-inner shadow-black/20">
           <button
             onClick={() => { setIsLogin(true); setError(''); }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
@@ -410,7 +411,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           <span>تسجيل الدخول باستخدام Google</span>
         </button>
 
-        <div className="text-center font-bold text-[10px] text-slate-500 space-y-2 pt-2 border-t border-slate-900/60" id="auth-encryption-badge">
+        <div className="vault-trust-strip text-center font-bold text-[10px] space-y-2 pt-3" id="auth-encryption-badge">
+          <p className="flex items-center justify-center gap-1.5 text-slate-400">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+            خصوصيتك وبياناتك المالية في مساحة محمية
+          </p>
           <p>🛡️ جميع اتصالاتك وبياناتك مشفرة بالكامل عبر بروتوكول SSL آمن.</p>
           <div className="text-slate-400 text-[10px] font-bold">
             <p>تطوير وبرمجة النظام: <span className="text-sky-400">حسن الشمري</span></p>

@@ -14,6 +14,160 @@ body {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
+/* Arabic financial vault visual system */
+:root {
+  --vault-navy: #07111f;
+  --vault-ink: #0b172a;
+  --vault-cyan: #0ea5e9;
+  --vault-cyan-bright: #38bdf8;
+  --vault-line: rgba(148, 163, 184, 0.14);
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.24);
+  color: #082f49;
+}
+
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.42);
+  outline-offset: 3px;
+}
+
+#app-container {
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(rgba(14, 165, 233, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 84% 6%, rgba(56, 189, 248, 0.10), transparent 26rem);
+  background-size: 26px 26px, 26px 26px, auto;
+}
+
+.dark #app-container {
+  background-color: var(--vault-navy) !important;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 84% 6%, rgba(14, 165, 233, 0.12), transparent 28rem) !important;
+}
+
+.vault-sidebar {
+  background:
+    linear-gradient(180deg, rgba(11, 23, 42, 0.98) 0%, rgba(5, 12, 24, 0.99) 100%) !important;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.06), 0 22px 60px rgba(2, 6, 23, 0.22);
+}
+
+.vault-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.38;
+  background-image: linear-gradient(180deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+  background-size: 100% 44px;
+}
+
+.vault-sidebar > * {
+  position: relative;
+}
+
+.vault-content-shell {
+  min-height: 100%;
+}
+
+#sidebar-nav button {
+  position: relative;
+  min-height: 42px;
+}
+
+#sidebar-nav button[class*="bg-sky-600"] {
+  background-image: linear-gradient(135deg, #0284c7, #0ea5e9) !important;
+  box-shadow: 0 9px 22px rgba(2, 132, 199, 0.20) !important;
+}
+
+#sidebar-nav button[class*="bg-sky-600"]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 20%;
+  width: 3px;
+  height: 60%;
+  border-radius: 999px 0 0 999px;
+  background: #e0f2fe;
+}
+
+.auth-vault-background {
+  background-color: var(--vault-navy);
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.038) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.038) 1px, transparent 1px),
+    radial-gradient(circle at 17% 82%, rgba(16, 185, 129, 0.11), transparent 24rem),
+    radial-gradient(circle at 82% 18%, rgba(14, 165, 233, 0.15), transparent 25rem);
+  background-size: 28px 28px, 28px 28px, auto, auto;
+}
+
+.auth-vault-card {
+  background: linear-gradient(145deg, rgba(16, 28, 50, 0.94), rgba(7, 15, 29, 0.95)) !important;
+  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.46), inset 0 1px 0 rgba(226, 232, 240, 0.06);
+}
+
+.auth-wordmark {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.vault-trust-strip {
+  border-top: 1px solid rgba(148, 163, 184, 0.13);
+  color: #94a3b8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #sidebar-nav button,
+  #command-palette-trigger,
+  #mobile-bottom-nav button,
+  #auth-viewport button {
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms cubic-bezier(0.23, 1, 0.32, 1), color 160ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+  }
+
+  #sidebar-nav button:active,
+  #command-palette-trigger:active,
+  #mobile-bottom-nav button:active,
+  #auth-viewport button:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (max-width: 767px) {
+  #main-scrollable-content {
+    padding-top: 1.25rem;
+  }
+
+  #mobile-top-header {
+    background: linear-gradient(135deg, #07111f, #0b1b32) !important;
+    border-bottom: 1px solid rgba(125, 211, 252, 0.13);
+  }
+
+  #mobile-bottom-nav {
+    padding-bottom: max(0.65rem, env(safe-area-inset-bottom)) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+  }
+
+  .dark #mobile-bottom-nav {
+    background: rgba(11, 23, 42, 0.96) !important;
+  }
+
+  #mobile-bottom-nav button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* Custom scrollbar styling for a modern look */
 ::-webkit-scrollbar {
   width: 6px;
@@ -338,5 +492,3 @@ input[type="date"] {
     display: none !important;
   }
 }
-
-
