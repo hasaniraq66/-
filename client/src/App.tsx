@@ -41,9 +41,11 @@ import {
   sanitizeFinancialValue
 } from './utils/firebaseService';
 import AuthScreen from './components/AuthScreen';
+import EmailVerificationSuccess from './components/EmailVerificationSuccess';
 import ConfirmModal from './components/ConfirmModal';
 import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './components/DataLoadingExperience';
 import type { DataLoadingStage } from './lib/loadingExperience';
+import { getCleanApplicationUrl, getEmailVerificationActionParams, isEmailVerificationAction } from './lib/emailVerificationAction';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
@@ -84,6 +86,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [loadingStage, setLoadingStage] = useState<DataLoadingStage>('auth');
+  const isVerificationAction = isEmailVerificationAction(window.location.search);
+  const verificationActionParams = getEmailVerificationActionParams(window.location.search);
   
   // User Profile configuration
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -933,6 +937,24 @@ export default function App() {
 
   if (isAuthLoading) {
     return <AppDataLoadingExperience stage={loadingStage} />;
+  }
+
+  if (isVerificationAction) {
+    return (
+      <EmailVerificationSuccess
+        oobCode={verificationActionParams.oobCode}
+        fallbackSuccess={verificationActionParams.isFallbackSuccess}
+        hasVerifiedSession={Boolean(currentUser?.emailVerified)}
+        onContinue={() => {
+          const returnToApplication = () => window.location.assign(getCleanApplicationUrl(window.location));
+          if (currentUser?.emailVerified) {
+            returnToApplication();
+            return;
+          }
+          void signOut(auth).finally(returnToApplication);
+        }}
+      />
+    );
   }
 
   if (!currentUser) {

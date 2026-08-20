@@ -24,6 +24,7 @@ import {
 } from 'firebase/auth';
 import { auth, saveUserProfile, fetchUserProfile } from '../utils/firebaseService';
 import { getEmailVerificationErrorMessage, requiresEmailVerification } from '../lib/emailVerification';
+import { buildEmailVerificationActionUrl } from '../lib/emailVerificationAction';
 import { getVerificationStatusMessage } from '../lib/emailVerificationNotice';
 import EmailVerificationNotice from './EmailVerificationNotice';
 
@@ -52,6 +53,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [verificationAction, setVerificationAction] = useState<'idle' | 'resending' | 'checking'>('idle');
   const [verificationError, setVerificationError] = useState('');
 
+  const emailVerificationActionSettings = {
+    url: buildEmailVerificationActionUrl(window.location.origin),
+    handleCodeInApp: true,
+  };
+
   const resolveTargetEmail = (): string | null => {
     if (authMethod === 'email') {
       return email.includes('@') ? email.trim() : null;
@@ -77,7 +83,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       if (userCredential.user.emailVerified) {
         setVerificationNotice('تم تأكيد بريدك الإلكتروني بالفعل. اضغط «تحقق من الحالة» لفتح حسابك.');
       } else {
-        await sendEmailVerification(userCredential.user);
+        await sendEmailVerification(userCredential.user, emailVerificationActionSettings);
         setVerificationNotice('أُعيد إرسال رسالة التحقق. افحص صندوق الوارد والبريد غير الهام ثم سجّل الدخول مجدداً.');
       }
       await signOut(auth);
@@ -259,7 +265,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         await saveUserProfile(newProfile);
 
         if (authMethod === 'email') {
-          await sendEmailVerification(user);
+          await sendEmailVerification(user, emailVerificationActionSettings);
           await signOut(auth);
           setPendingVerificationEmail(user.email || targetEmail);
           setVerificationNotice('أرسلنا رسالة التأكيد. افتح الرابط الوارد فيها لإكمال الدخول.');
