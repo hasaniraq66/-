@@ -6,6 +6,7 @@ import { appRouter } from "./routers.js";
 import { registerAdvisorRoutes } from "./advisor.js";
 import { registerAttachmentRoutes } from "./attachments.js";
 import { createContext } from "./_core/context.js";
+import { applySecurityHeaders } from "./security.js";
 
 /**
  * يجهز تطبيق Express من دون فتح منفذ. تستخدمه جلسة التطوير المحلية ودالة Vercel
@@ -14,8 +15,11 @@ import { createContext } from "./_core/context.js";
 export function createApp(): Express {
   const app = express();
 
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.disable("x-powered-by");
+  app.use(applySecurityHeaders);
+  // 5 MiB للمرفق بعد فك Base64؛ 8 MiB تكفي للترميز وتمنع قبول طلبات ضخمة عامة.
+  app.use(express.json({ limit: "8mb" }));
+  app.use(express.urlencoded({ limit: "128kb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerAdvisorRoutes(app);

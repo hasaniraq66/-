@@ -9,6 +9,7 @@ import { isForgeStorageConfigured, storageGetSignedUrl, storagePut } from './sto
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const SAFE_NAME = /[^a-zA-Z0-9._-]+/g;
+const MAX_INTERNAL_NOTE_LENGTH = 2_000;
 
 export type AttachmentUploadPayload = { dataUrl?: unknown; name?: unknown; recordType?: unknown; recordId?: unknown };
 export type AttachmentStorageWriter = (path: string, data: Buffer, contentType: string) => Promise<{ key: string; url: string }>;
@@ -44,14 +45,24 @@ export function decodeAttachmentDataUrl(dataUrl: unknown): { data: Buffer; mimeT
   if (typeof dataUrl !== 'string') return null;
   const match = /^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!match) return null;
+  if (match[2].length % 4 !== 0) return null;
   const data = Buffer.from(match[2], 'base64');
-  return data.length > 0 ? { data, mimeType: match[1] } : null;
+  return data.length > 0 && data.toString('base64') === match[2] ? { data, mimeType: match[1] } : null;
+}
+
+function hasExpectedFileSignature(data: Buffer, mimeType: string): boolean {
+  if (mimeType === 'application/pdf') return data.subarray(0, 5).equals(Buffer.from('%PDF-'));
+  if (mimeType === 'image/jpeg') return data.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
+  if (mimeType === 'image/png') return data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (mimeType === 'image/webp') return data.subarray(0, 4).equals(Buffer.from('RIFF')) && data.subarray(8, 12).equals(Buffer.from('WEBP'));
+  return false;
 }
 
 export function validateAttachmentUpload(payload: AttachmentUploadPayload): { ok: true; data: Buffer; mimeType: string; safeName: string; name: string; recordType: 'debt' | 'expense'; recordId: string } | { ok: false; error: string } {
   const decoded = decodeAttachmentDataUrl(payload?.dataUrl);
   if (!decoded || !ALLOWED_TYPES.has(decoded.mimeType)) return { ok: false, error: 'الصيغة غير مدعومة. استخدم PDF أو JPG أو PNG أو WEBP.' };
   if (decoded.data.length > MAX_ATTACHMENT_BYTES) return { ok: false, error: 'حجم الملف أكبر من 5 ميغابايت.' };
+  if (!hasExpectedFileSignature(decoded.data, decoded.mimeType)) return { ok: false, error: 'محتوى الملف لا يطابق نوعه المعلن.' };
   if ((payload.recordType !== 'debt' && payload.recordType !== 'expense') || typeof payload.recordId !== 'string' || !/^[a-zA-Z0-9_-]{3,120}$/.test(payload.recordId)) return { ok: false, error: 'مرجع السجل غير صالح.' };
   const name = typeof payload.name === 'string' ? payload.name.slice(0, 120) : 'attachment';
   const safeName = name.replace(SAFE_NAME, '_').slice(0, 100) || 'attachment';
@@ -91,7 +102,7 @@ function parseReviewRequest(body: unknown): ({ ownerUid: string; recordType: 'de
     update.reviewStatus = input.reviewStatus;
   }
   if (input.internalNote !== undefined) {
-    if (typeof input.internalNote !== 'string') return null;
+    if (typeof input.internalNote !== 'string' || input.internalNote.length > MAX_INTERNAL_NOTE_LENGTH || /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(input.internalNote)) return null;
     update.internalNote = input.internalNote;
   }
   return Object.keys(update).length > 0 ? { ...reference, update } : null;

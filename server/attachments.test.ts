@@ -4,7 +4,7 @@ import { buildAttachmentStoragePath, createAttachmentPreviewHandler, createAttac
 
 describe('attachment upload validation', () => {
   const validPayload = {
-    dataUrl: 'data:application/pdf;base64,SGVsbG8=',
+    dataUrl: 'data:application/pdf;base64,JVBERi0xLjQ=',
     name: 'receipt august.pdf',
     recordType: 'expense' as const,
     recordId: 'expense_2026_0001',
@@ -28,6 +28,10 @@ describe('attachment upload validation', () => {
 
   it('rejects malformed data URLs before storage is attempted', () => {
     expect(validateAttachmentUpload({ ...validPayload, dataUrl: 'not-a-data-url' })).toMatchObject({ ok: false, error: expect.stringContaining('الصيغة') });
+  });
+
+  it('rejects a payload whose bytes do not match its declared allowed file type', () => {
+    expect(validateAttachmentUpload({ ...validPayload, dataUrl: 'data:image/png;base64,JVBERi0xLjQ=' })).toMatchObject({ ok: false, error: expect.stringContaining('محتوى الملف') });
   });
 
   it('builds storage paths from the authenticated owner rather than client-controlled input', () => {

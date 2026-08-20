@@ -29,7 +29,7 @@
 - الخطأ المحلي الموثق سابقاً: `[Attachments] upload failed TypeError [ERR_INVALID_THIS]: Value of "this" must be of type Crypto` — يحدث في Node 22 عند استخدام crypto.webcrypto بطريقة غير متوافقة مع Vite server proxy، لكنه ظهر في dev server أيضاً مما يستدعي التحقق.
 - ملاحظة: الرفع أثناء إنشاء الدين (النموذج) نجح لأن الصورة تُضمن كـ base64 محلياً داخل كشف الحركة ولا تمر بمسار /api/attachments/upload.
 - المطلوب: قراءة logs الإنتاج (manus-webdev-logs) أو فحص response فعلي لـ /api/attachments/upload في الإنتاج لتحديد السبب الجذري.
-https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload?_vercel_share=SKGVarlW5xVvJhWxax8jI4AdwU3CFAqt
+رابط اختبار الوصول المؤقت: **[محذوف لانتهاء صلاحيته]**
 
 ## التشخيص النهائي (21:30)
 سبب فشل رفع المرفقات في إنتاج Vercel هو خطأ في استيراد الوحدات: `Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/var/task/server/app' imported from /var/task/api/index.js`. المسار المنشور على Vercel هو `dpl_BfTYMfeTUPtUEDAz2512zS11s5qJ` (الفرع main). السبب الجذري أن `api/index.ts` يستورد `../server/app` بصيغة بدون امتداد، وفي بيئة Node ESM على Vercel يتطلب استيراد الامتداد `.js` النهائي عند البناء. الحل: تحويل الاستيراد في `api/index.ts` إلى مسار مُجمَّع أو إضافة امتداد `.js`، ثم إعادة النشر والتحقق مرة أخرى.
@@ -55,7 +55,7 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
   1) إعادة api/index.ts لاستيراد createApp من ../server/app.js مباشرة.
   2) إضافة امتدادات .js صريحة لجميع الاستيرادات النسبية (43 استيراداً) عبر scripts/add-ext.mjs.
   3) إزالة functions من vercel.json.
-- رابط الوصول المؤقت (يُجدد عند انتهاء الصلاحية): https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/?_vercel_share=Y62wAN0sb4WaxahfAR69lEQw7WoSKdxA
+- رابط الوصول المؤقت: **[محذوف لانتهاء صلاحيته]**
 - تمت المصادقة في الإنتاج بحساب الاختبار "اختبار إنتاجي للرفع" وعرض لوحة التحكم وصفحة الديون (دين DBT-2026-0001 السابق موجود).
 - فُتحت نافذة إضافة دين جديد، أُدخل ملف PNG qa-upload-prod.png في حقل المرفق، وظهرت المعاينة "صورة مرفقة بنجاح ✓ تم إرفاق صورة".
 - الخطوة التالية: تعبئة الحقول (الشخص، المبلغ 50، استحقاق) وحفظ الدين للتحقق من نجاح POST /api/attachments/upload في الإنتاج.
@@ -86,9 +86,9 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 
 بيانات حساب الاختبار V2 (يُحذف بعد الاختبار):
 - البريد: qa.production.v2.20260816215034@example.com
-- كلمة المرور: QATest#2026!
+- كلمة المرور: **[محذوفة بعد اكتمال اختبار QA]**
 - الاسم: اختبار إنتاجي V2
-- رابط وصول مؤقت (ينتهي 17/8 20:49): https://1fjstwfyh-8ozrimmvz-hassan-s9-projects.vercel.app/?_vercel_share=Ye5kB4LSLOArxOBWudlvCuAP2x4Me0F4
+- رابط وصول مؤقت: **[محذوف لانتهاء صلاحيته]**
 
 ملاحظة مهمة: رابط الإنتاج الأصلي https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app ما زال يعرض الدالة القديمة المعطوبة (FUNCTION_INVOCATION_FAILED) — يحتاج فحص alias الإنتاج في Vercel أو إبلاغ المستخدم بالرابط الجديد.
 
@@ -126,8 +126,8 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 - الخطوة التالية: فحص سجلات runtime بصيغة نصية since="-1d" أو similar، ثم التحقق من فحص الأخطاء حسب منطقة زمنية.
 
 ### بيانات اختبار V2
-- البريد: qa.production.v2.20260816215034@example.com / كلمة: QATest#2026!
-- رابط وصول مؤقت لـ 8ozrimmvz (ينتهي 17/8 20:49): ?_vercel_share=Ye5kB4LSLOArxOBWudlvCuAP2x4Me0F4
+- البريد: qa.production.v2.20260816215034@example.com / كلمة: **[محذوفة بعد اكتمال اختبار QA]**
+- رابط وصول مؤقت لـ 8ozrimmvz: **[محذوف لانتهاء صلاحيته]**
 
 ## تشخيص حاسم (21:53 UTC)
 
@@ -136,8 +136,8 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 
 ## اختبار النشرة الجديدة dpl_FfWfQKS (21:58 UTC)
 
-النشرة الجديدة dpl_FfWfQKSFZTQPEtcjwzbvZmnqfEdx (التزام 4e173784، إصلاح @shared aliases) جاهزة و READY على الإنتاج. رابط وصول مؤقت (ساعة): https://1fjstwfyh-k2t0r4os9-hassan-s9-projects.vercel.app/?_vercel_share=LLyyhMGcNkG0d01bSj02ljSVGham6wSy
-تسجيل الدخول بحساب V2 (qa.production.v2.20260816215034@example.com / QATest#2026!) نجح بنجاح كامل (شاشة التحميل المتحركة ثم لوحة التحكم ظهرت). الخطوة التالية: صفحة الديون → فحص GET /api/attachments (هل يعمل الآن) → رفع مرفق PNG عبر نافذة الإرفاق → التحقق من POST upload → اختبار review → التنظيف (حذف المرفق + بيانات الاختبار) → التقرير النهائي.
+النشرة الجديدة dpl_FfWfQKSFZTQPEtcjwzbvZmnqfEdx (التزام 4e173784، إصلاح @shared aliases) جاهزة و READY على الإنتاج. رابط الوصول المؤقت: **[محذوف لانتهاء صلاحيته]**
+تسجيل الدخول بحساب V2 (qa.production.v2.20260816215034@example.com / كلمة مرور محذوفة) نجح بنجاح كامل (شاشة التحميل المتحركة ثم لوحة التحكم ظهرت). الخطوة التالية: صفحة الديون → فحص GET /api/attachments (هل يعمل الآن) → رفع مرفق PNG عبر نافذة الإرفاق → التحقق من POST upload → اختبار review → التنظيف (حذف المرفق + بيانات الاختبار) → التقرير النهائي.
 ملاحظة: النشرة القديمة 8ozrimmvz (4f10ab6b) كانت أيضاً فاشلة بسبب نفس الخطأ @shared.
 
 ## النشرة الجديدة dpl_FfWfQKS (22:00 UTC)
@@ -158,14 +158,14 @@ https://1fjstwfyh-aeoczdhyw-hassan-s9-projects.vercel.app/api/attachments/upload
 2. الحل: استبدال api/index.ts بـ **api/index.js نقي** (JS بدون import type) مع إزالة index.ts من Git (نُقل إلى index.ts.bak-for-dev خارج المتابعة). يستورد createApp من ../server/app.js مباشرة.
 3. حالة الاختبارات: اختبار vercelApiBundle "rewrites /api routes" فشل لأن destination الفعلي في vercel.json هو "/api?path=:path*" وليس "/api?path=*". اختبار vercelDeployment فشل التحميل لأن api/index.js يستورد ../server/app.js الذي لا يحلّه vite في الاختبارات.
 4. المُتبقى: (أ) تصحيح التوقع في الاختبار الثاني إلى "/api?path=:path*"، (ب) جعل api/index.js غير مدرج في اختبارات vitest (استيراد ../api/index.js في vercelDeployment.test.ts يحمله عبر vite — يجب إما حذف هذا الاستيراد واستنساخ الدالة في الاختبار أو استبدال api/index.js بملف dev proxy، أو الأفضل: تحويل api/index.js ليقرأ استيراد require ديناميكي). أبسط حل: حذف import restoreForwardedApiPath من vercelDeployment.test.ts واستبدال الدالة المحلية بنسخة منفصلة (نسخة اختبارية) مع ملاحظة تطابقها.
-5. بيانات حساب الاختبار V2: qa.production.v2.20260816215034@example.com / QATest#2026! — نجح تسجيل الدخول في dpl_FfWfQKS، ومسار attachments ما زال يفشل FUNCTION_INVOCATION_FAILED.
-6. رابط الوصول المؤقت للنشرة الجديدة dpl_FfWfQKS: https://1fjstwfyh-k2t0r4os9-hassan-s9-projects.vercel.app/?_vercel_share=LLyyhMGcNkG0d01bSj02ljSVGham6wSy (ينتهي بعد ساعة).
+5. بيانات حساب الاختبار V2: qa.production.v2.20260816215034@example.com / كلمة مرور محذوفة — نجح تسجيل الدخول في dpl_FfWfQKS، ومسار attachments ما زال يفشل FUNCTION_INVOCATION_FAILED.
+6. رابط الوصول المؤقت للنشرة الجديدة dpl_FfWfQKS: **[محذوف لانتهاء صلاحيته]**.
 7. بعد الإصلاح: push تلقائي عبر خطاف GitHub (auto-sync) ثم مراقبة n=1 أحدث نشرات الإنتاج، ثم إعادة اختبار: تسجيل دخول → ديون → مرفق PNG → GET attachments → POST upload → review → تنظيف → تقرير نهائي.
 8. النشرات: dpl_FfWfQKS (التزام 4e173784، READY) | dpl_91mCNSXw (4f10ab6b، جاهز لكن يفشل runtime بسبب @shared) | aeoczdhyw (نشرة قديمة).
 
 ## النشرة dpl_5utSh3oL (1fjstwfyh-4tcqqxtnd) — 2026-08-16 22:11
 - البناء نجح (Deployment completed، التزام c64ce03c) رغم تحذيرات tsc على Vercel (لا توقف البناء).
-- رابط وصول: https://1fjstwfyh-4tcqqxtnd-hassan-s9-projects.vercel.app/?_vercel_share=G07tZhtIiIzF9mLggmFzj4wweXlnEBEB
+- رابط وصول: **[محذوف لانتهاء صلاحيته]**
 - تسجيل الدخول بحساب V2 (qa.production.v2.20260816215034@example.com) نجح، والواجهة ورسوم التحميل تظهران بشكل صحيح.
 - المرفق الحالي للخطوة القادمة: اختبار GET /api/attachments و POST /api/attachments/upload ومسار المراجعة وسجل التدقيق في هذه النشرة، ثم التنظيف.
 
