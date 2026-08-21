@@ -1,10 +1,21 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
-import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
+
+export const REACT_DEVELOPMENT_PREAMBLE = `<script type="module">
+  import RefreshRuntime from "/@react-refresh";
+  RefreshRuntime.injectIntoGlobalHook(window);
+  window.$RefreshReg$ = () => {};
+  window.$RefreshSig$ = () => (type) => type;
+  window.__vite_plugin_react_preamble_installed__ = true;
+</script>`;
+
+export function injectReactDevelopmentPreamble(template: string, isDevelopment: boolean) {
+  return isDevelopment ? template.replace("</head>", `${REACT_DEVELOPMENT_PREAMBLE}</head>`) : template;
+}
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
@@ -32,12 +43,10 @@ export async function setupVite(app: Express, server: Server) {
         "index.html"
       );
 
-      // always reload the index.html file from disk incase it changes
+      // تمرير قالب HTML الأصلي إلى Vite كي يحقن React preamble اللازمة لـ Fast Refresh.
+      // إضافة معامل استعلام قبل التحويل تمنع الإضافة من التعرف على مدخل React وتنتج صفحة بيضاء.
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`
-      );
+      template = injectReactDevelopmentPreamble(template, process.env.NODE_ENV !== "production");
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {

@@ -413,7 +413,7 @@ export default function Dashboard({
     <div className="space-y-6" id="dashboard-viewport">
       {/* Welcome Banner */}
       <div 
-        className="relative overflow-hidden bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#0b0f19] text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6" 
+        className="dashboard-vault-hero relative overflow-hidden bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#0b0f19] text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6" 
         id="welcome-banner"
       >
         {/* Abstract artistic glowing layers */}
@@ -475,7 +475,7 @@ export default function Dashboard({
 
       {/* Capital & Cash Balance Overview Card */}
       <div 
-        className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-white rounded-3xl p-6 shadow-xl border border-slate-700/60 relative overflow-hidden" 
+        className="vault-capital-card bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-white rounded-3xl p-6 shadow-xl border border-slate-700/60 relative overflow-hidden" 
         id="capital-summary-card"
       >
         <div className="absolute top-0 left-1/4 w-72 h-72 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -568,7 +568,7 @@ export default function Dashboard({
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-sky-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-sky-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-me"
           onClick={() => onNavigate('debts')}
         >
@@ -595,7 +595,7 @@ export default function Dashboard({
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-rose-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-rose-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-others"
           onClick={() => onNavigate('debts')}
         >
@@ -622,7 +622,7 @@ export default function Dashboard({
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-amber-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-amber-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-monthly-expenses"
           onClick={() => onNavigate('budget')}
         >
@@ -649,7 +649,7 @@ export default function Dashboard({
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between cursor-pointer group" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between cursor-pointer group" 
           id="kpi-budget-progress"
           onClick={() => onNavigate('budget')}
         >

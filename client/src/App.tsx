@@ -55,6 +55,8 @@ import { createNextReferenceNumber } from './utils/recordReferences';
 // Import components
 import Dashboard from './components/Dashboard';
 import DebtsManager from './components/DebtsManager';
+import FinancialUiReviewPreview from './components/FinancialUiReviewPreview';
+import FinancialDataLoadErrorNotice from './components/FinancialDataLoadErrorNotice';
 import BudgetManager from './components/BudgetManager';
 import AlertsPanel from './components/AlertsPanel';
 import LockScreen from './components/LockScreen';
@@ -101,6 +103,7 @@ export default function App() {
   const [debts, setDebts] = useState<Debt[]>(initialDebts);
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null);
 
   const [currency, setCurrency] = useState<string>('ر.س');
   const [userName, setUserName] = useState<string>('مستخدم جديد');
@@ -172,6 +175,7 @@ export default function App() {
         setCurrentUser(firebaseUser);
         setIsAuthLoading(true);
         setLoadingStage('profile');
+        setDataLoadError(null);
         try {
           // Fetch user profile and preferences
           const profile = await fetchUserProfile(firebaseUser.uid);
@@ -240,12 +244,14 @@ export default function App() {
           setReadAlertIds(finalReadAlerts);
         } catch (err) {
           console.error('Error fetching user collections:', err);
+          setDataLoadError('تعذر تحديث البيانات المالية من السحابة.');
         } finally {
           setIsAuthLoading(false);
         }
       } else {
         setCurrentUser(null);
         setUserProfile(null);
+        setDataLoadError(null);
         setLoadingStage('auth');
         setIsAuthLoading(false);
         // Clear sensitive states on logout
@@ -935,6 +941,24 @@ export default function App() {
     username: userName,
   };
 
+  const financialUiReviewMode = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('ui-review') : null;
+  const isFinancialUiReview = financialUiReviewMode === 'financial-empty';
+  const isFinancialErrorReview = financialUiReviewMode === 'financial-error';
+
+  if (isFinancialUiReview) {
+    return <FinancialUiReviewPreview />;
+  }
+
+  if (isFinancialErrorReview) {
+    return (
+      <main className="vault-content-shell min-h-screen w-full overflow-x-hidden p-4 md:p-8" aria-label="معاينة حالة استعادة التحميل">
+        <div className="mx-auto w-full max-w-3xl pt-12">
+          <FinancialDataLoadErrorNotice message="تعذر تحديث البيانات المالية من السحابة." onRetry={() => window.location.reload()} />
+        </div>
+      </main>
+    );
+  }
+
   if (isAuthLoading) {
     return <AppDataLoadingExperience stage={loadingStage} />;
   }
@@ -1365,7 +1389,9 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="vault-content-shell flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full space-y-6" id="main-scrollable-content">
-        
+        {dataLoadError && (activeTab === 'dashboard' || activeTab === 'debts') && (
+          <FinancialDataLoadErrorNotice message={dataLoadError} onRetry={() => window.location.reload()} />
+        )}
         {/* Dynamic active view injection */}
         <AnimatePresence mode="wait">
           <motion.div

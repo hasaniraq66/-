@@ -80,6 +80,93 @@ textarea:focus-visible {
 
 .vault-content-shell {
   min-height: 100%;
+  position: relative;
+  isolation: isolate;
+}
+
+.vault-content-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 14rem;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.08), transparent 78%);
+  mask-image: linear-gradient(to left, transparent, black 20%, black 80%, transparent);
+}
+
+.dashboard-vault-hero {
+  box-shadow: 0 24px 58px rgba(2, 6, 23, 0.19), inset 0 1px 0 rgba(226, 232, 240, 0.07) !important;
+}
+
+.dashboard-vault-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.34;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(115deg, black, transparent 76%);
+}
+
+.dashboard-vault-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.vault-capital-card {
+  box-shadow: 0 22px 45px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+.vault-kpi-card {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.055), inset 0 1px 0 rgba(255, 255, 255, 0.78) !important;
+}
+
+.vault-kpi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0), rgba(14, 165, 233, 0.55), rgba(56, 189, 248, 0));
+  opacity: 0;
+  transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.vault-kpi-card:hover::before {
+  opacity: 1;
+}
+
+.dark .vault-kpi-card {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.21), inset 0 1px 0 rgba(226, 232, 240, 0.035) !important;
+}
+
+.vault-page-header,
+#debts-filters-panel {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.84) !important;
+}
+
+.vault-page-header {
+  background-image: linear-gradient(135deg, rgba(240, 249, 255, 0.9), rgba(255, 255, 255, 0.94) 48%, rgba(236, 253, 245, 0.56)) !important;
+}
+
+.debt-summary-strip > * {
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.13);
+}
+
+#debts-filters-panel {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+#debts-type-tabs button {
+  min-height: 40px;
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.dark .vault-page-header {
+  background-image: linear-gradient(135deg, rgba(15, 30, 52, 0.98), rgba(18, 24, 38, 0.98) 58%, rgba(8, 43, 48, 0.55)) !important;
 }
 
 #sidebar-nav button {

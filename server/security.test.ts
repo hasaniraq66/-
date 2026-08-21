@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applySecurityHeaders, CONTENT_SECURITY_POLICY, createRateLimitMiddleware } from './security.js';
+import { applySecurityHeaders, buildContentSecurityPolicy, CONTENT_SECURITY_POLICY, createRateLimitMiddleware } from './security.js';
 
 describe('security headers', () => {
   it('sets baseline browser-hardening headers before continuing the request', () => {
@@ -19,11 +19,17 @@ describe('security headers', () => {
   });
 
   it('allows only the known analytics, Firebase and Google Drive browser sources in its CSP', () => {
-    expect(CONTENT_SECURITY_POLICY).toContain("script-src 'self' https://manus-analytics.com");
-    expect(CONTENT_SECURITY_POLICY).toContain('https://*.googleapis.com');
-    expect(CONTENT_SECURITY_POLICY).toContain('https://*.firebaseapp.com');
-    expect(CONTENT_SECURITY_POLICY).toContain("object-src 'none'");
-    expect(CONTENT_SECURITY_POLICY).not.toContain("script-src 'self' 'unsafe-inline'");
+    const productionPolicy = buildContentSecurityPolicy(false);
+    expect(productionPolicy).toContain("script-src 'self' https://manus-analytics.com");
+    expect(productionPolicy).toContain('https://*.googleapis.com');
+    expect(productionPolicy).toContain('https://*.firebaseapp.com');
+    expect(productionPolicy).toContain("object-src 'none'");
+    expect(productionPolicy).not.toContain("script-src 'self' 'unsafe-inline'");
+  });
+
+  it('permits the React preamble only in the development policy', () => {
+    expect(buildContentSecurityPolicy(true)).toContain("script-src 'self' 'unsafe-inline'");
+    expect(buildContentSecurityPolicy(false)).not.toContain("script-src 'self' 'unsafe-inline'");
   });
 });
 

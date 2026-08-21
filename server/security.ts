@@ -1,12 +1,17 @@
 import type { NextFunction, Request, Response } from 'express';
 
-export const CONTENT_SECURITY_POLICY = [
+export function buildContentSecurityPolicy(isDevelopment = process.env.NODE_ENV !== 'production') {
+  const scriptSource = isDevelopment
+    ? "script-src 'self' 'unsafe-inline' https://manus-analytics.com"
+    : "script-src 'self' https://manus-analytics.com";
+
+  return [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "script-src 'self' https://manus-analytics.com",
+  scriptSource,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://*.googleusercontent.com https://*.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com",
@@ -15,7 +20,10 @@ export const CONTENT_SECURITY_POLICY = [
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   'upgrade-insecure-requests',
-].join('; ');
+  ].join('; ');
+}
+
+export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy();
 
 /** رؤوس دفاعية لا تعتمد على وسيط خارجي وتناسب واجهة API وSPA في النطاق نفسه. */
 export function applySecurityHeaders(_req: Request, res: Response, next: NextFunction) {

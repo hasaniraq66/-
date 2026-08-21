@@ -658,7 +658,7 @@ export default function DebtsManager({
   return (
     <div className="space-y-6" id="debts-viewport">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl shadow-xs border border-slate-100" id="debts-header">
+      <div className="vault-page-header flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl shadow-xs border border-slate-100" id="debts-header">
         <div className="space-y-1">
           <h1 className="text-xl font-bold text-slate-800">إدارة الديون والتسديدات 💳</h1>
           <p className="text-xs text-slate-400">سجل الديون والالتزامات المستحقة لك والواجبة عليك وقسمها إلى دفعات</p>
@@ -674,7 +674,7 @@ export default function DebtsManager({
       </div>
 
       {activeTab !== 'accounts' && activeTab !== 'history' && (
-        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-label="ملخص سجل الديون">
+        <section className="debt-summary-strip grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-label="ملخص سجل الديون">
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-600 to-cyan-500 p-4 text-white shadow-sm">
             <ArrowDownLeft className="absolute -left-2 -bottom-3 w-16 h-16 text-white/10" />
             <span className="relative text-xs font-bold text-sky-100">مستحق لك الآن</span>
@@ -848,11 +848,11 @@ export default function DebtsManager({
                 <input
                   id="debt-search-input"
                   type="text"
-                  placeholder="ابحث بالاسم أو التفاصيل أو رقم الدين DBT..."
+                  placeholder="ابحث: اسم، وصف أو رقم DBT"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   aria-label="البحث في سجل الديون بالاسم أو التفاصيل أو الرقم المرجعي"
-                  className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"
+                  className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] sm:text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors"
                 />
               </div>
 
