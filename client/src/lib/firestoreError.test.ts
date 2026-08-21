@@ -19,4 +19,11 @@ describe('Firestore load error diagnostics', () => {
   it('keeps network failures generic and actionable', () => {
     expect(getFinancialDataLoadErrorMessage(new Error('network unavailable'))).toContain('اتصالك');
   });
+
+  it('shows a recovery message when Firebase data loading exceeds its safe timeout', () => {
+    const error = Object.assign(new Error('timeout'), { code: 'data-load-timeout' });
+
+    expect(getFinancialDataLoadErrorMessage(error)).toContain('وقتاً أطول');
+    expect(getFinancialDataLoadErrorMessage(error)).toContain('أعد المحاولة');
+  });
 });

@@ -48,6 +48,11 @@ import type { DataLoadingStage } from './lib/loadingExperience';
 import { getCleanApplicationUrl, getEmailVerificationActionParams, isEmailVerificationAction } from './lib/emailVerificationAction';
 import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
 import { runWithFirebaseSessionRecovery } from './lib/firebaseSession';
+import {
+  FIREBASE_PROFILE_LOAD_TIMEOUT_MS,
+  FIREBASE_RECORDS_LOAD_TIMEOUT_MS,
+  withDataLoadTimeout,
+} from './lib/loadingTimeout';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
@@ -182,9 +187,12 @@ export default function App() {
           // Firestore rules require a current Firebase Auth token. The helper
           // refreshes before this first read and retries it once if Auth and
           // Firestore are still completing their post-login handoff.
-          const profile = await runWithFirebaseSessionRecovery(
-            firebaseUser,
-            () => fetchUserProfile(firebaseUser.uid),
+          const profile = await withDataLoadTimeout(
+            runWithFirebaseSessionRecovery(
+              firebaseUser,
+              () => fetchUserProfile(firebaseUser.uid),
+            ),
+            FIREBASE_PROFILE_LOAD_TIMEOUT_MS,
           );
           let finalUid = firebaseUser.uid;
           if (profile) {
@@ -216,14 +224,17 @@ export default function App() {
 
           // Fetch user-isolated cloud collections from Firestore using final database owner ID
           setLoadingStage('records');
-          const [loadedDebts, loadedExpenses, loadedBudgets, loadedProjects, loadedEmployees, loadedPayments] = await Promise.all([
-            fetchCollection<Debt>(finalUid, 'debts'),
-            fetchCollection<Expense>(finalUid, 'expenses'),
-            fetchCollection<Budget>(finalUid, 'budgets'),
-            fetchCollection<Project>(finalUid, 'projects'),
-            fetchCollection<Employee>(finalUid, 'employees'),
-            fetchCollection<SalaryPayment>(finalUid, 'salaryPayments')
-          ]);
+          const [loadedDebts, loadedExpenses, loadedBudgets, loadedProjects, loadedEmployees, loadedPayments] = await withDataLoadTimeout(
+            Promise.all([
+              fetchCollection<Debt>(finalUid, 'debts'),
+              fetchCollection<Expense>(finalUid, 'expenses'),
+              fetchCollection<Budget>(finalUid, 'budgets'),
+              fetchCollection<Project>(finalUid, 'projects'),
+              fetchCollection<Employee>(finalUid, 'employees'),
+              fetchCollection<SalaryPayment>(finalUid, 'salaryPayments')
+            ]),
+            FIREBASE_RECORDS_LOAD_TIMEOUT_MS,
+          );
 
           // Load cloud values, falling back to user-isolated localStorage if offline/empty
           const localDebtsSaved = localStorage.getItem(`personal_debts_${finalUid}`);

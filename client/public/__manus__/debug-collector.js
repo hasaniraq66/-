@@ -61,6 +61,13 @@
   // Utility Functions
   // ==========================================================================
 
+  function redactSensitiveString(value) {
+    return String(value).replace(
+      /((?:^|[?&,{\s])(?:["']?)(?:id[_-]?token|refresh[_-]?token|access[_-]?token|token|authorization|cookie|session(?:[_-]?id)?|api[_-]?key|key)(?:["']?)\s*[:=]\s*["']?)[^&\s,"'}]*/gi,
+      "$1[REDACTED]",
+    );
+  }
+
   function sanitizeValue(value, depth) {
     if (depth === void 0) depth = 0;
     if (depth > 5) return "[Max Depth]";
@@ -68,7 +75,8 @@
     if (value === undefined) return undefined;
 
     if (typeof value === "string") {
-      return value.length > 1000 ? value.slice(0, 1000) + "...[truncated]" : value;
+      var redacted = redactSensitiveString(value);
+      return redacted.length > 1000 ? redacted.slice(0, 1000) + "...[truncated]" : redacted;
     }
 
     if (typeof value !== "object") return value;
@@ -124,6 +132,22 @@
     } catch (e) {
       return str;
     }
+  }
+
+  function sanitizeUrl(url) {
+    try {
+      var parsed = new URL(url, window.location.href);
+      ["id_token", "refresh_token", "access_token", "token", "auth", "authorization", "key"].forEach(function (key) {
+        if (parsed.searchParams.has(key)) parsed.searchParams.set(key, "[REDACTED]");
+      });
+      return parsed.toString();
+    } catch (e) {
+      return String(url).replace(/([?&](?:id_token|refresh_token|access_token|token|auth|authorization|key)=)[^&]*/gi, "$1[REDACTED]");
+    }
+  }
+
+  function sanitizeHeaders(headers) {
+    return sanitizeValue(headers);
   }
 
   // ==========================================================================
@@ -470,7 +494,7 @@
     var requestHeaders = {};
     try {
       if (init.headers) {
-        requestHeaders = Object.fromEntries(new Headers(init.headers).entries());
+        requestHeaders = sanitizeHeaders(Object.fromEntries(new Headers(init.headers).entries()));
       }
     } catch (e) {
       requestHeaders = { _parseError: true };
@@ -480,7 +504,7 @@
       timestamp: startTime,
       type: "fetch",
       method: method.toUpperCase(),
-      url: url,
+      url: sanitizeUrl(url),
       request: {
         headers: requestHeaders,
         body: init.body ? sanitizeValue(tryParseJson(init.body)) : null,
@@ -500,7 +524,7 @@
         entry.response = {
           status: response.status,
           statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
+          headers: sanitizeHeaders(Object.fromEntries(response.headers.entries())),
           body: null,
         };
 
@@ -596,6 +620,7 @@
 
   var originalXHROpen = XMLHttpRequest.prototype.open;
   var originalXHRSend = XMLHttpRequest.prototype.send;
+  var originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
 
   XMLHttpRequest.prototype.open = function (method, url) {
     this._manusData = {
@@ -604,6 +629,14 @@
       startTime: null,
     };
     return originalXHROpen.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+    if (this._manusData) {
+      this._manusData.requestHeaders = this._manusData.requestHeaders || {};
+      this._manusData.requestHeaders[name] = sanitizeHeaders({ [name]: value })[name];
+    }
+    return originalXHRSetRequestHeader.apply(this, arguments);
   };
 
   XMLHttpRequest.prototype.send = function (body) {
@@ -657,8 +690,11 @@
           timestamp: xhr._manusData.startTime,
           type: "xhr",
           method: xhr._manusData.method,
-          url: xhr._manusData.url,
-          request: { body: xhr._manusData.requestBody },
+          url: sanitizeUrl(xhr._manusData.url),
+          request: {
+            headers: xhr._manusData.requestHeaders || {},
+            body: xhr._manusData.requestBody,
+          },
           response: {
             status: xhr.status,
             statusText: xhr.statusText,
@@ -687,8 +723,11 @@
           timestamp: xhr._manusData.startTime,
           type: "xhr",
           method: xhr._manusData.method,
-          url: xhr._manusData.url,
-          request: { body: xhr._manusData.requestBody },
+          url: sanitizeUrl(xhr._manusData.url),
+          request: {
+            headers: xhr._manusData.requestHeaders || {},
+            body: xhr._manusData.requestBody,
+          },
           response: null,
           duration: Date.now() - xhr._manusData.startTime,
           error: { message: "Network error" },

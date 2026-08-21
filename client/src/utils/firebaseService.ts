@@ -63,44 +63,18 @@ export enum OperationType {
 
 // Structured error info as required by instructions
 interface FirestoreErrorInfo {
-  error: string;
   code: string | null;
   operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+export function handleFirestoreError(error: unknown, operationType: OperationType) {
+  const safeErrorInfo: FirestoreErrorInfo = {
     code: getFirestoreErrorCode(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
     operationType,
-    path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  const wrappedError = new Error(JSON.stringify(errInfo));
-  Object.assign(wrappedError, { code: errInfo.code });
+  console.error('Firestore operation failed', safeErrorInfo);
+  const wrappedError = new Error(JSON.stringify(safeErrorInfo));
+  Object.assign(wrappedError, { code: safeErrorInfo.code });
   throw wrappedError;
 }
 
@@ -137,7 +111,6 @@ export interface UserProfile {
 
 export const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
   if (!db) return null;
-  const path = `users/${userId}`;
   try {
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (userDoc.exists()) {
@@ -145,26 +118,24 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
     }
     return null;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
+    handleFirestoreError(error, OperationType.GET);
     return null;
   }
 };
 
 export const saveUserProfile = async (profile: UserProfile): Promise<void> => {
   if (!db) return;
-  const path = `users/${profile.userId}`;
   try {
     const cleaned = cleanUndefined(profile);
     await setDoc(doc(db, 'users', profile.userId), cleaned, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleFirestoreError(error, OperationType.WRITE);
   }
 };
 
 // --- Generic Helpers for Subcollections ---
 export const fetchCollection = async <T>(userId: string, subcollection: string): Promise<T[]> => {
   if (!db) return [];
-  const path = `users/${userId}/${subcollection}`;
   try {
     const q = query(collection(db, 'users', userId, subcollection));
     const querySnapshot = await getDocs(q);
@@ -174,7 +145,7 @@ export const fetchCollection = async <T>(userId: string, subcollection: string):
     });
     return list;
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
+    handleFirestoreError(error, OperationType.LIST);
     return [];
   }
 };
@@ -196,7 +167,7 @@ export const saveDocument = async <T extends { id?: string; month?: string }>(
     });
     await setDoc(doc(db, 'users', userId, subcollection, docId), cleaned, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleFirestoreError(error, OperationType.WRITE);
   }
 };
 
@@ -220,6 +191,6 @@ export const deleteDocument = async (
   try {
     await deleteDoc(doc(db, 'users', userId, subcollection, docId));
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+    handleFirestoreError(error, OperationType.DELETE);
   }
 };

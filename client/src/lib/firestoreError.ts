@@ -23,7 +23,13 @@ export function getFirestoreErrorCode(error: unknown): string | null {
 }
 
 export function getFinancialDataLoadErrorMessage(error: unknown): string {
-  if (getFirestoreErrorCode(error) === 'permission-denied') {
+  const errorCode = getFirestoreErrorCode(error);
+
+  if (errorCode === 'data-load-timeout') {
+    return 'استغرق تحميل بياناتك وقتاً أطول من المعتاد. تحقق من اتصالك ثم أعد المحاولة.';
+  }
+
+  if (errorCode === 'permission-denied') {
     return 'تعذر تثبيت جلسة الوصول إلى بياناتك. تحقق من اتصالك ثم أعد المحاولة. إذا استمر الخطأ، سجّل الخروج ثم سجّل الدخول من جديد.';
   }
 
