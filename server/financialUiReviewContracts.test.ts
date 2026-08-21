@@ -5,6 +5,7 @@ const appSource = readFileSync(new URL('../client/src/App.tsx', import.meta.url)
 const previewSource = readFileSync(new URL('../client/src/components/FinancialUiReviewPreview.tsx', import.meta.url), 'utf8');
 const debtsSource = readFileSync(new URL('../client/src/components/DebtsManager.tsx', import.meta.url), 'utf8');
 const loadErrorSource = readFileSync(new URL('../client/src/components/FinancialDataLoadErrorNotice.tsx', import.meta.url), 'utf8');
+const firestoreErrorSource = readFileSync(new URL('../client/src/lib/firestoreError.ts', import.meta.url), 'utf8');
 
 describe('financial UI review and recovery contracts', () => {
   it('keeps the development-only empty-state review inaccessible in production', () => {
@@ -20,9 +21,11 @@ describe('financial UI review and recovery contracts', () => {
 
   it('shows a recoverable data-load error instead of silently leaving financial pages empty', () => {
     expect(appSource).toContain('const [dataLoadError, setDataLoadError] = useState<string | null>(null);');
-    expect(appSource).toContain("setDataLoadError('تعذر تحديث البيانات المالية من السحابة.');");
+    expect(appSource).toContain('setDataLoadError(getFinancialDataLoadErrorMessage(err));');
     expect(appSource).toContain('<FinancialDataLoadErrorNotice message={dataLoadError} onRetry={() => window.location.reload()} />');
     expect(loadErrorSource).toContain('id="financial-data-load-error"');
     expect(loadErrorSource).toContain('onClick={onRetry}');
+    expect(firestoreErrorSource).toContain("=== 'permission-denied'");
+    expect(firestoreErrorSource).toContain('صلاحيات قاعدة البيانات');
   });
 });

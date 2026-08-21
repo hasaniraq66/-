@@ -46,6 +46,7 @@ import ConfirmModal from './components/ConfirmModal';
 import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './components/DataLoadingExperience';
 import type { DataLoadingStage } from './lib/loadingExperience';
 import { getCleanApplicationUrl, getEmailVerificationActionParams, isEmailVerificationAction } from './lib/emailVerificationAction';
+import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
@@ -244,7 +245,7 @@ export default function App() {
           setReadAlertIds(finalReadAlerts);
         } catch (err) {
           console.error('Error fetching user collections:', err);
-          setDataLoadError('تعذر تحديث البيانات المالية من السحابة.');
+          setDataLoadError(getFinancialDataLoadErrorMessage(err));
         } finally {
           setIsAuthLoading(false);
         }

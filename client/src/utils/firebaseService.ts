@@ -13,6 +13,7 @@ import {
   Firestore
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { getFirestoreErrorCode } from '../lib/firestoreError';
 
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -63,6 +64,7 @@ export enum OperationType {
 // Structured error info as required by instructions
 interface FirestoreErrorInfo {
   error: string;
+  code: string | null;
   operationType: OperationType;
   path: string | null;
   authInfo: {
@@ -81,6 +83,7 @@ interface FirestoreErrorInfo {
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
+    code: getFirestoreErrorCode(error),
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -96,7 +99,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  const wrappedError = new Error(JSON.stringify(errInfo));
+  Object.assign(wrappedError, { code: errInfo.code });
+  throw wrappedError;
 }
 
 // --- Helper to clean undefined values recursively ---
