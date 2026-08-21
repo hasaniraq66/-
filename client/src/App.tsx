@@ -29,7 +29,7 @@ import {
   Search
 } from 'lucide-react';
 
-import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { onIdTokenChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   auth, 
@@ -48,6 +48,8 @@ import type { DataLoadingStage } from './lib/loadingExperience';
 import { getCleanApplicationUrl, getEmailVerificationActionParams, isEmailVerificationAction } from './lib/emailVerificationAction';
 import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
 import { runWithFirebaseSessionRecovery } from './lib/firebaseSession';
+import { createAuthLoadCoordinator } from './lib/authLoadCoordinator';
+import { getAuthSessionGateResult } from './lib/authSessionGate';
 import {
   FIREBASE_PROFILE_LOAD_TIMEOUT_MS,
   FIREBASE_RECORDS_LOAD_TIMEOUT_MS,
@@ -177,8 +179,20 @@ export default function App() {
 
   // Auth state listener and initial data loader
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const loadCoordinator = createAuthLoadCoordinator();
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      const requestId = loadCoordinator.begin();
       if (firebaseUser) {
+        if (getAuthSessionGateResult(firebaseUser) === 'email-verification-required') {
+          if (!loadCoordinator.isCurrent(requestId)) return;
+          setCurrentUser(null);
+          setUserProfile(null);
+          setDataLoadError(null);
+          setLoadingStage('auth');
+          setIsAuthLoading(false);
+          return;
+        }
+
         setCurrentUser(firebaseUser);
         setIsAuthLoading(true);
         setLoadingStage('profile');
@@ -194,6 +208,7 @@ export default function App() {
             ),
             FIREBASE_PROFILE_LOAD_TIMEOUT_MS,
           );
+          if (!loadCoordinator.isCurrent(requestId)) return;
           let finalUid = firebaseUser.uid;
           if (profile) {
             setUserProfile(profile);
@@ -219,6 +234,7 @@ export default function App() {
               createdAt: new Date().toISOString()
             };
             await saveUserProfile(newProfile);
+            if (!loadCoordinator.isCurrent(requestId)) return;
             setUserProfile(newProfile);
           }
 
@@ -235,6 +251,7 @@ export default function App() {
             ]),
             FIREBASE_RECORDS_LOAD_TIMEOUT_MS,
           );
+          if (!loadCoordinator.isCurrent(requestId)) return;
 
           // Load cloud values, falling back to user-isolated localStorage if offline/empty
           const localDebtsSaved = localStorage.getItem(`personal_debts_${finalUid}`);
@@ -261,12 +278,16 @@ export default function App() {
           setSalaryPayments(finalPayments);
           setReadAlertIds(finalReadAlerts);
         } catch (err) {
+          if (!loadCoordinator.isCurrent(requestId)) return;
           console.error('Error fetching user collections:', err);
           setDataLoadError(getFinancialDataLoadErrorMessage(err));
         } finally {
-          setIsAuthLoading(false);
+          if (loadCoordinator.isCurrent(requestId)) {
+            setIsAuthLoading(false);
+          }
         }
       } else {
+        if (!loadCoordinator.isCurrent(requestId)) return;
         setCurrentUser(null);
         setUserProfile(null);
         setDataLoadError(null);
@@ -281,7 +302,10 @@ export default function App() {
         setSalaryPayments([]);
       }
     });
-    return () => unsubscribe();
+    return () => {
+      loadCoordinator.invalidate();
+      unsubscribe();
+    };
   }, []);
 
   // Synchronize dynamic, user-isolated localStorage with state edits
@@ -1001,10 +1025,13 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <AuthScreen 
-        onAuthSuccess={(userId, displayName, userCurrency) => {
+        <AuthScreen
+        onAuthSuccess={(_userId, displayName, userCurrency) => {
           setUserName(displayName);
           setCurrency(userCurrency);
+          // reload() after email confirmation refreshes the Auth user. A fresh
+          // ID token then notifies the central listener, which owns data setup.
+          void auth.currentUser?.getIdToken(true);
         }} 
       />
     );

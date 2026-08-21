@@ -22,11 +22,10 @@ import {
   signOut,
   reload
 } from 'firebase/auth';
-import { auth, saveUserProfile, fetchUserProfile } from '../utils/firebaseService';
+import { auth, saveUserProfile } from '../utils/firebaseService';
 import { getEmailVerificationErrorMessage, requiresEmailVerification } from '../lib/emailVerification';
-import { buildEmailVerificationActionUrl } from '../lib/emailVerificationAction';
 import { getVerificationStatusMessage } from '../lib/emailVerificationNotice';
-import { ensureFirebaseSessionReady, runWithFirebaseSessionRecovery } from '../lib/firebaseSession';
+import { runWithFirebaseSessionRecovery } from '../lib/firebaseSession';
 import EmailVerificationNotice from './EmailVerificationNotice';
 
 interface AuthScreenProps {
@@ -54,11 +53,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [verificationAction, setVerificationAction] = useState<'idle' | 'resending' | 'checking'>('idle');
   const [verificationError, setVerificationError] = useState('');
 
-  const emailVerificationActionSettings = {
-    url: buildEmailVerificationActionUrl(window.location.origin),
-    handleCodeInApp: true,
-  };
-
   const resolveTargetEmail = (): string | null => {
     if (authMethod === 'email') {
       return email.includes('@') ? email.trim() : null;
@@ -84,7 +78,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       if (userCredential.user.emailVerified) {
         setVerificationNotice('تم تأكيد بريدك الإلكتروني بالفعل. اضغط «تحقق من الحالة» لفتح حسابك.');
       } else {
-        await sendEmailVerification(userCredential.user, emailVerificationActionSettings);
+        await sendEmailVerification(userCredential.user);
         setVerificationNotice('أُعيد إرسال رسالة التحقق. افحص صندوق الوارد والبريد غير الهام ثم سجّل الدخول مجدداً.');
       }
       await signOut(auth);
@@ -116,16 +110,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         return;
       }
 
-      const profile = await runWithFirebaseSessionRecovery(
-        userCredential.user,
-        () => fetchUserProfile(userCredential.user.uid),
-      );
       setPendingVerificationEmail(null);
       setVerificationNotice('');
       onAuthSuccess(
         userCredential.user.uid,
-        profile?.displayName || userCredential.user.displayName || 'مستخدم',
-        profile?.currency || currency,
+        userCredential.user.displayName || 'مستخدم',
+        currency,
       );
     } catch (err: any) {
       setVerificationError(getEmailVerificationErrorMessage(err?.code));
@@ -150,21 +140,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
-      // Fetch or create profile
-      let existingProfile = await runWithFirebaseSessionRecovery(user, () => fetchUserProfile(user.uid));
-      if (!existingProfile) {
-        const newProfile = {
-          userId: user.uid,
-          displayName: user.displayName || 'مستثمر جديد',
-          email: user.email || undefined,
-          currency: 'ر.س',
-          createdAt: new Date().toISOString()
-        };
-        await runWithFirebaseSessionRecovery(user, () => saveUserProfile(newProfile));
-        existingProfile = newProfile;
-      }
-      
-      onAuthSuccess(user.uid, existingProfile.displayName, existingProfile.currency);
+      // يقوم مستمع المصادقة في App وحده بتحميل أو إنشاء ملف Firestore.
+      // تجنب القراءة المتوازية هنا يمنع تعارض تجديد الرمز بعد تسجيل الدخول.
+      onAuthSuccess(user.uid, user.displayName || 'مستثمر جديد', 'ر.س');
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -236,12 +214,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           return;
         }
 
-        const profile = await runWithFirebaseSessionRecovery(user, () => fetchUserProfile(user.uid));
-        
         onAuthSuccess(
-          user.uid, 
-          profile?.displayName || user.displayName || fullName || 'مستخدم', 
-          profile?.currency || currency
+          user.uid,
+          user.displayName || fullName || 'مستخدم',
+          currency
         );
       } else {
         // Standard Sign-Up
@@ -270,7 +246,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         await runWithFirebaseSessionRecovery(user, () => saveUserProfile(newProfile));
 
         if (authMethod === 'email') {
-          await sendEmailVerification(user, emailVerificationActionSettings);
+          await sendEmailVerification(user);
           await signOut(auth);
           setPendingVerificationEmail(user.email || targetEmail);
           setVerificationNotice('أرسلنا رسالة التأكيد. افتح الرابط الوارد فيها لإكمال الدخول.');
