@@ -24,7 +24,7 @@ export function getFirestoreErrorCode(error: unknown): string | null {
 
 export function getFinancialDataLoadErrorMessage(error: unknown): string {
   if (getFirestoreErrorCode(error) === 'permission-denied') {
-    return 'تعذر الوصول إلى بياناتك لأن صلاحيات قاعدة البيانات غير مهيأة لهذا الحساب. لا تُنشئ سجلات جديدة الآن؛ تواصل مع مدير النظام لنشر قواعد Firebase الصحيحة ثم أعد المحاولة.';
+    return 'تعذر تثبيت جلسة الوصول إلى بياناتك. تحقق من اتصالك ثم أعد المحاولة. إذا استمر الخطأ، سجّل الخروج ثم سجّل الدخول من جديد.';
   }
 
   return 'تعذر تحديث البيانات المالية من السحابة. تحقق من اتصالك ثم أعد المحاولة.';

@@ -26,6 +26,6 @@ describe('financial UI review and recovery contracts', () => {
     expect(loadErrorSource).toContain('id="financial-data-load-error"');
     expect(loadErrorSource).toContain('onClick={onRetry}');
     expect(firestoreErrorSource).toContain("=== 'permission-denied'");
-    expect(firestoreErrorSource).toContain('صلاحيات قاعدة البيانات');
+    expect(firestoreErrorSource).toContain('تثبيت جلسة الوصول');
   });
 });

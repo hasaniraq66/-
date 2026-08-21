@@ -47,6 +47,7 @@ import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './co
 import type { DataLoadingStage } from './lib/loadingExperience';
 import { getCleanApplicationUrl, getEmailVerificationActionParams, isEmailVerificationAction } from './lib/emailVerificationAction';
 import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
+import { ensureFirebaseSessionReady } from './lib/firebaseSession';
 
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
@@ -178,6 +179,11 @@ export default function App() {
         setLoadingStage('profile');
         setDataLoadError(null);
         try {
+          // Firestore rules require the current Firebase Auth token. Refresh it
+          // before the initial profile read so the named database receives the
+          // authenticated request, not a stale post-login credential.
+          await ensureFirebaseSessionReady(firebaseUser);
+
           // Fetch user profile and preferences
           const profile = await fetchUserProfile(firebaseUser.uid);
           let finalUid = firebaseUser.uid;

@@ -26,6 +26,7 @@ import { auth, saveUserProfile, fetchUserProfile } from '../utils/firebaseServic
 import { getEmailVerificationErrorMessage, requiresEmailVerification } from '../lib/emailVerification';
 import { buildEmailVerificationActionUrl } from '../lib/emailVerificationAction';
 import { getVerificationStatusMessage } from '../lib/emailVerificationNotice';
+import { ensureFirebaseSessionReady } from '../lib/firebaseSession';
 import EmailVerificationNotice from './EmailVerificationNotice';
 
 interface AuthScreenProps {
@@ -115,6 +116,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         return;
       }
 
+      await ensureFirebaseSessionReady(userCredential.user);
       const profile = await fetchUserProfile(userCredential.user.uid);
       setPendingVerificationEmail(null);
       setVerificationNotice('');
@@ -146,6 +148,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
+      await ensureFirebaseSessionReady(user);
       // Fetch or create profile
       let existingProfile = await fetchUserProfile(user.uid);
       if (!existingProfile) {
@@ -231,6 +234,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           return;
         }
 
+        await ensureFirebaseSessionReady(user);
         const profile = await fetchUserProfile(user.uid);
         
         onAuthSuccess(
@@ -251,6 +255,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
         // Update display name in Firebase Auth
         await updateProfile(user, { displayName: fullName.trim() });
+
+        await ensureFirebaseSessionReady(user);
 
         // Save User Profile in Firestore
         const newProfile = {

@@ -6,7 +6,7 @@ describe('Firestore load error diagnostics', () => {
     const error = Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
 
     expect(getFirestoreErrorCode(error)).toBe('permission-denied');
-    expect(getFinancialDataLoadErrorMessage(error)).toContain('صلاحيات قاعدة البيانات');
+    expect(getFinancialDataLoadErrorMessage(error)).toContain('تثبيت جلسة الوصول');
     expect(getFinancialDataLoadErrorMessage(error)).not.toContain('users/');
   });
 
