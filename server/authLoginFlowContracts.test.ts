@@ -31,6 +31,8 @@ describe('عقد تدفق تسجيل الدخول', () => {
   it('يستجيب لتحديث رمز الهوية ويحمّل بيانات أي حساب مصادق عليه مباشرةً', () => {
     expect(appSource).toContain('onIdTokenChanged(auth');
     expect(appSource).toContain('getIdToken(true)');
+    expect(appSource).toContain('createAuthBootstrapWatchdog');
+    expect(appSource).toContain('authBootstrapRecoveryMessage');
     expect(appSource).not.toContain('getAuthSessionGateResult');
     expect(appSource).not.toContain('EmailVerificationSuccess');
   });

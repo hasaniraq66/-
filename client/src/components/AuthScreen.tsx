@@ -24,9 +24,10 @@ import { runWithFirebaseSessionRecovery } from '../lib/firebaseSession';
 
 interface AuthScreenProps {
   onAuthSuccess: (userId: string, displayName: string, currency: string) => void;
+  statusMessage?: string | null;
 }
 
-export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
+export default function AuthScreen({ onAuthSuccess, statusMessage }: AuthScreenProps) {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
   
@@ -255,6 +256,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4" id="auth-credentials-form">
+          {statusMessage && (
+            <div className="p-3 bg-amber-950/35 border border-amber-700/60 text-amber-100 rounded-xl text-xs flex gap-2 items-start font-bold" role="status" aria-live="polite" id="auth-bootstrap-recovery-notice">
+              <AlertCircle className="w-4.5 h-4.5 text-amber-300 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-relaxed">{statusMessage}</div>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 bg-red-950/40 border border-red-900 text-red-400 rounded-xl text-xs flex gap-2 items-start font-bold" id="auth-error-alert">
               <AlertCircle className="w-4.5 h-4.5 text-red-500 shrink-0 mt-0.5" />

@@ -47,6 +47,7 @@ import type { DataLoadingStage } from './lib/loadingExperience';
 import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
 import { runWithFirebaseSessionRecovery } from './lib/firebaseSession';
 import { createAuthLoadCoordinator } from './lib/authLoadCoordinator';
+import { createAuthBootstrapWatchdog } from './lib/authBootstrapWatchdog';
 import {
   FIREBASE_PROFILE_LOAD_TIMEOUT_MS,
   FIREBASE_RECORDS_LOAD_TIMEOUT_MS,
@@ -94,6 +95,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [loadingStage, setLoadingStage] = useState<DataLoadingStage>('auth');
+  const [authBootstrapRecoveryMessage, setAuthBootstrapRecoveryMessage] = useState<string | null>(null);
   
   // User Profile configuration
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -175,7 +177,22 @@ export default function App() {
   // Auth state listener and initial data loader
   useEffect(() => {
     const loadCoordinator = createAuthLoadCoordinator();
+    let receivedInitialAuthState = false;
+    const recoverFromAuthBootstrapFailure = () => {
+      if (receivedInitialAuthState) return;
+      loadCoordinator.invalidate();
+      setCurrentUser(null);
+      setUserProfile(null);
+      setDataLoadError(null);
+      setLoadingStage('auth');
+      setAuthBootstrapRecoveryMessage('تعذر تهيئة جلسة الدخول تلقائياً. يمكنك تسجيل الدخول من جديد أو إعادة تحميل الصفحة.');
+      setIsAuthLoading(false);
+    };
+    const authBootstrapWatchdog = createAuthBootstrapWatchdog(recoverFromAuthBootstrapFailure);
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      receivedInitialAuthState = true;
+      authBootstrapWatchdog.acknowledge();
+      setAuthBootstrapRecoveryMessage(null);
       const requestId = loadCoordinator.begin();
       if (firebaseUser) {
         setCurrentUser(firebaseUser);
@@ -286,9 +303,14 @@ export default function App() {
         setEmployees([]);
         setSalaryPayments([]);
       }
+    }, () => {
+      if (receivedInitialAuthState) return;
+      authBootstrapWatchdog.acknowledge();
+      recoverFromAuthBootstrapFailure();
     });
     return () => {
       loadCoordinator.invalidate();
+      authBootstrapWatchdog.cancel();
       unsubscribe();
     };
   }, []);
@@ -993,7 +1015,9 @@ export default function App() {
   if (!currentUser) {
     return (
         <AuthScreen
+        statusMessage={authBootstrapRecoveryMessage}
         onAuthSuccess={(_userId, displayName, userCurrency) => {
+          setAuthBootstrapRecoveryMessage(null);
           setUserName(displayName);
           setCurrency(userCurrency);
           // يجدد الرمز بعد نجاح نموذج الدخول كي يستمر المستمع المركزي بتهيئة البيانات.
