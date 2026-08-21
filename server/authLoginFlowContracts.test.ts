@@ -28,15 +28,17 @@ describe('عقد تدفق تسجيل الدخول', () => {
     expect(googleBranch).toContain('onAuthSuccess(');
   });
 
-  it('يترك تحميل البيانات للحسابات ذات البريد المؤكد فقط ويستجيب لتحديث رمز الهوية', () => {
+  it('يستجيب لتحديث رمز الهوية ويحمّل بيانات أي حساب مصادق عليه مباشرةً', () => {
     expect(appSource).toContain('onIdTokenChanged(auth');
-    expect(appSource).toContain("getAuthSessionGateResult(firebaseUser) === 'email-verification-required'");
     expect(appSource).toContain('getIdToken(true)');
+    expect(appSource).not.toContain('getAuthSessionGateResult');
+    expect(appSource).not.toContain('EmailVerificationSuccess');
   });
 
-  it('يرسل رسالة التحقق بإعداد Firebase الافتراضي الآمن دون رابط معاينة مخصص', () => {
-    expect(authScreenSource).not.toContain('buildEmailVerificationActionUrl');
-    expect(authScreenSource).toContain('sendEmailVerification(userCredential.user)');
-    expect(authScreenSource).toContain('sendEmailVerification(user)');
+  it('لا يرسل رسالة تأكيد ولا يعرض مساراً لحالة البريد غير المؤكد', () => {
+    expect(authScreenSource).not.toContain('sendEmailVerification');
+    expect(authScreenSource).not.toContain('requiresEmailVerification');
+    expect(authScreenSource).not.toContain('EmailVerificationNotice');
+    expect(authScreenSource).not.toContain('emailVerified');
   });
 });

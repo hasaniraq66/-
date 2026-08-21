@@ -17,16 +17,10 @@ import {
   signInWithEmailAndPassword, 
   updateProfile,
   signInWithPopup,
-  GoogleAuthProvider,
-  sendEmailVerification,
-  signOut,
-  reload
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { auth, saveUserProfile } from '../utils/firebaseService';
-import { getEmailVerificationErrorMessage, requiresEmailVerification } from '../lib/emailVerification';
-import { getVerificationStatusMessage } from '../lib/emailVerificationNotice';
 import { runWithFirebaseSessionRecovery } from '../lib/firebaseSession';
-import EmailVerificationNotice from './EmailVerificationNotice';
 
 interface AuthScreenProps {
   onAuthSuccess: (userId: string, displayName: string, currency: string) => void;
@@ -47,89 +41,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<React.ReactNode>('');
-  const [verificationNotice, setVerificationNotice] = useState('');
-  const [isResendingVerification, setIsResendingVerification] = useState(false);
-  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
-  const [verificationAction, setVerificationAction] = useState<'idle' | 'resending' | 'checking'>('idle');
-  const [verificationError, setVerificationError] = useState('');
-
-  const resolveTargetEmail = (): string | null => {
-    if (authMethod === 'email') {
-      return email.includes('@') ? email.trim() : null;
-    }
-
-    const cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
-    return cleanPhone.length >= 9 ? `${cleanPhone}@phone.malyah.com` : null;
-  };
-
-  const handleResendVerification = async () => {
-    const targetEmail = pendingVerificationEmail ?? resolveTargetEmail();
-    if (authMethod !== 'email' || !targetEmail || password.length < 6) {
-      setError('أدخل بريدك الإلكتروني وكلمة المرور ثم اطلب إعادة إرسال رسالة التحقق.');
-      return;
-    }
-
-    setIsResendingVerification(true);
-    setVerificationAction('resending');
-    setError('');
-    setVerificationError('');
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
-      if (userCredential.user.emailVerified) {
-        setVerificationNotice('تم تأكيد بريدك الإلكتروني بالفعل. اضغط «تحقق من الحالة» لفتح حسابك.');
-      } else {
-        await sendEmailVerification(userCredential.user);
-        setVerificationNotice('أُعيد إرسال رسالة التحقق. افحص صندوق الوارد والبريد غير الهام ثم سجّل الدخول مجدداً.');
-      }
-      await signOut(auth);
-    } catch (err: any) {
-      const message = getEmailVerificationErrorMessage(err?.code);
-      if (pendingVerificationEmail) setVerificationError(message);
-      else setError(message);
-    } finally {
-      setIsResendingVerification(false);
-      setVerificationAction('idle');
-    }
-  };
-
-  const handleVerificationCheck = async () => {
-    if (!pendingVerificationEmail || password.length < 6) {
-      setVerificationError('لإتمام التحقق بأمان، عد إلى تسجيل الدخول وأدخل بريدك وكلمة المرور مجدداً.');
-      return;
-    }
-
-    setVerificationAction('checking');
-    setVerificationError('');
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, pendingVerificationEmail, password);
-      await reload(userCredential.user);
-
-      if (!userCredential.user.emailVerified) {
-        await signOut(auth);
-        setVerificationNotice(getVerificationStatusMessage(false));
-        return;
-      }
-
-      setPendingVerificationEmail(null);
-      setVerificationNotice('');
-      onAuthSuccess(
-        userCredential.user.uid,
-        userCredential.user.displayName || 'مستخدم',
-        currency,
-      );
-    } catch (err: any) {
-      setVerificationError(getEmailVerificationErrorMessage(err?.code));
-    } finally {
-      setVerificationAction('idle');
-    }
-  };
-
-  const returnToLogin = () => {
-    setPendingVerificationEmail(null);
-    setVerificationNotice('');
-    setVerificationError('');
-    setIsLogin(true);
-  };
 
   // Google Provider
   const handleGoogleLogin = async () => {
@@ -172,7 +83,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setVerificationNotice('');
     setIsLoading(true);
 
     try {
@@ -207,13 +117,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
         const user = userCredential.user;
 
-        if (requiresEmailVerification(authMethod, user.emailVerified)) {
-          await signOut(auth);
-          setPendingVerificationEmail(user.email || targetEmail);
-          setVerificationNotice('لم يتم تأكيد البريد الإلكتروني بعد. افتح رسالة التحقق ثم تحقق من الحالة.');
-          return;
-        }
-
         onAuthSuccess(
           user.uid,
           user.displayName || fullName || 'مستخدم',
@@ -244,14 +147,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         };
 
         await runWithFirebaseSessionRecovery(user, () => saveUserProfile(newProfile));
-
-        if (authMethod === 'email') {
-          await sendEmailVerification(user);
-          await signOut(auth);
-          setPendingVerificationEmail(user.email || targetEmail);
-          setVerificationNotice('أرسلنا رسالة التأكيد. افتح الرابط الوارد فيها لإكمال الدخول.');
-          return;
-        }
 
         onAuthSuccess(user.uid, newProfile.displayName, newProfile.currency);
       }
@@ -287,20 +182,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       setIsLoading(false);
     }
   };
-
-  if (pendingVerificationEmail) {
-    return (
-      <EmailVerificationNotice
-        email={pendingVerificationEmail}
-        feedback={verificationNotice}
-        error={verificationError}
-        busyAction={verificationAction}
-        onResend={() => { void handleResendVerification(); }}
-        onCheckStatus={() => { void handleVerificationCheck(); }}
-        onBackToLogin={returnToLogin}
-      />
-    );
-  }
 
   return (
     <div className="auth-vault-background min-h-screen flex items-center justify-center p-4 relative overflow-hidden font-sans" id="auth-viewport">
@@ -378,23 +259,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             <div className="p-3 bg-red-950/40 border border-red-900 text-red-400 rounded-xl text-xs flex gap-2 items-start font-bold" id="auth-error-alert">
               <AlertCircle className="w-4.5 h-4.5 text-red-500 shrink-0 mt-0.5" />
               <div className="flex-1">{error}</div>
-            </div>
-          )}
-
-          {verificationNotice && (
-            <div className="space-y-3 rounded-xl border border-sky-400/25 bg-sky-500/10 p-3 text-right text-xs font-bold leading-relaxed text-sky-100" role="status" aria-live="polite" id="auth-verification-notice">
-              <p>{verificationNotice}</p>
-              {authMethod === 'email' && (
-                <button
-                  type="button"
-                  onClick={handleResendVerification}
-                  disabled={isResendingVerification || isLoading}
-                  className="inline-flex items-center gap-1.5 text-[11px] font-black text-sky-300 underline decoration-sky-400/60 underline-offset-4 hover:text-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isResendingVerification ? <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Mail className="h-3.5 w-3.5" aria-hidden="true" />}
-                  إعادة إرسال رسالة التحقق
-                </button>
-              )}
             </div>
           )}
 

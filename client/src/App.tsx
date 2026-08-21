@@ -41,15 +41,12 @@ import {
   sanitizeFinancialValue
 } from './utils/firebaseService';
 import AuthScreen from './components/AuthScreen';
-import EmailVerificationSuccess from './components/EmailVerificationSuccess';
 import ConfirmModal from './components/ConfirmModal';
 import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './components/DataLoadingExperience';
 import type { DataLoadingStage } from './lib/loadingExperience';
-import { getCleanApplicationUrl, getEmailVerificationActionParams, isEmailVerificationAction } from './lib/emailVerificationAction';
 import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
 import { runWithFirebaseSessionRecovery } from './lib/firebaseSession';
 import { createAuthLoadCoordinator } from './lib/authLoadCoordinator';
-import { getAuthSessionGateResult } from './lib/authSessionGate';
 import {
   FIREBASE_PROFILE_LOAD_TIMEOUT_MS,
   FIREBASE_RECORDS_LOAD_TIMEOUT_MS,
@@ -97,8 +94,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [loadingStage, setLoadingStage] = useState<DataLoadingStage>('auth');
-  const isVerificationAction = isEmailVerificationAction(window.location.search);
-  const verificationActionParams = getEmailVerificationActionParams(window.location.search);
   
   // User Profile configuration
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -183,16 +178,6 @@ export default function App() {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       const requestId = loadCoordinator.begin();
       if (firebaseUser) {
-        if (getAuthSessionGateResult(firebaseUser) === 'email-verification-required') {
-          if (!loadCoordinator.isCurrent(requestId)) return;
-          setCurrentUser(null);
-          setUserProfile(null);
-          setDataLoadError(null);
-          setLoadingStage('auth');
-          setIsAuthLoading(false);
-          return;
-        }
-
         setCurrentUser(firebaseUser);
         setIsAuthLoading(true);
         setLoadingStage('profile');
@@ -1005,32 +990,13 @@ export default function App() {
     return <AppDataLoadingExperience stage={loadingStage} />;
   }
 
-  if (isVerificationAction) {
-    return (
-      <EmailVerificationSuccess
-        oobCode={verificationActionParams.oobCode}
-        fallbackSuccess={verificationActionParams.isFallbackSuccess}
-        hasVerifiedSession={Boolean(currentUser?.emailVerified)}
-        onContinue={() => {
-          const returnToApplication = () => window.location.assign(getCleanApplicationUrl(window.location));
-          if (currentUser?.emailVerified) {
-            returnToApplication();
-            return;
-          }
-          void signOut(auth).finally(returnToApplication);
-        }}
-      />
-    );
-  }
-
   if (!currentUser) {
     return (
         <AuthScreen
         onAuthSuccess={(_userId, displayName, userCurrency) => {
           setUserName(displayName);
           setCurrency(userCurrency);
-          // reload() after email confirmation refreshes the Auth user. A fresh
-          // ID token then notifies the central listener, which owns data setup.
+          // يجدد الرمز بعد نجاح نموذج الدخول كي يستمر المستمع المركزي بتهيئة البيانات.
           void auth.currentUser?.getIdToken(true);
         }} 
       />
