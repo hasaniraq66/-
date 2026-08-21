@@ -18,3 +18,35 @@ export async function ensureFirebaseSessionReady(user: FirebaseSessionUser): Pro
     throw new Error('تعذر تجديد جلسة المستخدم قبل تحميل البيانات.');
   }
 }
+
+function getErrorCode(error: unknown): string | null {
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+
+  return null;
+}
+
+/**
+ * Runs an idempotent, first-session Firestore operation only after obtaining a
+ * current token. A single permission-denied response gets one forced refresh
+ * and one retry, which protects the post-login credential handoff without
+ * masking persistent authorization failures or retrying mutations repeatedly.
+ */
+export async function runWithFirebaseSessionRecovery<T>(
+  user: FirebaseSessionUser,
+  operation: () => Promise<T>,
+): Promise<T> {
+  await ensureFirebaseSessionReady(user);
+
+  try {
+    return await operation();
+  } catch (error) {
+    if (getErrorCode(error) !== 'permission-denied') {
+      throw error;
+    }
+
+    await ensureFirebaseSessionReady(user);
+    return operation();
+  }
+}
