@@ -25,6 +25,7 @@ import {
   Moon,
   Settings,
   History,
+  HeartHandshake,
   Command as CommandIcon,
   Search
 } from 'lucide-react';
@@ -75,6 +76,7 @@ const ProjectManager = lazy(() => import('./components/ProjectManager'));
 const SmartAdvisor = lazy(() => import('./components/SmartAdvisor'));
 const PermissionsManager = lazy(() => import('./components/PermissionsManager'));
 const ActivityLog = lazy(() => import('./components/ActivityLog'));
+const SupportPage = lazy(() => import('./components/SupportPage'));
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -1039,6 +1041,7 @@ export default function App() {
 
   const hasTabPermission = (tabId: string): boolean => {
     if (!currentUser) return false;
+    if (tabId === 'support') return true;
     if (!userProfile?.adminId) return true;
     return userProfile.allowedTabs?.includes(tabId) || false;
   };
@@ -1384,6 +1387,25 @@ export default function App() {
               </div>
             )}
 
+            <div className="space-y-1">
+              <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">الدعم</span>
+              <button
+                id="nav-support"
+                onClick={() => { setActiveTab('support'); setIsSidebarOpen(false); }}
+                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                  activeTab === 'support'
+                    ? 'bg-rose-600 text-white font-extrabold shadow-[0_4px_12px_rgba(225,29,72,0.25)]'
+                    : 'text-slate-400 hover:bg-rose-500/10 hover:text-rose-300'
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <HeartHandshake className="w-4 h-4 shrink-0" />
+                  <span>دعم التطبيق</span>
+                </span>
+                {activeTab === 'support' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+              </button>
+            </div>
+
             {/* Category 4: Permissions (Only for Admin / Managers) */}
             {!userProfile?.adminId && (
               <div className="space-y-1">
@@ -1572,6 +1594,12 @@ export default function App() {
                   userName={userName}
                   currentUser={currentUser}
                 />
+              </Suspense>
+            )}
+
+            {activeTab === 'support' && (
+              <Suspense fallback={<DeferredViewLoader label="صفحة الدعم" />}>
+                <SupportPage />
               </Suspense>
             )}
 

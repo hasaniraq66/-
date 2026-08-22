@@ -11,6 +11,7 @@ import {
   Command,
   CreditCard,
   FileSearch,
+  HeartHandshake,
   History,
   LayoutDashboard,
   ReceiptText,
@@ -66,6 +67,7 @@ export default function CommandPalette({
       { id: 'activity_log', label: 'سجل العمليات', description: 'استعراض الحركات المالية الأخيرة', keywords: 'سجل نشاط عملية تاريخ', icon: History },
       { id: 'backup', label: 'النسخ الاحتياطي', description: 'تصدير أو استعادة نسخة بيانات', keywords: 'نسخ احتياطي استعادة ملف', icon: ArchiveRestore },
       { id: 'advisor', label: 'المستشار المالي', description: 'الحصول على تحليل مالي ذكي', keywords: 'مستشار ذكاء تحليل ai', icon: BrainCircuit },
+      { id: 'support', label: 'دعم التطبيق', description: 'وسائل التبرع ودعم استمرار تطوير التطبيق', keywords: 'دعم تبرع زين كاش ماستر الرافدين مساعدة', icon: HeartHandshake },
     ];
 
     const availableNavigation = navigation
