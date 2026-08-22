@@ -466,7 +466,7 @@ export default function ProjectManager({
       </div>
 
       {/* Segmented control for Sub-tabs */}
-      <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 max-w-xl">
+      <div id="project-section-tabs" className="grid grid-cols-2 sm:flex bg-slate-100 p-1.5 rounded-2xl gap-1 max-w-xl w-full">
         <button
           onClick={() => setSubTab('projects')}
           className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${

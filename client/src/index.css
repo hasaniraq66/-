@@ -712,6 +712,30 @@ input[type="date"] {
   textarea {
     font-size: 16px !important;
   }
+
+  /* Dense financial forms must stack their fields on phones so Arabic labels,
+     dates, and amounts remain easy to read and tap. Desktop keeps the paired layout. */
+  #quick-entry-form .grid.grid-cols-2,
+  #add-debt-form .grid.grid-cols-2,
+  #edit-debt-form .grid.grid-cols-2,
+  #project-manager-workspace .fixed .grid.grid-cols-2 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Project modals can contain long financial forms; retain a visible close path
+     and allow the form itself to scroll inside the small mobile viewport. */
+  #project-manager-workspace .fixed > .max-w-md {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  #project-manager-workspace .fixed form button,
+  #add-debt-form button,
+  #edit-debt-form button,
+  #quick-entry-form button {
+    min-height: 2.75rem;
+  }
 }
 
 @media (max-width: 420px) {
