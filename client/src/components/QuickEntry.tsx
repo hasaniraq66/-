@@ -132,7 +132,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
 
   return (
     <div 
-      className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-5 text-right relative overflow-hidden" 
+      className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4 text-right relative overflow-hidden" 
       id="quick-entry-card"
     >
       <div className="flex items-center justify-between border-b border-slate-50 pb-3">
@@ -155,7 +155,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
             setActiveForm('expense');
             setErrorMessage(null);
           }}
-          className={`py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`min-h-10 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeForm === 'expense'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-slate-500 hover:bg-white/60 hover:text-slate-800'
@@ -171,7 +171,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
             setActiveForm('debt');
             setErrorMessage(null);
           }}
-          className={`py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`min-h-10 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeForm === 'debt'
               ? 'bg-sky-600 text-white shadow-sm'
               : 'text-slate-500 hover:bg-white/60 hover:text-slate-800'
@@ -471,7 +471,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           type="submit"
-          className={`w-full py-3.5 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all duration-300 ${
+          className={`w-full min-h-11 py-3.5 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all duration-300 ${
             activeForm === 'expense'
               ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/10 hover:shadow-emerald-600/20'
               : 'bg-sky-600 hover:bg-sky-500 shadow-sky-600/10 hover:shadow-sky-600/20'

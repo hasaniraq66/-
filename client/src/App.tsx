@@ -1445,7 +1445,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="vault-content-shell flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full space-y-6" id="main-scrollable-content">
+      <main className="vault-content-shell flex-1 p-3 md:p-5 xl:p-6 pb-24 md:pb-6 max-w-7xl mx-auto w-full space-y-4" id="main-scrollable-content">
         {dataLoadError && (activeTab === 'dashboard' || activeTab === 'debts') && (
           <FinancialDataLoadErrorNotice message={dataLoadError} onRetry={() => window.location.reload()} />
         )}

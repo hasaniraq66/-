@@ -410,23 +410,23 @@ export default function Dashboard({
   }, [totalToOthers, paidToOthers]);
 
   return (
-    <div className="space-y-6" id="dashboard-viewport">
+    <div className="space-y-4" id="dashboard-viewport">
       {/* Welcome Banner */}
       <div 
-        className="dashboard-vault-hero relative overflow-hidden bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#0b0f19] text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6" 
+        className="dashboard-vault-hero relative overflow-hidden bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#0b0f19] text-white rounded-2xl p-4 md:p-5 shadow-xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4" 
         id="welcome-banner"
       >
         {/* Abstract artistic glowing layers */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 w-52 h-52 bg-emerald-500/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
         <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         
-        <div className="relative z-10 space-y-3">
+        <div className="relative z-10 space-y-2">
           <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-sky-400 bg-sky-500/10 px-3 py-1 rounded-full border border-sky-500/20 uppercase tracking-wider">
             <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-ping"></span>
             لوحة المتابعة الشاملة
           </span>
-          <h1 className="text-xl md:text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2 text-white">
+          <h1 className="text-lg md:text-2xl font-extrabold tracking-tight mt-1 flex items-center gap-2 text-white">
             <span>{timeGreeting}</span>
           </h1>
           <p className="text-slate-400 text-xs md:text-sm max-w-xl leading-relaxed font-semibold">
@@ -440,7 +440,7 @@ export default function Dashboard({
             whileTap={{ scale: 0.97 }}
             id="quick-add-debt-btn"
             onClick={() => onNavigate('debts')}
-            className="flex-1 md:flex-none px-5 py-3.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(2,132,199,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
+            className="flex-1 md:flex-none min-h-10 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(2,132,199,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
           >
             <span>إضافة دين جديد</span>
             <ArrowUpRight className="w-4 h-4 shrink-0" />
@@ -450,7 +450,7 @@ export default function Dashboard({
             whileTap={{ scale: 0.97 }}
             id="quick-add-expense-btn"
             onClick={() => onNavigate('budget')}
-            className="flex-1 md:flex-none px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
+            className="flex-1 md:flex-none min-h-10 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 cursor-pointer text-white"
           >
             <span>تسجيل مصروف</span>
             <ArrowDownLeft className="w-4 h-4 shrink-0" />
@@ -475,13 +475,13 @@ export default function Dashboard({
 
       {/* Capital & Cash Balance Overview Card */}
       <div 
-        className="vault-capital-card bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-white rounded-3xl p-6 shadow-xl border border-slate-700/60 relative overflow-hidden" 
+        className="vault-capital-card bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-white rounded-2xl p-4 md:p-5 shadow-xl border border-slate-700/60 relative overflow-hidden" 
         id="capital-summary-card"
       >
         <div className="absolute top-0 left-1/4 w-72 h-72 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="p-2 bg-sky-500/20 text-sky-400 rounded-xl border border-sky-500/30">
@@ -494,7 +494,7 @@ export default function Dashboard({
             </div>
 
             <div className="flex items-baseline gap-3 pt-1">
-              <span className={`text-3xl md:text-4xl font-black tracking-tight ${
+              <span className={`text-2xl md:text-3xl font-black tracking-tight ${
                 currentCapital > 0 ? 'text-emerald-400' : currentCapital < 0 ? 'text-rose-400' : 'text-slate-200'
               }`}>
                 {formatCurrency(currentCapital, currency)}
@@ -513,7 +513,7 @@ export default function Dashboard({
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             {/* Initial Capital Pill */}
-            <div className="flex-1 md:flex-none p-3 bg-slate-800/90 rounded-2xl border border-slate-700/80 space-y-1 min-w-[130px]">
+            <div className="flex-1 md:flex-none p-2.5 bg-slate-800/90 rounded-xl border border-slate-700/80 space-y-1 min-w-[120px]">
               <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold">
                 <span>رأس المال الابتدائي</span>
                 <button
@@ -530,19 +530,19 @@ export default function Dashboard({
             </div>
 
             {/* Inflows Pill */}
-            <div className="flex-1 md:flex-none p-3 bg-emerald-950/50 rounded-2xl border border-emerald-800/60 space-y-1 min-w-[140px]">
+            <div className="flex-1 md:flex-none p-2.5 bg-emerald-950/50 rounded-xl border border-emerald-800/60 space-y-1 min-w-[128px]">
               <span className="block text-[10px] text-emerald-300 font-bold">➕ مقبوضات الديون (تُضاف)</span>
               <span className="block text-sm font-extrabold text-emerald-400">+{formatCurrency(totalCollectedToMeAllTime, currency)}</span>
             </div>
 
             {/* Outflows Pill */}
-            <div className="flex-1 md:flex-none p-3 bg-rose-950/50 rounded-2xl border border-rose-800/60 space-y-1 min-w-[140px]">
+            <div className="flex-1 md:flex-none p-2.5 bg-rose-950/50 rounded-xl border border-rose-800/60 space-y-1 min-w-[128px]">
               <span className="block text-[10px] text-rose-300 font-bold">➖ المصروفات والسداد (تُسحب)</span>
               <span className="block text-sm font-extrabold text-rose-400">-{formatCurrency(totalCapitalOutflows, currency)}</span>
             </div>
 
             {/* Isolated Projects Pill */}
-            <div className="flex-1 md:flex-none p-3 bg-sky-950/60 rounded-2xl border border-sky-800/60 space-y-1 min-w-[150px]">
+            <div className="flex-1 md:flex-none p-2.5 bg-sky-950/60 rounded-xl border border-sky-800/60 space-y-1 min-w-[138px]">
               <span className="block text-[10px] text-sky-300 font-bold">🔒 حسابات المشاريع (معزولة)</span>
               <span className="block text-sm font-extrabold text-sky-400">{formatCurrency(totalProjectsBalance, currency)}</span>
             </div>
@@ -562,13 +562,13 @@ export default function Dashboard({
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" id="kpi-cards-grid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="kpi-cards-grid">
         {/* Card 1: Debts to Collect */}
         <motion.div 
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-sky-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:border-sky-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-me"
           onClick={() => onNavigate('debts')}
         >
@@ -577,7 +577,7 @@ export default function Dashboard({
           
           <div className="space-y-2 relative z-10">
             <span className="text-[10px] font-black text-slate-400 block tracking-wide">الديون المستحقة لي (عند الناس) 📥</span>
-            <div className="text-2xl font-black text-sky-600 tracking-tight">{formatCurrency(activeToMe, currency)}</div>
+            <div className="text-xl font-black text-sky-600 tracking-tight">{formatCurrency(activeToMe, currency)}</div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
               <span className="bg-sky-50 text-sky-700 font-extrabold px-2 py-0.5 rounded-lg border border-sky-100">
                 تم تحصيل {collectedToMeRatio}%
@@ -585,8 +585,8 @@ export default function Dashboard({
               <span className="font-semibold text-slate-400">من {formatCurrency(totalToMe, currency)}</span>
             </div>
           </div>
-          <div className="p-3 bg-sky-50/80 text-sky-600 rounded-2xl group-hover:bg-sky-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
-            <TrendingUp className="w-5 h-5" />
+          <div className="p-2.5 bg-sky-50/80 text-sky-600 rounded-xl group-hover:bg-sky-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
+            <TrendingUp className="w-4 h-4" />
           </div>
         </motion.div>
 
@@ -595,7 +595,7 @@ export default function Dashboard({
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-rose-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:border-rose-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-debts-to-others"
           onClick={() => onNavigate('debts')}
         >
@@ -604,7 +604,7 @@ export default function Dashboard({
 
           <div className="space-y-2 relative z-10">
             <span className="text-[10px] font-black text-slate-400 block tracking-wide">الديون المطلوبة مني (للناس) 📤</span>
-            <div className="text-2xl font-black text-rose-600 tracking-tight">{formatCurrency(activeToOthers, currency)}</div>
+            <div className="text-xl font-black text-rose-600 tracking-tight">{formatCurrency(activeToOthers, currency)}</div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
               <span className="bg-rose-50 text-rose-700 font-extrabold px-2 py-0.5 rounded-lg border border-rose-100">
                 تم سداد {paidToOthersRatio}%
@@ -612,8 +612,8 @@ export default function Dashboard({
               <span className="font-semibold text-slate-400">من {formatCurrency(totalToOthers, currency)}</span>
             </div>
           </div>
-          <div className="p-3 bg-rose-50/80 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
-            <TrendingDown className="w-5 h-5" />
+          <div className="p-2.5 bg-rose-50/80 text-rose-600 rounded-xl group-hover:bg-rose-600 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
+            <TrendingDown className="w-4 h-4" />
           </div>
         </motion.div>
 
@@ -622,7 +622,7 @@ export default function Dashboard({
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-amber-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:border-amber-300 transition-all duration-300 flex items-center justify-between group cursor-pointer" 
           id="kpi-monthly-expenses"
           onClick={() => onNavigate('budget')}
         >
@@ -631,7 +631,7 @@ export default function Dashboard({
 
           <div className="space-y-2 relative z-10">
             <span className="text-[10px] font-black text-slate-400 block tracking-wide">مصاريف الشهر الحالي 💳</span>
-            <div className="text-2xl font-black text-slate-800 tracking-tight">{formatCurrency(monthlyExpenses, currency)}</div>
+            <div className="text-xl font-black text-slate-800 tracking-tight">{formatCurrency(monthlyExpenses, currency)}</div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
               <span className="bg-slate-100 text-slate-700 font-extrabold px-2 py-0.5 rounded-lg border border-slate-200">
                 لشهر {formatDate(currentMonthStr + '-01').substring(3)}
@@ -639,8 +639,8 @@ export default function Dashboard({
               <span className="font-semibold text-slate-400">بواقع {expenseCategoriesData.length} فئات</span>
             </div>
           </div>
-          <div className="p-3 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-slate-700 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
-            <CreditCard className="w-5 h-5" />
+          <div className="p-2.5 bg-slate-50 text-slate-600 rounded-xl group-hover:bg-slate-700 group-hover:text-white transition-all duration-300 shadow-3xs relative z-10">
+            <CreditCard className="w-4 h-4" />
           </div>
         </motion.div>
 
@@ -649,7 +649,7 @@ export default function Dashboard({
           whileHover={{ y: -6, scale: 1.015 }}
           whileTap={{ scale: 0.985 }}
           transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="vault-kpi-card relative overflow-hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between cursor-pointer group" 
+          className="vault-kpi-card relative overflow-hidden bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between cursor-pointer group" 
           id="kpi-budget-progress"
           onClick={() => onNavigate('budget')}
         >
@@ -692,7 +692,7 @@ export default function Dashboard({
       />
 
       {/* Project Performance and Financial Reports Section */}
-      <div className="bg-slate-50/50 border border-slate-200/60 rounded-3xl p-6 space-y-6" id="dashboard-projects-reports-section">
+        <div className="bg-slate-50/50 border border-slate-200/60 rounded-2xl p-4 space-y-4" id="dashboard-projects-reports-section">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1 text-right">
             <h2 className="font-extrabold text-slate-800 text-lg flex items-center gap-2">

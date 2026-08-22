@@ -7,6 +7,7 @@ const cssSource = readFileSync(resolve(process.cwd(), 'client/src/index.css'), '
 const quickEntrySource = readFileSync(resolve(process.cwd(), 'client/src/components/QuickEntry.tsx'), 'utf8');
 const debtsSource = readFileSync(resolve(process.cwd(), 'client/src/components/DebtsManager.tsx'), 'utf8');
 const projectsSource = readFileSync(resolve(process.cwd(), 'client/src/components/ProjectManager.tsx'), 'utf8');
+const dashboardSource = readFileSync(resolve(process.cwd(), 'client/src/components/Dashboard.tsx'), 'utf8');
 
 describe('mobile responsive navigation contracts', () => {
   it('keeps a dedicated mobile bottom navigation with keyboard and touch semantics', () => {
@@ -50,5 +51,19 @@ describe('mobile responsive navigation contracts', () => {
     expect(cssSource).toContain('#project-manager-workspace .fixed > .max-w-md');
     expect(cssSource).toContain('max-height: calc(100dvh - 2rem)');
     expect(cssSource).toContain('overscroll-behavior: contain');
+  });
+
+  it('keeps the primary dashboard compact without shrinking touch targets below the usable size', () => {
+    expect(appSource).toContain('p-3 md:p-5 xl:p-6');
+    expect(appSource).toContain('space-y-4');
+    expect(dashboardSource).toContain('id="welcome-banner"');
+    expect(dashboardSource).toContain('rounded-2xl p-4 md:p-5');
+    expect(dashboardSource).toContain('min-h-10 px-4 py-2.5');
+    expect(dashboardSource).toContain('id="kpi-cards-grid"');
+    expect(dashboardSource).toContain('grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3');
+    expect(quickEntrySource).toContain('id="quick-entry-card"');
+    expect(quickEntrySource).toContain('p-4 rounded-2xl');
+    expect(quickEntrySource).toContain('min-h-10 py-2 rounded-xl');
+    expect(quickEntrySource).toContain('w-full min-h-11 py-3.5');
   });
 });
