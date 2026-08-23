@@ -2,7 +2,7 @@ import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+import { createServer as createViteServer, type ConfigEnv } from "vite";
 import viteConfig from "../../vite.config";
 
 export const REACT_DEVELOPMENT_PREAMBLE = `<script type="module">
@@ -18,6 +18,13 @@ export function injectReactDevelopmentPreamble(template: string, isDevelopment: 
 }
 
 export async function setupVite(app: Express, server: Server) {
+  const configEnv: ConfigEnv = {
+    command: "serve",
+    mode: "development",
+    isSsrBuild: false,
+    isPreview: false,
+  };
+  const resolvedViteConfig = typeof viteConfig === "function" ? viteConfig(configEnv) : viteConfig;
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
@@ -25,7 +32,7 @@ export async function setupVite(app: Express, server: Server) {
   };
 
   const vite = await createViteServer({
-    ...viteConfig,
+    ...resolvedViteConfig,
     configFile: false,
     server: serverOptions,
     appType: "custom",
