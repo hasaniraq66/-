@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const appSource = readFileSync(resolve(process.cwd(), 'client/src/App.tsx'), 'utf8');
 const dashboardSource = readFileSync(resolve(process.cwd(), 'client/src/components/Dashboard.tsx'), 'utf8');
+const dashboardAnalyticsSource = readFileSync(resolve(process.cwd(), 'client/src/components/DashboardAnalytics.tsx'), 'utf8');
 const debtsSource = readFileSync(resolve(process.cwd(), 'client/src/components/DebtsManager.tsx'), 'utf8');
 
 describe('financial screen data-state contracts', () => {
@@ -14,8 +15,8 @@ describe('financial screen data-state contracts', () => {
 
   it('keeps meaningful empty states for dashboard financial summaries', () => {
     expect(dashboardSource).toContain('لا توجد مشاريع عمل مسجلة حتى الآن.');
-    expect(dashboardSource).toContain('لا توجد بيانات ديون مسجلة بعد لعرض المخطط البياني.');
-    expect(dashboardSource).toContain('لا توجد مصاريف للشهر الحالي');
+    expect(dashboardAnalyticsSource).toContain('لا توجد بيانات ديون مسجلة بعد لعرض المخطط البياني.');
+    expect(dashboardAnalyticsSource).toContain('لا توجد مصاريف للشهر الحالي');
     expect(dashboardSource).toContain('لا توجد نشاطات مسجلة حتى الآن.');
   });
 

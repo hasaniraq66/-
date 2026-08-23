@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { lazy, Suspense, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   TrendingUp, 
@@ -15,27 +15,16 @@ import {
   Users,
   CheckCircle,
   Activity,
+  BarChart3,
   X
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell, 
-  Legend 
-} from 'recharts';
 import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment } from '../types';
 import { formatCurrency, formatDate, generateAlerts, generateWhatsAppLink } from '../utils';
-import CashFlowChart from './CashFlowChart';
 import QuickEntry from './QuickEntry';
-import BudgetBurndownChart from './BudgetBurndownChart';
 import ReferenceQuickLookup from './ReferenceQuickLookup';
 import DailyFinancialFocus from './DailyFinancialFocus';
+
+const DashboardAnalytics = lazy(() => import('./DashboardAnalytics'));
 
 interface DashboardProps {
   debts: Debt[];
@@ -52,6 +41,50 @@ interface DashboardProps {
   onAddExpense?: (expense: Omit<Expense, 'id'>) => void;
   initialCapital?: number;
   onUpdateInitialCapital?: (newCapital: number) => void;
+}
+
+function DeferredDashboardAnalytics({
+  debts,
+  expenses,
+  budget,
+  currency,
+}: Pick<DashboardProps, 'debts' | 'expenses' | 'budget' | 'currency'>) {
+  const [isRequested, setIsRequested] = useState(false);
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-right" id="dashboard-analytics-deferred">
+      {isRequested ? (
+        <Suspense
+          fallback={
+            <div className="flex min-h-28 items-center justify-center gap-2 text-xs font-bold text-slate-500" role="status">
+              <Activity className="h-4 w-4 animate-spin text-sky-600" />
+              <span>يتم تحميل التحليلات والرسوم…</span>
+            </div>
+          }
+        >
+          <DashboardAnalytics debts={debts} expenses={expenses} budget={budget} currency={currency} />
+        </Suspense>
+      ) : (
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="space-y-1">
+            <h2 className="flex items-center gap-2 text-sm font-extrabold text-slate-800">
+              <BarChart3 className="h-4 w-4 text-sky-600" />
+              <span>التحليلات والرسوم التفصيلية</span>
+            </h2>
+            <p className="text-xs font-medium leading-relaxed text-slate-500">يُحمَّل هذا القسم عند طلبه لتسريع فتح لوحة التحكم.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsRequested(true)}
+            className="min-h-10 rounded-xl bg-sky-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm transition-colors hover:bg-sky-500"
+            id="load-dashboard-analytics"
+          >
+            تحميل التحليلات
+          </button>
+        </div>
+      )}
+    </section>
+  );
 }
 
 export default function Dashboard({
@@ -932,97 +965,7 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* Debt Cash Flow Chart Section */}
-      <CashFlowChart debts={debts} currency={currency} />
-
-      {/* Budget Burn-down Chart Section */}
-      <BudgetBurndownChart expenses={expenses} budget={budget} currency={currency} />
-
-      {/* Main Charts & Activity Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="dashboard-details-row">
-        {/* Chart 1: Debts Comparison */}
-        <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 lg:col-span-2 space-y-4" id="dashboard-chart-debt-compare">
-          <div className="flex justify-between items-center">
-            <h2 className="font-bold text-slate-800 text-base">مقارنة الديون الحالية</h2>
-            <span className="text-xs text-slate-400">مقارنة الديون المترتبة والمستحقة</span>
-          </div>
-          <div className="h-64" id="debt-bar-chart-container">
-            {totalToMe === 0 && totalToOthers === 0 ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
-                <Calendar className="w-8 h-8 text-slate-300" />
-                <span>لا توجد بيانات ديون مسجلة بعد لعرض المخطط البياني.</span>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={debtChartData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
-                  <Tooltip formatter={(value: any) => [`${value} ${currency}`, '']} />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  <Bar dataKey="المدفوع منها" fill="#10b981" radius={[4, 4, 0, 0]} barSize={35} />
-                  <Bar dataKey="المتبقي (المستحق)" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={35} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Expense distribution sidebar */}
-        <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4 flex flex-col justify-between" id="dashboard-chart-expenses-pie">
-          <div className="space-y-1">
-            <h2 className="font-bold text-slate-800 text-base">توزيع مصاريف الشهر</h2>
-            <p className="text-xs text-slate-400">حسب فئات المصاريف المسجلة</p>
-          </div>
-
-          <div className="h-44 relative flex items-center justify-center" id="expense-pie-chart-container">
-            {expenseCategoriesData.length === 0 ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-1">
-                <Wallet className="w-7 h-7 text-slate-300" />
-                <span>لا توجد مصاريف للشهر الحالي</span>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={expenseCategoriesData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={70}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {expenseCategoriesData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: any) => [`${value} ${currency}`, '']} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          {expenseCategoriesData.length > 0 && (
-            <div className="max-h-28 overflow-y-auto space-y-1.5 text-xs text-slate-600 pr-1">
-              {expenseCategoriesData.map((entry, index) => {
-                const percent = Math.round((entry.value / monthlyExpenses) * 100);
-                return (
-                  <div key={entry.name} className="flex justify-between items-center gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
-                      <span className="truncate">{entry.name}</span>
-                    </div>
-                    <div className="shrink-0 font-medium text-slate-700">
-                      <span>{entry.value} {currency}</span>
-                      <span className="text-[10px] text-slate-400 mr-1">({percent}%)</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      <DeferredDashboardAnalytics debts={debts} expenses={expenses} budget={budget} currency={currency} />
 
       {/* Bottom Row: Recent Activities */}
       <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-100 space-y-4" id="dashboard-recent-activities">

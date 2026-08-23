@@ -62,14 +62,14 @@ import { createNextReferenceNumber } from './utils/recordReferences';
 
 // Import components
 import Dashboard from './components/Dashboard';
-import DebtsManager from './components/DebtsManager';
-import FinancialUiReviewPreview from './components/FinancialUiReviewPreview';
 import FinancialDataLoadErrorNotice from './components/FinancialDataLoadErrorNotice';
-import BudgetManager from './components/BudgetManager';
-import AlertsPanel from './components/AlertsPanel';
 import LockScreen from './components/LockScreen';
 import CommandPalette from './components/CommandPalette';
 
+const DebtsManager = lazy(() => import('./components/DebtsManager'));
+const BudgetManager = lazy(() => import('./components/BudgetManager'));
+const AlertsPanel = lazy(() => import('./components/AlertsPanel'));
+const FinancialUiReviewPreview = lazy(() => import('./components/FinancialUiReviewPreview'));
 const Reports = lazy(() => import('./components/Reports'));
 const BackupRestore = lazy(() => import('./components/BackupRestore'));
 const ProjectManager = lazy(() => import('./components/ProjectManager'));
@@ -997,7 +997,11 @@ export default function App() {
   const isFinancialErrorReview = financialUiReviewMode === 'financial-error';
 
   if (isFinancialUiReview) {
-    return <FinancialUiReviewPreview />;
+    return (
+      <Suspense fallback={<DeferredViewLoader label="معاينة الواجهة المالية" />}>
+        <FinancialUiReviewPreview />
+      </Suspense>
+    );
   }
 
   if (isFinancialErrorReview) {
@@ -1479,29 +1483,33 @@ export default function App() {
             )}
 
             {activeTab === 'debts' && (
-              <DebtsManager
-                debts={debts}
-                currency={currency}
-                ownerUid={targetUid}
-                onAddDebt={handleAddDebt}
-                onEditDebt={handleEditDebt}
-                onDeleteDebt={handleDeleteDebt}
-                onAddInstallment={handleAddInstallment}
-                onDeleteInstallment={handleDeleteInstallment}
-              />
+              <Suspense fallback={<DeferredViewLoader label="سجل الديون" />}>
+                <DebtsManager
+                  debts={debts}
+                  currency={currency}
+                  ownerUid={targetUid}
+                  onAddDebt={handleAddDebt}
+                  onEditDebt={handleEditDebt}
+                  onDeleteDebt={handleDeleteDebt}
+                  onAddInstallment={handleAddInstallment}
+                  onDeleteInstallment={handleDeleteInstallment}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'budget' && (
-              <BudgetManager
-                expenses={expenses}
-                budgets={budgets}
-                currency={currency}
-                ownerUid={targetUid}
-                onSetBudget={handleSetBudget}
-                onAddExpense={handleAddExpense}
-                onEditExpense={handleEditExpense}
-                onDeleteExpense={handleDeleteExpense}
-              />
+              <Suspense fallback={<DeferredViewLoader label="الميزانية والمصاريف" />}>
+                <BudgetManager
+                  expenses={expenses}
+                  budgets={budgets}
+                  currency={currency}
+                  ownerUid={targetUid}
+                  onSetBudget={handleSetBudget}
+                  onAddExpense={handleAddExpense}
+                  onEditExpense={handleEditExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'reports' && (
@@ -1516,15 +1524,17 @@ export default function App() {
             )}
 
             {activeTab === 'alerts' && (
-              <AlertsPanel
-                alerts={alerts}
-                debts={debts}
-                currency={currency}
-                onMarkAlertAsRead={handleMarkAlertAsRead}
-                onMarkAllAsRead={handleMarkAllAlertsAsRead}
-                onClearReadAlerts={handleClearReadAlerts}
-                onNavigate={setActiveTab}
-              />
+              <Suspense fallback={<DeferredViewLoader label="مركز التنبيهات" />}>
+                <AlertsPanel
+                  alerts={alerts}
+                  debts={debts}
+                  currency={currency}
+                  onMarkAlertAsRead={handleMarkAlertAsRead}
+                  onMarkAllAsRead={handleMarkAllAlertsAsRead}
+                  onClearReadAlerts={handleClearReadAlerts}
+                  onNavigate={setActiveTab}
+                />
+              </Suspense>
             )}
 
             {activeTab === 'activity_log' && (
