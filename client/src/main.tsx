@@ -4,11 +4,27 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
+import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import { startLogin } from "./const";
+import { PwaExperience } from "./components/PwaExperience";
 import "./index.css";
 
 const queryClient = new QueryClient();
+
+if (!import.meta.env.DEV && "serviceWorker" in navigator) {
+  const updateServiceWorker = registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      window.dispatchEvent(new CustomEvent("pwa:update-available", {
+        detail: { update: () => updateServiceWorker(true) },
+      }));
+    },
+    onOfflineReady() {
+      window.dispatchEvent(new Event("pwa:offline-ready"));
+    },
+  });
+}
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
@@ -76,6 +92,7 @@ createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
       <App />
+      <PwaExperience />
     </QueryClientProvider>
   </trpc.Provider>
 );

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 describe('debug collector privacy contract', () => {
   it('redacts authentication parameters, headers and bodies before retaining network telemetry', () => {
     const collector = readFileSync(
-      resolve(process.cwd(), 'client/public/__manus__/debug-collector.js'),
+      resolve(process.cwd(), 'client/dev-public/__manus__/debug-collector.js'),
       'utf8',
     );
 
