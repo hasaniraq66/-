@@ -19,8 +19,9 @@ describe("PWA configuration", () => {
   });
 
   it("registers updates only in production and preserves explicit user control", () => {
-    expect(clientEntry).toContain('import { registerSW } from "virtual:pwa-register"');
     expect(clientEntry).toContain("if (!import.meta.env.DEV && \"serviceWorker\" in navigator)");
+    expect(clientEntry).toContain('navigator.serviceWorker.register("/sw.js", { scope: "/" })');
+    expect(clientEntry).toContain('type: "SKIP_WAITING"');
     expect(pwaExperience).toContain('"beforeinstallprompt"');
     expect(pwaExperience).toContain('"pwa:update-available"');
     expect(pwaExperience).toContain("أنت غير متصل");

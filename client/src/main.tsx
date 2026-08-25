@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
-import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import { startLogin } from "./const";
 import { PwaExperience } from "./components/PwaExperience";
@@ -13,16 +12,32 @@ import "./index.css";
 const queryClient = new QueryClient();
 
 if (!import.meta.env.DEV && "serviceWorker" in navigator) {
-  const updateServiceWorker = registerSW({
-    immediate: true,
-    onNeedRefresh() {
+  void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
+    const announceUpdate = () => {
+      if (!registration.waiting) return;
       window.dispatchEvent(new CustomEvent("pwa:update-available", {
-        detail: { update: () => updateServiceWorker(true) },
+        detail: { update: () => registration.waiting?.postMessage({ type: "SKIP_WAITING" }) },
       }));
-    },
-    onOfflineReady() {
+    };
+
+    registration.addEventListener("updatefound", () => {
+      const installing = registration.installing;
+      if (!installing) return;
+      installing.addEventListener("statechange", () => {
+        if (installing.state === "installed" && navigator.serviceWorker.controller) {
+          announceUpdate();
+        }
+      });
+    });
+
+    navigator.serviceWorker.ready.then(() => {
+      announceUpdate();
       window.dispatchEvent(new Event("pwa:offline-ready"));
-    },
+    });
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload(), { once: true });
+  }).catch((error) => {
+    console.warn("[PWA] تعذر تسجيل عامل الخدمة:", error);
   });
 }
 
