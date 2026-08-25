@@ -14,6 +14,18 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1114.0
         version: 3.1114.0
+      '@capacitor/app':
+        specifier: ^8.1.1
+        version: 8.1.1(@capacitor/core@8.5.0)
+      '@capacitor/core':
+        specifier: ^8.5.0
+        version: 8.5.0
+      '@capacitor/splash-screen':
+        specifier: ^8.0.2
+        version: 8.0.2(@capacitor/core@8.5.0)
+      '@capacitor/status-bar':
+        specifier: ^8.0.3
+        version: 8.0.3(@capacitor/core@8.5.0)
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.64.0(react@19.2.1))
@@ -222,24 +234,12 @@ importers:
       '@capacitor/android':
         specifier: ^8.5.0
         version: 8.5.0(@capacitor/core@8.5.0)
-      '@capacitor/app':
-        specifier: ^8.1.1
-        version: 8.1.1(@capacitor/core@8.5.0)
       '@capacitor/cli':
-        specifier: ^8.5.0
-        version: 8.5.0
-      '@capacitor/core':
         specifier: ^8.5.0
         version: 8.5.0
       '@capacitor/ios':
         specifier: ^8.5.0
         version: 8.5.0(@capacitor/core@8.5.0)
-      '@capacitor/splash-screen':
-        specifier: ^8.0.2
-        version: 8.0.2(@capacitor/core@8.5.0)
-      '@capacitor/status-bar':
-        specifier: ^8.0.3
-        version: 8.0.3(@capacitor/core@8.5.0)
       '@tailwindcss/typography':
         specifier: ^0.5.15
         version: 0.5.19(tailwindcss@4.1.14)

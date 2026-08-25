@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
+import { bootstrapNativeShell } from "./lib/native";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,12 @@ const trpcClient = trpc.createClient({
       },
     }),
   ],
+});
+
+// تكامل الغلاف الأصلي (أندرويد/iOS). لا يفعل شيئاً في المتصفح، ولا يُؤخّر
+// عرض الواجهة، فأي فشل فيه لا يمنع إقلاع التطبيق.
+void bootstrapNativeShell().catch((error) => {
+  console.error("[Native Shell]", error);
 });
 
 createRoot(document.getElementById("root")!).render(
