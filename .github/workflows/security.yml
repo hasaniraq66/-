@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
-      VERCEL_PRODUCTION_URL: https://moh-nu.vercel.app
+      VERCEL_PRODUCTION_URL: https://iqcma.com
     steps:
       - name: Wait for the Vercel Git deployment to become healthy
         shell: bash
