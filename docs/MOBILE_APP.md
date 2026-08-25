@@ -71,9 +71,28 @@ cd android && ./gradlew assembleDebug
 
 للنسخة الموقّعة الجاهزة للنشر في Google Play استخدم `./gradlew bundleRelease` بعد ضبط مفتاح التوقيع (keystore) في `android/app/build.gradle`.
 
+## الأيقونة وشاشة البداية
+
+مصدر الهوية الوحيد هو `client/public/pwa-icon.svg` نفسه الذي تستخدمه نسخة PWA، فتتطابق الأيقونة بين المتصفح والتطبيق المثبّت وتطبيق أندرويد. اشتُقّت منه ملفات `android/app/src/main/res` التالية وهي مثبّتة في المستودع:
+
+| المورد | الوصف |
+| --- | --- |
+| `mipmap-*/ic_launcher.png` و`ic_launcher_round.png` | أيقونة المشغّل بخمس كثافات (48 إلى 192 بكسل) |
+| `mipmap-*/ic_launcher_foreground.png` | طبقة المقدمة للأيقونة التكيّفية، بالشعار عند 62% داخل منطقة القصّ الآمنة |
+| `values/ic_launcher_background.xml` | خلفية الأيقونة التكيّفية بلون الخزينة `#071426` بدل الأبيض الافتراضي |
+| `drawable-port-*/splash.png` و`drawable-land-*/splash.png` | شاشة البداية طولياً وعرضياً بخمس كثافات |
+
+عند تغيير الهوية، أعد التوليد بالأداة الرسمية:
+
+```bash
+pnpm dlx @capacitor/assets generate --android
+```
+
+تتوقّع الأداة `assets/icon.png` بمقاس 1024×1024 و`assets/splash.png` بمقاس 2732×2732، فحوّل ملف SVG إليهما أولاً. راجع بعد التوليد أن خلفية الأيقونة التكيّفية بقيت داكنة، لأن الأداة قد تعيدها إلى الأبيض فتظهر حافة بيضاء حول الشعار.
+
 ## قبل النشر في المتاجر
 
 1. غيّر `appId` في `capacitor.config.ts` (القيمة الحالية `com.diyuni.budgetpro`) إلى معرّف فريد يخصك.
-2. أضف أيقونة التطبيق وشاشة البداية (Splash) عبر [`@capacitor/assets`](https://github.com/ionic-team/capacitor-assets).
-3. أضف النطاق المستخدم فعلياً (إن اعتمدت الطريقة الأولى) إلى **Authorized domains** في Firebase Authentication، كما هو موضح في `PRODUCTION_SETUP.md`.
-4. راجع أذونات Android في `android/app/src/main/AndroidManifest.xml` وأزل ما لا يحتاجه التطبيق.
+2. أضف النطاق المستخدم فعلياً (إن اعتمدت الطريقة الأولى) إلى **Authorized domains** في Firebase Authentication، كما هو موضح في `PRODUCTION_SETUP.md`.
+3. راجع أذونات Android في `android/app/src/main/AndroidManifest.xml` وأزل ما لا يحتاجه التطبيق (حالياً `INTERNET` فقط).
+4. وقّع نسخة الإصدار: أنشئ keystore واضبطه في `android/app/build.gradle`، ثم `./gradlew bundleRelease`. لا تُودِع ملف keystore ولا كلمات مروره في المستودع.
