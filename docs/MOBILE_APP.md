@@ -29,6 +29,18 @@ pnpm run cap:sync
 
 بدون ضبط `CAPACITOR_SERVER_URL`، يُحمَّل التطبيق نسخة `dist/public` المبنية محلياً ضمن الحزمة، وتُخدَّم من `https://localhost` (نطاق مصرح به افتراضياً في Firebase Authentication). يعمل Firebase Auth وFirestore بشكل طبيعي بهذا الوضع لأنهما يعتمدان على SDK العميل مباشرة لا على نداءات `/api/*` النسبية. أي مسار يعتمد على `/api/*` (النسخ الاحتياطي عبر خادم Vercel مثلاً) يحتاج عندها إلى ضبط عنوان مطلق للخادم بدل الاعتماد على `window.location.origin`.
 
+## التكامل الأصلي
+
+يفعّل `client/src/lib/native.ts` سلوك الغلاف الأصلي عند الإقلاع، ولا يفعل شيئاً في المتصفح:
+
+- **زر الرجوع في أندرويد**: يرجع خطوة في سجل التنقل، ولا يخرج من التطبيق إلا من الشاشة الجذرية. من دون ذلك كان الزر يغلق التطبيق كاملاً من أي شاشة.
+- **شريط الحالة**: نمط داكن بلون الخزينة الكحلي `#0f172a` مطابقاً لهوية الواجهة.
+- **شاشة البداية**: تُخفى بعد جاهزية الواجهة.
+
+كما أضيف `viewport-fit=cover` إلى `client/index.html`، وبدونه لا تُفعَّل قيم `env(safe-area-inset-*)` المستخدمة أصلاً في `client/src/index.css`، فيختفي المحتوى خلف نتوء الشاشة وشريط الإيماءات.
+
+> ملاحظة: حزم `@capacitor/core` و`@capacitor/app` و`@capacitor/splash-screen` و`@capacitor/status-bar` مُدرجة في `dependencies` لأن كود الواجهة يستوردها في وقت التشغيل، بينما تبقى `@capacitor/cli` و`@capacitor/android` و`@capacitor/ios` في `devDependencies` لأنها أدوات بناء فقط.
+
 ## أوامر البناء والتشغيل
 
 ```bash
@@ -42,7 +54,22 @@ pnpm run cap:android
 pnpm run cap:ios
 ```
 
-يتطلب `cap:android` تثبيت Android Studio أو Android SDK محلياً؛ لا يمكن بناء أو تشغيل APK داخل بيئة التطوير السحابية الحالية.
+### بناء APK من سطر الأوامر (بدون Android Studio)
+
+جرى التحقق من هذا المسار فعلياً وأنتج ملف APK صالحاً:
+
+```bash
+# يتطلب JDK 21 وAndroid SDK (platform-tools، platforms;android-36، build-tools;36.0.0)
+export ANDROID_HOME=/path/to/android-sdk
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+
+pnpm run cap:sync
+cd android && ./gradlew assembleDebug
+```
+
+الناتج: `android/app/build/outputs/apk/debug/app-debug.apk` (نحو 5 ميغابايت).
+
+للنسخة الموقّعة الجاهزة للنشر في Google Play استخدم `./gradlew bundleRelease` بعد ضبط مفتاح التوقيع (keystore) في `android/app/build.gradle`.
 
 ## قبل النشر في المتاجر
 
