@@ -26,7 +26,7 @@ import {
   History
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { 
   collection, 
   doc, 
@@ -160,10 +160,32 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
       const credential = await createUserWithEmailAndPassword(tempAuth, email.trim(), password);
       const subUserId = credential.user.uid;
 
+      // امنح المساعد فرصة تعيين كلمة مروره بنفسه. من دون ذلك تبقى الكلمة التي
+      // كتبها المالك صالحة إلى الأبد، فيظل قادراً على انتحال شخصية المساعد.
+      let passwordResetSent = true;
+      try {
+        await sendPasswordResetEmail(tempAuth, email.trim());
+      } catch (resetError) {
+        passwordResetSent = false;
+        console.warn('[Permissions] تعذر إرسال رسالة تعيين كلمة المرور:', resetError);
+      }
+
       // Log out of the temporary instance immediately so it leaves client authentication state untouched
       await signOut(tempAuth);
 
-      // 2. Write the user profile for the newly created sub-user
+      // 2. سجل المساعد في مجموعة المالك أولاً: قواعد Firestore تشتق سلطة الإشراف
+      // من وجود هذا المستند، فإنشاء ملف التعريف قبله يُرفض.
+      const subUserRecord: SubUser = {
+        id: subUserId,
+        displayName: displayName.trim(),
+        email: email.trim(),
+        allowedTabs: selectedTabs,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'users', currentUserId, 'subUsers', subUserId), subUserRecord);
+
+      // 3. ثم ملف تعريف المساعد، وقد صار المالك مشرفاً معترفاً به في القواعد
       const subUserProfile = {
         userId: subUserId,
         displayName: displayName.trim(),
@@ -176,19 +198,12 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
 
       await setDoc(doc(db, 'users', subUserId), subUserProfile);
 
-      // 3. Save sub-user record in the Admin's subUsers subcollection for Security Rules lookup
-      const subUserRecord: SubUser = {
-        id: subUserId,
-        displayName: displayName.trim(),
-        email: email.trim(),
-        allowedTabs: selectedTabs,
-        createdAt: new Date().toISOString()
-      };
-
-      await setDoc(doc(db, 'users', currentUserId, 'subUsers', subUserId), subUserRecord);
-
       // 4. Success notification and reset fields
-      setSuccess(`تم بنجاح إنشاء حساب المساعد (${displayName}) وتعيين صلاحياته المحددة.`);
+      setSuccess(
+        passwordResetSent
+          ? `تم إنشاء حساب المساعد (${displayName}) وتعيين صلاحياته، وأُرسلت إلى بريده رسالة لتعيين كلمة مروره الخاصة.`
+          : `تم إنشاء حساب المساعد (${displayName}) وتعيين صلاحياته. تعذر إرسال رسالة تعيين كلمة المرور، فاطلب منه استخدام "نسيت كلمة المرور" عند أول دخول.`
+      );
       setDisplayName('');
       setEmail('');
       setPassword('');
@@ -259,14 +274,16 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
     setIsSubmitting(true);
     const deleteOp = async () => {
       try {
-        // Remove subuser record from admin's subUsers
-        await deleteDoc(doc(firestore, 'users', currentUserId, 'subUsers', subUser.id));
-        
-        // Update subuser profile to disconnect them from admin
+        // افصل المساعد عن المشرف أولاً. قواعد Firestore تشتق سلطة الإشراف من سجل
+        // subUsers، فحذفه قبل تعديل الملف يُفقد المالك صلاحية تعديله ويترك المساعد
+        // معلّقاً بـ adminId لا يستطيع أحد إزالته.
         await setDoc(doc(firestore, 'users', subUser.id), {
           adminId: '',
           allowedTabs: []
         }, { merge: true });
+
+        // ثم احذف السجل الذي يمنحه الوصول
+        await deleteDoc(doc(firestore, 'users', currentUserId, 'subUsers', subUser.id));
 
         setSuccess(`تم حذف حساب المساعد (${subUser.displayName}) وإلغاء صلاحيات وصوله للملفات.`);
         loadSubUsers();

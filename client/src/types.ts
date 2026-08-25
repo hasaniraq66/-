@@ -31,7 +31,11 @@ export interface FinancialAttachment {
   name: string;
   url: string;
   storageKey?: string;
-  /** Token for a Firebase Storage object; it is returned only by the protected preview route. */
+  /**
+   * مفتاح تنزيل كائن Firebase Storage. هو مفتاح حامل دائم يتجاوز قواعد التخزين:
+   * من يملكه يفتح الملف بلا مصادقة. لذلك يُجرَّد من أي نسخة احتياطية تغادر
+   * التطبيق (راجع sanitizeAttachmentsForExport).
+   */
   storageDownloadToken?: string;
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
   size: number;

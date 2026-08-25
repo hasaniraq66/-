@@ -10,8 +10,22 @@ describe('attachment access contracts', () => {
   it('limits attachment lists to the record owner or an authorised assistant through Firestore rules', () => {
     expect(firestoreRules).toContain('function isValidAttachments(data)');
     expect(firestoreRules).toContain("data.attachments is list && data.attachments.size() <= 10");
-    expect(firestoreRules).toContain('canAccessUser(userId) && isValidId(debtId) && isValidDebt(incoming(), userId)');
-    expect(firestoreRules).toContain('canAccessUser(userId) && isValidId(expenseId) && isValidExpense(incoming(), userId)');
+    // الكتابة مقيّدة بتبويب التحرير الخاص بكل مجموعة، لا بمجرد كون المتصفح مساعداً.
+    expect(firestoreRules).toContain("canWriteTab(userId, 'debts')");
+    expect(firestoreRules).toContain("canWriteTab(userId, 'budget')");
+    expect(firestoreRules).toContain('isValidId(debtId) && isValidDebt(incoming(), userId)');
+    expect(firestoreRules).toContain('isValidId(expenseId) && isValidExpense(incoming(), userId)');
+    // القراءة مقيّدة بالتبويبات التي تعرض هذه البيانات فعلاً.
+    expect(firestoreRules).toContain("canReadTabs(userId, ['debts', 'dashboard', 'reports', 'alerts'])");
+    expect(firestoreRules).toContain("canReadTabs(userId, ['budget', 'dashboard', 'reports', 'alerts'])");
+  });
+
+  it('separates delete from create and update so owners can remove their own records', () => {
+    // عند الحذف تكون request.resource فارغة، فاستدعاء مخطط التحقق داخل قاعدة
+    // الحذف يفشل بخطأ null ويمنع المالك من حذف بياناته.
+    expect(firestoreRules).toContain("allow delete: if canWriteTab(userId, 'debts');");
+    expect(firestoreRules).toContain("allow delete: if canWriteTab(userId, 'budget');");
+    expect(firestoreRules).not.toMatch(/allow write:\s*if canAccessUser/);
   });
 
   it('keeps preview and removal actions scoped to the current record attachment list', () => {

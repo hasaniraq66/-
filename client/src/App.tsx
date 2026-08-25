@@ -46,6 +46,8 @@ import ConfirmModal from './components/ConfirmModal';
 import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './components/DataLoadingExperience';
 import type { DataLoadingStage } from './lib/loadingExperience';
 import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
+import { resolveCollection, shouldReportLoadFailure } from './lib/collectionAccess';
+import { sanitizeRecordsForExport } from './lib/backupSanitizer';
 import { runWithFirebaseSessionRecovery } from './lib/firebaseSession';
 import { createAuthLoadCoordinator } from './lib/authLoadCoordinator';
 import { createAuthBootstrapWatchdog } from './lib/authBootstrapWatchdog';
@@ -244,8 +246,11 @@ export default function App() {
 
           // Fetch user-isolated cloud collections from Firestore using final database owner ID
           setLoadingStage('records');
-          const [loadedDebts, loadedExpenses, loadedBudgets, loadedProjects, loadedEmployees, loadedPayments] = await withDataLoadTimeout(
-            Promise.all([
+          // allSettled لا all: قواعد Firestore تطبّق صلاحيات التبويبات، فرفض
+          // مجموعة واحدة أمر متوقَّع لمساعد محدود الصلاحية ولا يجوز أن يُسقط
+          // تحميل التبويبات المسموح له بها.
+          const settled = await withDataLoadTimeout(
+            Promise.allSettled([
               fetchCollection<Debt>(finalUid, 'debts'),
               fetchCollection<Expense>(finalUid, 'expenses'),
               fetchCollection<Budget>(finalUid, 'budgets'),
@@ -257,6 +262,21 @@ export default function App() {
           );
           if (!loadCoordinator.isCurrent(requestId)) return;
 
+          const [settledDebts, settledExpenses, settledBudgets, settledProjects, settledEmployees, settledPayments] =
+            settled as [
+              PromiseSettledResult<Debt[]>,
+              PromiseSettledResult<Expense[]>,
+              PromiseSettledResult<Budget[]>,
+              PromiseSettledResult<Project[]>,
+              PromiseSettledResult<Employee[]>,
+              PromiseSettledResult<SalaryPayment[]>,
+            ];
+
+          if (shouldReportLoadFailure(settled)) {
+            const failure = settled.find((result) => result.status === 'rejected');
+            if (failure && failure.status === 'rejected') throw failure.reason;
+          }
+
           // Load cloud values, falling back to user-isolated localStorage if offline/empty
           const localDebtsSaved = localStorage.getItem(`personal_debts_${finalUid}`);
           const localExpensesSaved = localStorage.getItem(`personal_expenses_${finalUid}`);
@@ -266,12 +286,12 @@ export default function App() {
           const localPaymentsSaved = localStorage.getItem(`personal_salary_payments_${finalUid}`);
           const localReadAlertsSaved = localStorage.getItem(`personal_read_alerts_${finalUid}`);
 
-          const finalDebts = loadedDebts.length > 0 ? loadedDebts : (localDebtsSaved ? JSON.parse(localDebtsSaved) : []);
-          const finalExpenses = loadedExpenses.length > 0 ? loadedExpenses : (localExpensesSaved ? JSON.parse(localExpensesSaved) : []);
-          const finalBudgets = loadedBudgets.length > 0 ? loadedBudgets : (localBudgetsSaved ? JSON.parse(localBudgetsSaved) : []);
-          const finalProjects = loadedProjects.length > 0 ? loadedProjects : (localProjectsSaved ? JSON.parse(localProjectsSaved) : []);
-          const finalEmployees = loadedEmployees.length > 0 ? loadedEmployees : (localEmployeesSaved ? JSON.parse(localEmployeesSaved) : []);
-          const finalPayments = loadedPayments.length > 0 ? loadedPayments : (localPaymentsSaved ? JSON.parse(localPaymentsSaved) : []);
+          const finalDebts = resolveCollection<Debt>(settledDebts, localDebtsSaved ? JSON.parse(localDebtsSaved) : null);
+          const finalExpenses = resolveCollection<Expense>(settledExpenses, localExpensesSaved ? JSON.parse(localExpensesSaved) : null);
+          const finalBudgets = resolveCollection<Budget>(settledBudgets, localBudgetsSaved ? JSON.parse(localBudgetsSaved) : null);
+          const finalProjects = resolveCollection<Project>(settledProjects, localProjectsSaved ? JSON.parse(localProjectsSaved) : null);
+          const finalEmployees = resolveCollection<Employee>(settledEmployees, localEmployeesSaved ? JSON.parse(localEmployeesSaved) : null);
+          const finalPayments = resolveCollection<SalaryPayment>(settledPayments, localPaymentsSaved ? JSON.parse(localPaymentsSaved) : null);
           const finalReadAlerts = localReadAlertsSaved ? JSON.parse(localReadAlertsSaved) : [];
 
           setDebts(finalDebts);
@@ -981,9 +1001,11 @@ export default function App() {
   };
 
   // Combined Payload to Export
+  // النسخة الاحتياطية تغادر التطبيق (تنزيل محلي أو Google Drive)، فتُجرَّد
+  // المرفقات من مفاتيح التنزيل التي تفتح الملفات بلا مصادقة.
   const exportPayload = {
-    personal_debts: debts,
-    personal_expenses: expenses,
+    personal_debts: sanitizeRecordsForExport(debts),
+    personal_expenses: sanitizeRecordsForExport(expenses),
     personal_budgets: budgets,
     personal_projects: projects,
     personal_employees_list: employees,
