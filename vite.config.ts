@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+import { VitePWA } from "vite-plugin-pwa";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -15,6 +16,7 @@ const PROJECT_ROOT = import.meta.dirname;
 const LOG_DIR = path.join(PROJECT_ROOT, ".manus-logs");
 const MAX_LOG_SIZE_BYTES = 1 * 1024 * 1024; // 1MB per log file
 const TRIM_TARGET_BYTES = Math.floor(MAX_LOG_SIZE_BYTES * 0.6); // Trim to 60% to avoid constant re-trimming
+const DEBUG_COLLECTOR_PATH = path.join(PROJECT_ROOT, "client", "dev-public", "__manus__", "debug-collector.js");
 
 type LogSource = "browserConsole" | "networkRequests" | "sessionReplay";
 
@@ -98,6 +100,15 @@ function vitePluginManusDebugCollector(): Plugin {
     },
 
     configureServer(server: ViteDevServer) {
+      server.middlewares.use("/__manus__/debug-collector.js", (req, res, next) => {
+        if (req.method !== "GET" || !fs.existsSync(DEBUG_COLLECTOR_PATH)) {
+          return next();
+        }
+
+        res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8" });
+        fs.createReadStream(DEBUG_COLLECTOR_PATH).pipe(res);
+      });
+
       // POST /__manus__/logs: Browser sends logs (written directly to files)
       server.middlewares.use("/__manus__/logs", (req, res, next) => {
         if (req.method !== "POST") {
@@ -156,6 +167,37 @@ export default defineConfig(({ command }) => ({
     react(),
     tailwindcss(),
     jsxLocPlugin(),
+    VitePWA({
+      registerType: "prompt",
+      includeAssets: ["pwa-icon.svg", "offline.html"],
+      manifest: {
+        name: "ديوني وميزانيتي برو",
+        short_name: "ديوني برو",
+        description: "إدارة الديون والميزانية والمصروفات والمشاريع باللغة العربية.",
+        lang: "ar",
+        dir: "rtl",
+        start_url: "/",
+        scope: "/",
+        display: "standalone",
+        orientation: "portrait-primary",
+        background_color: "#08111f",
+        theme_color: "#0f172a",
+        categories: ["finance", "productivity"],
+        icons: [
+          {
+            src: "/pwa-icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
+            purpose: "any maskable",
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+        navigateFallback: "/offline.html",
+        navigateFallbackDenylist: [/^\/api\//, /^\/__manus__\//],
+      },
+    }),
     ...(command === 'serve' ? [vitePluginManusRuntime(), vitePluginManusDebugCollector()] : []),
   ],
   resolve: {
@@ -167,7 +209,7 @@ export default defineConfig(({ command }) => ({
   },
   envDir: path.resolve(import.meta.dirname),
   root: path.resolve(import.meta.dirname, "client"),
-  publicDir: command === 'serve' ? path.resolve(import.meta.dirname, "client", "public") : false,
+  publicDir: path.resolve(import.meta.dirname, "client", "public"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,

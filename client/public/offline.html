@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>لا يوجد اتصال — ديوني وميزانيتي برو</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at top, #12375a, #071426 62%); color: #e2e8f0; }
+      main { width: min(92vw, 30rem); box-sizing: border-box; padding: 2rem; text-align: center; border: 1px solid #38bdf866; border-radius: 1.5rem; background: #0f172ae8; box-shadow: 0 24px 70px #02061799; }
+      img { width: 4.5rem; height: 4.5rem; margin-bottom: 1rem; }
+      h1 { margin: 0 0 .75rem; font-size: 1.4rem; }
+      p { margin: 0; line-height: 1.8; color: #cbd5e1; }
+      button { margin-top: 1.5rem; min-height: 2.75rem; padding: .5rem 1.25rem; border: 0; border-radius: .75rem; background: #38bdf8; color: #082f49; font: inherit; font-weight: 800; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/pwa-icon.svg" alt="" />
+      <h1>لا يوجد اتصال بالإنترنت</h1>
+      <p>يمكنك العودة إلى التطبيق عند استعادة الاتصال. تبقى البيانات التي حفظها التطبيق محلياً متاحة عند فتحه من جديد.</p>
+      <button type="button" onclick="window.location.reload()">إعادة المحاولة</button>
+    </main>
+  </body>
+</html>

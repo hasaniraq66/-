@@ -6,10 +6,41 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
+import { PwaExperience } from "./components/PwaExperience";
 import { bootstrapNativeShell } from "./lib/native";
 import "./index.css";
 
 const queryClient = new QueryClient();
+
+if (!import.meta.env.DEV && "serviceWorker" in navigator) {
+  void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
+    const announceUpdate = () => {
+      if (!registration.waiting) return;
+      window.dispatchEvent(new CustomEvent("pwa:update-available", {
+        detail: { update: () => registration.waiting?.postMessage({ type: "SKIP_WAITING" }) },
+      }));
+    };
+
+    registration.addEventListener("updatefound", () => {
+      const installing = registration.installing;
+      if (!installing) return;
+      installing.addEventListener("statechange", () => {
+        if (installing.state === "installed" && navigator.serviceWorker.controller) {
+          announceUpdate();
+        }
+      });
+    });
+
+    navigator.serviceWorker.ready.then(() => {
+      announceUpdate();
+      window.dispatchEvent(new Event("pwa:offline-ready"));
+    });
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload(), { once: true });
+  }).catch((error) => {
+    console.warn("[PWA] تعذر تسجيل عامل الخدمة:", error);
+  });
+}
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
@@ -83,6 +114,7 @@ createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
       <App />
+      <PwaExperience />
     </QueryClientProvider>
   </trpc.Provider>
 );
