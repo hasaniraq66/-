@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// قواعد Firebase Storage للمرفقات المالية.
+//
+// كانت هذه القواعد غائبة عن المستودع، أي أن الحاجز الوحيد أمام مرفقات
+// المستخدمين كان إعداداً منشوراً لا يراجعه أحد ولا يظهر في أي مراجعة كود.
+// الرفع والتنزيل يجريان برمز هوية المستخدم نفسه (راجع server/firebaseStorage.ts)،
+// فهذه القواعد هي ما يفصل بين حسابات المستخدمين داخل الحاوية.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // حدود الرفع نفسها المطبَّقة في server/attachments.ts، مكرّرة هنا لأن
+    // الحاوية قد تُستهدف مباشرة من دون المرور بالخادم.
+    function isAllowedUpload() {
+      return request.resource.size <= 5 * 1024 * 1024
+             && request.resource.contentType in [
+                  'image/jpeg', 'image/png', 'image/webp', 'application/pdf'
+                ];
+    }
+
+    // مسار المرفقات: financial-attachments/{مالك}/{نوع السجل}/{معرّف السجل}/{اسم الملف}
+    match /financial-attachments/{ownerUid}/{recordType}/{recordId}/{fileName} {
+      allow read: if isSignedIn() && request.auth.uid == ownerUid;
+      allow write: if isSignedIn() && request.auth.uid == ownerUid && isAllowedUpload();
+    }
+
+    // أي مسار آخر في الحاوية مرفوض صراحةً.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

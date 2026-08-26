@@ -35,6 +35,18 @@ jobs:
       - name: Run unit tests
         run: pnpm test
 
+      # قواعد Firestore هي حدّ الأمان الحقيقي: الواجهة تتصل بقاعدة البيانات
+      # مباشرة، فأي فحص في المتصفح قابل للتجاوز. تُشغَّل على المحاكي الرسمي
+      # ويحتاج Java.
+      - name: Set up Java for the Firestore emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Test Firestore security rules
+        run: pnpm run test:rules
+
       - name: Check TypeScript
         run: pnpm check
 

@@ -1,13 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Global safety net (Default Deny)
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
-    // Auth validation helpers
+    // ملاحظة: Firestore يرفض افتراضياً أي مسار لا تطابقه قاعدة صريحة، ولا حاجة
+    // إلى قاعدة `match /{document=**} { allow read, write: if false; }` — فالقواعد
+    // تُجمع بمنطق "أو"، أي أن قاعدة رفض لا تُلغي سماحاً في مسار آخر، فتوحي بحماية
+    // لا تقدّمها. الحماية الحقيقية هي أن كل مسار أدناه يذكر شرطه بنفسه.
+
+    // ===================== الهوية والصلاحيات =====================
+
     function isSignedIn() {
       return request.auth != null;
     }
@@ -16,12 +17,39 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function subUserRef(ownerId, helperId) {
+      return /databases/$(database)/documents/users/$(ownerId)/subUsers/$(helperId);
+    }
+
+    // المساعد: مَن أدرجه المالك في مجموعته الخاصة subUsers.
     function isSubUserOf(userId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(userId)/subUsers/$(request.auth.uid));
+      return isSignedIn() && exists(subUserRef(userId, request.auth.uid));
+    }
+
+    // المشرف: مَن يملك سجل هذا المستخدم داخل مجموعته هو. هذه هي نقطة الارتكاز
+    // التي تمنع انتحال الإشراف: لا أحد يكتب في subUsers الخاصة بغيره، فلا أحد
+    // يستطيع أن يعلن نفسه مشرفاً على مستخدم لم ينشئه.
+    function isAdminOf(userId) {
+      return isSignedIn() && exists(subUserRef(request.auth.uid, userId));
     }
 
     function canAccessUser(userId) {
       return isOwner(userId) || isSubUserOf(userId);
+    }
+
+    function helperTabs(userId) {
+      return get(subUserRef(userId, request.auth.uid)).data.get('allowedTabs', []);
+    }
+
+    // القراءة تتبع أي تبويب يعرض هذه البيانات (لوحة التحكم والتقارير تقرأ كل شيء)،
+    // بينما الكتابة تتبع تبويب التحرير وحده. المالك لا يمرّ بأي من الفحصين، فلا
+    // تُحتسب عليه قراءات إضافية.
+    function canReadTabs(userId, tabs) {
+      return isOwner(userId) || (isSubUserOf(userId) && helperTabs(userId).hasAny(tabs));
+    }
+
+    function canWriteTab(userId, tab) {
+      return isOwner(userId) || (isSubUserOf(userId) && tab in helperTabs(userId));
     }
 
     function incoming() {
@@ -41,8 +69,8 @@ service cloud.firestore {
              (data.attachments is list && data.attachments.size() <= 10);
     }
 
-    // Entity validation blueprints to prevent value poisoning, shadow updates, and negative numbers.
-    
+    // ===================== مخططات التحقق من البيانات =====================
+
     function isValidUserProfile(data) {
       return data.keys().hasAll(['userId', 'displayName']) &&
              data.userId is string && data.userId.size() <= 128 &&
@@ -140,54 +168,89 @@ service cloud.firestore {
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 100));
     }
 
-    // User Profile matching
+    // ===================== ملف المستخدم =====================
+
     match /users/{userId} {
-      allow read: if canAccessUser(userId);
-      allow write: if (
-                     (isSignedIn() && (resource == null ? incoming().adminId == request.auth.uid : existing().adminId == request.auth.uid)) ||
-                     (isOwner(userId) && (resource == null || !('adminId' in existing()) || (incoming().adminId == existing().adminId && incoming().allowedTabs == existing().allowedTabs)))
-                   ) && isValidUserProfile(incoming());
+      allow read: if canAccessUser(userId) || isAdminOf(userId);
 
-      // Debts
+      // الإنشاء: إمّا المستخدم نفسه لملفه الشخصي بلا مشرف، وإمّا مشرف أنشأ سجل
+      // المساعد في مجموعته أولاً. لا يوجد مسار ثالث يسمح بإنشاء ملف لمعرّف
+      // عشوائي، وهذا ما يغلق اختطاف الحساب.
+      allow create: if isValidUserProfile(incoming()) && (
+                      (isOwner(userId) && !('adminId' in incoming()))
+                      ||
+                      (isAdminOf(userId) && incoming().adminId == request.auth.uid)
+                    );
+
+      // التعديل: المستخدم يعدّل بياناته من دون المساس بـ adminId أو allowedTabs،
+      // والمشرف يعدّل صلاحيات مساعده أو يفصله عنه. تُقرأ الحقول عبر get(...,null)
+      // حتى لا تنفجر المقارنة لمستخدم بلا مشرف.
+      allow update: if isValidUserProfile(incoming()) && (
+                      (isOwner(userId)
+                        && incoming().get('adminId', null) == existing().get('adminId', null)
+                        && incoming().get('allowedTabs', null) == existing().get('allowedTabs', null))
+                      ||
+                      (isAdminOf(userId)
+                        && existing().get('adminId', null) == request.auth.uid
+                        && incoming().get('adminId', '') in [request.auth.uid, ''])
+                    );
+
+      allow delete: if isOwner(userId)
+                    || (isAdminOf(userId) && existing().get('adminId', null) == request.auth.uid);
+
+      // ===================== السجلات المالية =====================
+      // الحذف مفصول عن الإنشاء والتعديل عمداً: عند الحذف تكون request.resource
+      // فارغة، فأي استدعاء لمخطط التحقق داخل قاعدة الحذف يفشل بخطأ null ويمنع
+      // المستخدم من حذف بياناته هو.
+
       match /debts/{debtId} {
-        allow read: if canAccessUser(userId);
-        allow write: if canAccessUser(userId) && isValidId(debtId) && isValidDebt(incoming(), userId);
+        allow read: if canReadTabs(userId, ['debts', 'dashboard', 'reports', 'alerts']);
+        allow create, update: if canWriteTab(userId, 'debts')
+                              && isValidId(debtId) && isValidDebt(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'debts');
       }
 
-      // Expenses
       match /expenses/{expenseId} {
-        allow read: if canAccessUser(userId);
-        allow write: if canAccessUser(userId) && isValidId(expenseId) && isValidExpense(incoming(), userId);
+        allow read: if canReadTabs(userId, ['budget', 'dashboard', 'reports', 'alerts']);
+        allow create, update: if canWriteTab(userId, 'budget')
+                              && isValidId(expenseId) && isValidExpense(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'budget');
       }
 
-      // Budgets
       match /budgets/{budgetId} {
-        allow read: if canAccessUser(userId);
-        allow write: if canAccessUser(userId) && isValidId(budgetId) && isValidBudget(incoming(), userId);
+        allow read: if canReadTabs(userId, ['budget', 'dashboard', 'reports', 'alerts']);
+        allow create, update: if canWriteTab(userId, 'budget')
+                              && isValidId(budgetId) && isValidBudget(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'budget');
       }
 
-      // Projects
       match /projects/{projectId} {
-        allow read: if canAccessUser(userId);
-        allow write: if canAccessUser(userId) && isValidId(projectId) && isValidProject(incoming(), userId);
+        allow read: if canReadTabs(userId, ['projects', 'dashboard', 'reports']);
+        allow create, update: if canWriteTab(userId, 'projects')
+                              && isValidId(projectId) && isValidProject(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'projects');
       }
 
-      // Employees
       match /employees/{employeeId} {
-        allow read: if canAccessUser(userId);
-        allow write: if canAccessUser(userId) && isValidId(employeeId) && isValidEmployee(incoming(), userId);
+        allow read: if canReadTabs(userId, ['projects', 'dashboard', 'reports']);
+        allow create, update: if canWriteTab(userId, 'projects')
+                              && isValidId(employeeId) && isValidEmployee(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'projects');
       }
 
-      // Salary Payments
       match /salaryPayments/{paymentId} {
-        allow read: if canAccessUser(userId);
-        allow write: if canAccessUser(userId) && isValidId(paymentId) && isValidSalaryPayment(incoming(), userId);
+        allow read: if canReadTabs(userId, ['projects', 'dashboard', 'reports']);
+        allow create, update: if canWriteTab(userId, 'projects')
+                              && isValidId(paymentId) && isValidSalaryPayment(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'projects');
       }
 
-      // Sub-Users Management (Only the main owner can create, edit, or delete helpers)
+      // إدارة المساعدين للمالك وحده. هذه المجموعة هي مصدر الثقة لكل ما سبق،
+      // فلا يجوز أن يكتب فيها أحد سوى صاحب الحساب.
       match /subUsers/{subUserId} {
         allow read: if isOwner(userId);
-        allow write: if isOwner(userId) && isValidId(subUserId) && isValidSubUser(incoming());
+        allow create, update: if isOwner(userId) && isValidId(subUserId) && isValidSubUser(incoming());
+        allow delete: if isOwner(userId);
       }
     }
   }

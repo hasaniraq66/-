@@ -42,7 +42,10 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // `none` يرسل كعكة الجلسة مع كل طلب عابر للمواقع، وهو هامش خطر لا يلزم في
+    // الإنتاج حيث يعمل التطبيق على نطاقه الخاص. تبقى `none` خارج الإنتاج لأن
+    // معاينة المشروع تُحمَّل داخل إطار، والمتصفح يحجب كعكات الطرف الثالث بدونها.
+    sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
     secure: isSecureRequest(req),
   };
 }
