@@ -48,6 +48,7 @@ import type { DataLoadingStage } from './lib/loadingExperience';
 import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
 import { resolveCollection, shouldReportLoadFailure } from './lib/collectionAccess';
 import { sanitizeRecordsForExport } from './lib/backupSanitizer';
+import { clearPin, hasPin, migrateLegacyPin, setPin, verifyPin } from './lib/appLockCredential';
 import { runWithFirebaseSessionRecovery } from './lib/firebaseSession';
 import { createAuthLoadCoordinator } from './lib/authLoadCoordinator';
 import { createAuthBootstrapWatchdog } from './lib/authBootstrapWatchdog';
@@ -128,14 +129,11 @@ export default function App() {
     return localStorage.getItem('app_pin_enabled') === 'true';
   });
 
-  const [savedPin, setSavedPin] = useState<string>(() => {
-    return localStorage.getItem('app_pin_code') || '';
-  });
+  // لا نحتفظ بالرمز نفسه في حالة التطبيق إطلاقاً. المطابقة تجري داخل
+  // appLockCredential على تلبيح مملّح، فلا يمر الرمز الصريح في شجرة React.
 
   const [isPinLocked, setIsPinLocked] = useState<boolean>(() => {
-    const enabled = localStorage.getItem('app_pin_enabled') === 'true';
-    const pin = localStorage.getItem('app_pin_code') || '';
-    return enabled && pin.length === 4;
+    return localStorage.getItem('app_pin_enabled') === 'true' && hasPin();
   });
 
   // PIN Setup interactive form states inside the Settings Modal
@@ -398,9 +396,10 @@ export default function App() {
     localStorage.setItem('app_pin_enabled', String(pinEnabled));
   }, [pinEnabled]);
 
+  // ترحيل التثبيتات التي حفظت الرمز نصاً صريحاً قبل هذا الإصدار.
   useEffect(() => {
-    localStorage.setItem('app_pin_code', savedPin);
-  }, [savedPin]);
+    void migrateLegacyPin();
+  }, []);
 
   // Global, non-destructive access shortcut. Ctrl/Cmd + K opens the command palette.
   useEffect(() => {
@@ -503,7 +502,7 @@ export default function App() {
         setPinSetupError('الرموز المدخلة غير متطابقة، يرجى المحاولة مرة أخرى.');
         return;
       }
-      setSavedPin(pinInputValue);
+      void setPin(pinInputValue);
       setPinEnabled(true);
       setPinSetupStep('none');
       setPinInputValue('');
@@ -512,27 +511,27 @@ export default function App() {
     }
   };
 
-  const handleDisablePinSubmit = (e: React.FormEvent) => {
+  const handleDisablePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinSetupError('');
 
-    if (pinInputValue !== savedPin) {
+    if (!(await verifyPin(pinInputValue))) {
       setPinSetupError('رمز PIN الحالي غير صحيح.');
       return;
     }
     setPinEnabled(false);
-    setSavedPin('');
+    clearPin();
     setPinSetupStep('none');
     setPinInputValue('');
     setPinSetupError('');
   };
 
-  const handleChangePinSubmit = (e: React.FormEvent) => {
+  const handleChangePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinSetupError('');
 
     if (pinSetupStep === 'change_verify') {
-      if (pinInputValue !== savedPin) {
+      if (!(await verifyPin(pinInputValue))) {
         setPinSetupError('رمز PIN الحالي غير صحيح.');
         return;
       }
@@ -549,7 +548,7 @@ export default function App() {
         setPinSetupError('الرموز المدخلة غير متطابقة، يرجى المحاولة مرة أخرى.');
         return;
       }
-      setSavedPin(pinInputValue);
+      void setPin(pinInputValue);
       setPinSetupStep('none');
       setPinInputValue('');
       setPinConfirmValue('');
@@ -994,11 +993,15 @@ export default function App() {
     // Preserve app-level settings (theme / PIN) while clearing all personal financial caches
     const preservedTheme = theme;
     const preservedPinEnabled = pinEnabled;
-    const preservedPinCode = savedPin;
+    const preservedPinSalt = localStorage.getItem('app_pin_salt');
+    const preservedPinHash = localStorage.getItem('app_pin_hash');
     localStorage.clear();
     localStorage.setItem('app_theme', preservedTheme);
     localStorage.setItem('app_pin_enabled', String(preservedPinEnabled));
-    localStorage.setItem('app_pin_code', preservedPinCode);
+    if (preservedPinSalt && preservedPinHash) {
+      localStorage.setItem('app_pin_salt', preservedPinSalt);
+      localStorage.setItem('app_pin_hash', preservedPinHash);
+    }
   };
 
   // Combined Payload to Export
@@ -1068,7 +1071,7 @@ export default function App() {
   if (isPinLocked) {
     return (
       <LockScreen
-        savedPin={savedPin}
+        verifyPin={verifyPin}
         userName={userName}
         onUnlock={() => setIsPinLocked(false)}
       />
