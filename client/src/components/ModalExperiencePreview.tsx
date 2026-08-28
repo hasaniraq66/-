@@ -5,6 +5,39 @@ import ConfirmModal from './ConfirmModal';
 /** معاينة تطويرية معزولة للتحقق البصري من النوافذ؛ لا تتصل بالبيانات ولا تظهر في الإنتاج. */
 export default function ModalExperiencePreview() {
   const [isOpen, setIsOpen] = useState(true);
+  const isFinancialFormPreview = new URLSearchParams(window.location.search).get('modal-preview') === 'financial-form';
+
+  if (isFinancialFormPreview) {
+    return (
+      <main className="auth-vault-background min-h-screen p-4 font-sans" dir="rtl" id="financial-form-modal-preview">
+        <section className="mx-auto max-w-3xl rounded-3xl border border-sky-300/20 bg-slate-950/80 p-5 text-right text-slate-100 shadow-2xl shadow-slate-950/30 backdrop-blur">
+          <p className="text-[11px] font-black tracking-[0.16em] text-sky-300">معاينة تطويرية آمنة</p>
+          <h1 className="mt-1 text-lg font-black text-white">نموذج دين طويل مع حفظ دائم الظهور</h1>
+          <p className="mt-2 text-xs leading-6 text-slate-400">لا يتصل هذا النموذج ببياناتك ولا يحفظ أي عملية؛ وهو مخصص لاختبار التمرير فقط.</p>
+        </section>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md" id="add-debt-modal" role="presentation">
+          <div className="debt-form-modal-surface flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-5">
+              <h2 className="text-base font-bold text-slate-800">إضافة سجل دين جديد</h2>
+              <button type="button" className="rounded-lg p-1.5 text-slate-400" aria-label="إغلاق المعاينة">×</button>
+            </div>
+            <form className="space-y-4 p-5 text-xs" id="add-debt-form">
+              {['اسم الشخص أو الجهة', 'قيمة الدين', 'التصنيف', 'تاريخ التسجيل', 'تاريخ الاستحقاق', 'الملاحظات والتفاصيل', 'المرفقات الاختيارية'].map((label) => (
+                <label key={label} className="block space-y-1.5 font-semibold text-slate-600">
+                  <span>{label}</span>
+                  <span className="block h-11 rounded-xl border border-slate-200 bg-slate-50" />
+                </label>
+              ))}
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <button type="button" className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700">إلغاء</button>
+                <button type="button" className="rounded-xl bg-sky-600 px-5 py-2 font-bold text-white">حفظ الدين</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="auth-vault-background min-h-screen p-4 font-sans md:p-8" dir="rtl" id="modal-experience-preview">

@@ -850,6 +850,8 @@ input[type="date"] {
 
 :where(#set-budget-modal, #add-expense-modal, #edit-expense-modal, #template-modal, #add-debt-modal, #edit-debt-modal, #payment-modal, #person-account-modal, #export-reports-modal) > div:first-child {
   max-height: min(88dvh, 48rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(226, 232, 240, 0.9) !important;
   border-radius: 1.5rem !important;
   box-shadow: 0 28px 85px rgba(2, 6, 23, 0.42), 0 1px 0 rgba(255, 255, 255, 0.9) inset !important;
@@ -909,5 +911,85 @@ input[type="date"] {
   .app-modal-surface,
   :where(#set-budget-modal, #add-expense-modal, #edit-expense-modal, #template-modal, #add-debt-modal, #edit-debt-modal, #payment-modal, #person-account-modal, #export-reports-modal) > div:first-child {
     animation: none !important;
+  }
+}
+
+/* نماذج الدين الطويلة: تتدفق الحقول في مساحة مستقلة، بينما يبقى الحفظ والإلغاء
+   في تذييل ظاهر دائماً كي لا يضيع الإجراء الأساسي خارج شاشة الهاتف. */
+.debt-form-modal-surface {
+  min-height: 0;
+}
+
+#add-debt-form,
+#edit-debt-form {
+  min-height: 0;
+}
+
+#add-debt-form .debt-form-fields,
+#edit-debt-form .debt-form-fields {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+#add-debt-form .modal-form-actions,
+#edit-debt-form .modal-form-actions {
+  position: relative;
+  z-index: 1;
+  padding: 0.9rem 1.25rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -12px 22px rgba(15, 23, 42, 0.08);
+}
+
+/* النماذج الحالية لا تحتاج إلى تعديل بياناتها أو منطقها: يثبت آخر صف، وهو
+   صف الحفظ والإلغاء، داخل منطقة تمرير النافذة ذاتها. */
+#add-debt-form > div:last-child,
+#edit-debt-form > div:last-child,
+#set-budget-form > div:last-child,
+#add-expense-form > div:last-child,
+#edit-expense-form > div:last-child {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  margin: 1.25rem -1.25rem 0;
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -12px 22px rgba(15, 23, 42, 0.08);
+}
+
+#add-debt-form > div:last-child button,
+#edit-debt-form > div:last-child button,
+#set-budget-form > div:last-child button,
+#add-expense-form > div:last-child button,
+#edit-expense-form > div:last-child button {
+  min-height: 2.75rem;
+}
+
+@media (max-width: 767px) {
+  #add-debt-modal .debt-form-modal-surface,
+  #edit-debt-modal .debt-form-modal-surface {
+    max-height: min(86dvh, 46rem);
+  }
+
+  #add-debt-form .debt-form-fields,
+  #edit-debt-form .debt-form-fields {
+    padding: 1rem;
+  }
+
+  #add-debt-form .modal-form-actions,
+  #edit-debt-form .modal-form-actions {
+    padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  #add-debt-form > div:last-child,
+  #edit-debt-form > div:last-child,
+  #set-budget-form > div:last-child,
+  #add-expense-form > div:last-child,
+  #edit-expense-form > div:last-child {
+    margin: 1rem -1rem 0;
+    padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
   }
 }
