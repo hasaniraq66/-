@@ -40,6 +40,7 @@ import AttachmentSelector from './AttachmentSelector';
 import ConfirmModal from './ConfirmModal';
 import ReferenceCopyButton from './ReferenceCopyButton';
 import FinancialAttachments from './FinancialAttachments';
+import ModalPortal from './ModalPortal';
 
 export interface ActivityEvent {
   id: string;
@@ -1636,6 +1637,7 @@ export default function DebtsManager({
 
       {/* Add Debt Modal */}
       {isAddModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in" id="add-debt-modal">
           <div className="debt-form-modal-surface bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden shadow-xl border border-slate-100 flex flex-col">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -1844,10 +1846,12 @@ export default function DebtsManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Edit Debt Modal */}
       {isEditModalOpen && selectedDebt && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in" id="edit-debt-modal">
           <div className="debt-form-modal-surface bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden shadow-xl border border-slate-100 flex flex-col">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -2021,6 +2025,7 @@ export default function DebtsManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Record Payment/Installment Modal */}
@@ -2031,6 +2036,7 @@ export default function DebtsManager({
         const remainingForSelected = selectedDebt.amount - selectedDebt.paidAmount;
 
         return (
+          <ModalPortal>
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in" id="payment-modal">
             <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -2222,11 +2228,13 @@ export default function DebtsManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
         );
       })()}
 
       {/* Photo Lightbox Modal */}
       {selectedPhoto && (
+        <ModalPortal>
         <div 
           className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-[120] animate-fade-in cursor-zoom-out"
           onClick={() => setSelectedPhoto(null)}
@@ -2248,9 +2256,11 @@ export default function DebtsManager({
             <p className="text-white/60 text-[10px] mt-3 text-center font-semibold">اضغط في أي مكان لإغلاق المعاينة 🔍</p>
           </div>
         </div>
+        </ModalPortal>
       )}
       {/* Custom Confirmation Modal */}
       {confirmModal && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full shadow-xl overflow-hidden border border-slate-100 text-right">
             <div className="bg-slate-950 p-5 text-white flex justify-between items-center">
@@ -2289,6 +2299,7 @@ export default function DebtsManager({
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Detailed Person Account Modal */}
@@ -2311,6 +2322,7 @@ export default function DebtsManager({
         });
 
         return (
+          <ModalPortal>
           <div className="fixed inset-0 bg-slate-900/60 z-[90] flex items-center justify-center p-4 overflow-y-auto" id="person-account-modal">
             <div className="bg-white rounded-3xl max-w-2xl w-full my-8 shadow-2xl overflow-hidden border border-slate-100 text-right flex flex-col max-h-[90vh]">
               {/* Modal Header */}
@@ -2765,6 +2777,7 @@ export default function DebtsManager({
               </div>
             </div>
           </div>
+          </ModalPortal>
         );
       })()}
 
@@ -2795,6 +2808,7 @@ export default function DebtsManager({
         const activities = getPersonActivityHistory(accDebts);
 
         return (
+          <ModalPortal>
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full p-6 space-y-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 print:shadow-none print:border-none print:p-0 print:max-w-none">
               
@@ -2947,6 +2961,7 @@ export default function DebtsManager({
 
             </div>
           </div>
+          </ModalPortal>
         );
       })()}
 

@@ -38,6 +38,7 @@ import {
 import { db } from '../utils/firebaseService';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { SubUser } from '../types';
+import ModalPortal from './ModalPortal';
 
 interface PermissionsManagerProps {
   currentUserId: string;
@@ -358,6 +359,7 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
       {/* Create Account Modal Form */}
       <AnimatePresence>
         {showAddForm && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -508,12 +510,14 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
               </form>
             </motion.div>
           </div>
+          </ModalPortal>
         )}
       </AnimatePresence>
 
       {/* Edit Permissions Modal */}
       <AnimatePresence>
         {editingUser && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -625,6 +629,7 @@ export default function PermissionsManager({ currentUserId, currency }: Permissi
               </div>
             </motion.div>
           </div>
+          </ModalPortal>
         )}
       </AnimatePresence>
 

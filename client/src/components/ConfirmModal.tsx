@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldAlert, Info, AlertTriangle, LucideIcon } from 'lucide-react';
+import ModalPortal from './ModalPortal';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export default function ConfirmModal({
   }
 
   return (
+    <ModalPortal>
     <div className="app-modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
       <div className="app-modal-surface max-w-sm overflow-hidden bg-white text-right" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className={`flex items-center justify-between p-5 ${headerBg}`}>
@@ -77,5 +79,6 @@ export default function ConfirmModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
