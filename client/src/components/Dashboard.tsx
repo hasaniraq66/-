@@ -446,15 +446,15 @@ export default function Dashboard({
     <div className="space-y-4" id="dashboard-viewport">
       {/* Welcome Banner */}
       <div 
-        className="dashboard-vault-hero relative overflow-hidden bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#0b0f19] text-white rounded-2xl p-4 md:p-5 shadow-xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4" 
+        className="dashboard-vault-hero relative min-h-0 overflow-hidden bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#0b0f19] text-white rounded-2xl p-4 md:p-5 shadow-xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4" 
         id="welcome-banner"
       >
         {/* Abstract artistic glowing layers */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 w-52 h-52 bg-emerald-500/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
-        <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div aria-hidden="true" className="welcome-banner-ambient absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+          <div aria-hidden="true" className="welcome-banner-ambient absolute bottom-0 left-0 w-52 h-52 bg-emerald-500/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
+        <div aria-hidden="true" className="welcome-banner-ambient absolute top-1/2 left-1/3 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         
-        <div className="relative z-10 space-y-2">
+        <div className="welcome-banner-copy relative z-10 space-y-2">
           <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-sky-400 bg-sky-500/10 px-3 py-1 rounded-full border border-sky-500/20 uppercase tracking-wider">
             <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-ping"></span>
             لوحة المتابعة الشاملة
@@ -462,12 +462,12 @@ export default function Dashboard({
           <h1 className="text-lg md:text-2xl font-extrabold tracking-tight mt-1 flex items-center gap-2 text-white">
             <span>{timeGreeting}</span>
           </h1>
-          <p className="text-slate-400 text-xs md:text-sm max-w-xl leading-relaxed font-semibold">
+          <p className="welcome-banner-description text-slate-400 text-xs md:text-sm max-w-xl leading-relaxed font-semibold">
             مرحباً بك في مركزك المالي الآمن. تتبع الديون والالتزامات مع الآخرين، راقب ميزانية مصاريفك الشهرية بذكاء، وتلقّ التنبيهات اللازمة لمواعيد الاستحقاق.
           </p>
         </div>
         
-        <div className="relative z-10 flex gap-3 w-full md:w-auto shrink-0">
+        <div className="welcome-banner-actions relative z-10 flex gap-3 w-full md:w-auto shrink-0">
           <motion.button 
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}

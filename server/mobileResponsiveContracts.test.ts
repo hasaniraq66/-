@@ -66,4 +66,19 @@ describe('mobile responsive navigation contracts', () => {
     expect(quickEntrySource).toContain('min-h-10 py-2 rounded-xl');
     expect(quickEntrySource).toContain('w-full min-h-11 py-3.5');
   });
+
+  it('prevents the mobile welcome card from expanding into an empty visual block', () => {
+    expect(dashboardSource).toContain('id="welcome-banner"');
+    expect(dashboardSource).toContain('welcome-banner-copy');
+    expect(dashboardSource).toContain('welcome-banner-actions');
+    expect(cssSource).toContain('#welcome-banner {');
+    expect(cssSource).toContain('min-height: 0 !important');
+    expect(cssSource).toContain('height: auto !important');
+    expect(cssSource).toContain('display: contents');
+    expect(cssSource).toContain('#welcome-banner .welcome-banner-copy');
+    expect(cssSource).toContain('#welcome-banner .welcome-banner-ambient');
+    expect(cssSource).toContain('#welcome-banner .welcome-banner-description');
+    expect(cssSource).toContain('display: none');
+    expect(cssSource).toContain('min-height: calc(3.75rem + env(safe-area-inset-bottom))');
+  });
 });

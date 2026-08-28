@@ -1091,7 +1091,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col md:flex-row" id="app-container">
       
       {/* Mobile Top Header */}
-      <header className="md:hidden bg-slate-950 text-white p-4 flex justify-between items-center shadow-md z-40" id="mobile-top-header">
+      <header className="md:hidden bg-slate-950 px-3 py-2.5 text-white flex justify-between items-center z-40" id="mobile-top-header">
         <div className="flex items-center gap-2">
           <Coins className="w-5 h-5 text-sky-400" />
           <span className="font-extrabold text-sm tracking-tight">ديوني وميزانيتي <span className="text-sky-300">برو</span></span>
@@ -1471,7 +1471,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="vault-content-shell flex-1 p-3 md:p-5 xl:p-6 pb-24 md:pb-6 max-w-7xl mx-auto w-full space-y-4" id="main-scrollable-content">
+      <main className="vault-content-shell flex-1 p-3 md:p-5 xl:p-6 pb-20 md:pb-6 max-w-7xl mx-auto w-full space-y-4" id="main-scrollable-content">
         {dataLoadError && (activeTab === 'dashboard' || activeTab === 'debts') && (
           <FinancialDataLoadErrorNotice message={dataLoadError} onRetry={() => window.location.reload()} />
         )}
@@ -1682,7 +1682,7 @@ export default function App() {
 
       {/* Mobile Bottom Tab Bar */}
       <nav 
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/60 dark:border-slate-800/60 py-2.5 px-3 flex justify-around items-center z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] pb-safe" 
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/60 dark:border-slate-800/60 py-1.5 px-3 flex justify-around items-center z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] pb-safe" 
         id="mobile-bottom-nav"
         aria-label="التنقل السريع للجوال"
       >
