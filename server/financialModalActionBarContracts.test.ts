@@ -10,11 +10,13 @@ describe('financial form action bar contracts', () => {
   it('keeps add and edit debt forms identifiable without changing their financial logic', () => {
     expect(debtsSource).toContain('id="add-debt-form"');
     expect(debtsSource).toContain('id="edit-debt-form"');
+    expect(debtsSource).toContain('debt-form-fields');
+    expect(debtsSource).toContain('modal-form-actions');
   });
 
-  it('keeps the existing last action row visible inside the scrollable modal on small screens', () => {
-    expect(cssSource).toContain('#add-debt-form > div:last-child');
-    expect(cssSource).toContain('#edit-debt-form > div:last-child');
+  it('keeps debt actions outside the scrollable field region and sticky actions for related finance forms', () => {
+    expect(cssSource).toContain('#add-debt-form .debt-form-fields');
+    expect(cssSource).toContain('#add-debt-form .modal-form-actions');
     expect(cssSource).toContain('#set-budget-form > div:last-child');
     expect(cssSource).toContain('#add-expense-form > div:last-child');
     expect(cssSource).toContain('#edit-expense-form > div:last-child');

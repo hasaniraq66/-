@@ -945,8 +945,6 @@ input[type="date"] {
 
 /* النماذج الحالية لا تحتاج إلى تعديل بياناتها أو منطقها: يثبت آخر صف، وهو
    صف الحفظ والإلغاء، داخل منطقة تمرير النافذة ذاتها. */
-#add-debt-form > div:last-child,
-#edit-debt-form > div:last-child,
 #set-budget-form > div:last-child,
 #add-expense-form > div:last-child,
 #edit-expense-form > div:last-child {
@@ -960,8 +958,6 @@ input[type="date"] {
   box-shadow: 0 -12px 22px rgba(15, 23, 42, 0.08);
 }
 
-#add-debt-form > div:last-child button,
-#edit-debt-form > div:last-child button,
 #set-budget-form > div:last-child button,
 #add-expense-form > div:last-child button,
 #edit-expense-form > div:last-child button {
@@ -984,8 +980,6 @@ input[type="date"] {
     padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
   }
 
-  #add-debt-form > div:last-child,
-  #edit-debt-form > div:last-child,
   #set-budget-form > div:last-child,
   #add-expense-form > div:last-child,
   #edit-expense-form > div:last-child {

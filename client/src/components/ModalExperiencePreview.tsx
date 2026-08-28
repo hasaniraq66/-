@@ -21,14 +21,16 @@ export default function ModalExperiencePreview() {
               <h2 className="text-base font-bold text-slate-800">إضافة سجل دين جديد</h2>
               <button type="button" className="rounded-lg p-1.5 text-slate-400" aria-label="إغلاق المعاينة">×</button>
             </div>
-            <form className="space-y-4 p-5 text-xs" id="add-debt-form">
-              {['اسم الشخص أو الجهة', 'قيمة الدين', 'التصنيف', 'تاريخ التسجيل', 'تاريخ الاستحقاق', 'الملاحظات والتفاصيل', 'المرفقات الاختيارية'].map((label) => (
-                <label key={label} className="block space-y-1.5 font-semibold text-slate-600">
-                  <span>{label}</span>
-                  <span className="block h-11 rounded-xl border border-slate-200 bg-slate-50" />
-                </label>
-              ))}
-              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <form className="flex min-h-0 flex-1 flex-col text-xs" id="add-debt-form">
+              <div className="debt-form-fields space-y-4 p-5">
+                {['اسم الشخص أو الجهة', 'قيمة الدين', 'التصنيف', 'تاريخ التسجيل', 'تاريخ الاستحقاق', 'الملاحظات والتفاصيل', 'المرفقات الاختيارية'].map((label) => (
+                  <label key={label} className="block space-y-1.5 font-semibold text-slate-600">
+                    <span>{label}</span>
+                    <span className="block h-11 rounded-xl border border-slate-200 bg-slate-50" />
+                  </label>
+                ))}
+              </div>
+              <div className="modal-form-actions flex shrink-0 justify-end gap-2 border-t border-slate-100">
                 <button type="button" className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700">إلغاء</button>
                 <button type="button" className="rounded-xl bg-sky-600 px-5 py-2 font-bold text-white">حفظ الدين</button>
               </div>
