@@ -39,16 +39,17 @@ export default function ConfirmModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-sm w-full shadow-xl overflow-hidden border border-slate-100 text-right">
-        <div className={`p-5 flex justify-between items-center ${headerBg}`}>
+    <div className="app-modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+      <div className="app-modal-surface max-w-sm overflow-hidden bg-white text-right" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className={`flex items-center justify-between p-5 ${headerBg}`}>
           <button 
             onClick={onCancel}
-            className="opacity-70 hover:opacity-100 font-extrabold text-sm cursor-pointer"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-base opacity-90 transition hover:bg-white/20 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            aria-label="إغلاق نافذة التأكيد"
           >
             ✕
           </button>
-          <h2 className="font-extrabold text-sm flex items-center gap-2">
+          <h2 id="confirm-modal-title" className="flex items-center gap-2 text-sm font-extrabold">
             <Icon className="w-4 h-4 shrink-0" />
             <span>{title}</span>
           </h2>
@@ -59,7 +60,7 @@ export default function ConfirmModal({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer font-bold"
+              className="flex-1 min-h-11 rounded-xl bg-slate-100 py-2.5 font-bold text-slate-700 transition-all hover:bg-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
             >
               {cancelText}
             </button>
@@ -68,7 +69,7 @@ export default function ConfirmModal({
               onClick={() => {
                 onConfirm();
               }}
-              className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer font-bold ${confirmBtnBg}`}
+              className={`flex-1 min-h-11 rounded-xl py-2.5 font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${confirmBtnBg}`}
             >
               {confirmText}
             </button>

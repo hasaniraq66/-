@@ -79,6 +79,7 @@ const SmartAdvisor = lazy(() => import('./components/SmartAdvisor'));
 const PermissionsManager = lazy(() => import('./components/PermissionsManager'));
 const ActivityLog = lazy(() => import('./components/ActivityLog'));
 const SupportPage = lazy(() => import('./components/SupportPage'));
+const ModalExperiencePreview = lazy(() => import('./components/ModalExperiencePreview'));
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -1017,6 +1018,15 @@ export default function App() {
   const financialUiReviewMode = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('ui-review') : null;
   const isFinancialUiReview = financialUiReviewMode === 'financial-empty';
   const isFinancialErrorReview = financialUiReviewMode === 'financial-error';
+  const isModalExperienceReview = financialUiReviewMode === 'modal-experience';
+
+  if (isModalExperienceReview) {
+    return (
+      <Suspense fallback={<DeferredViewLoader label="معاينة النوافذ المنبثقة" />}>
+        <ModalExperiencePreview />
+      </Suspense>
+    );
+  }
 
   if (isFinancialUiReview) {
     return (
@@ -1763,8 +1773,8 @@ export default function App() {
 
       {/* Quick Settings Overlay/Modal */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="settings-modal">
-          <div className="bg-white rounded-2xl max-w-sm w-full shadow-xl border border-slate-100">
+        <div className="app-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-50" id="settings-modal" role="presentation">
+          <div className="app-modal-surface max-w-sm bg-white" role="dialog" aria-modal="true" aria-label="إعدادات الحساب والعملة">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h2 className="text-base font-bold text-slate-800">إعدادات الحساب والعملة ⚙️</h2>
               <button onClick={() => setIsSettingsOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50" aria-label="إغلاق الإعدادات" title="إغلاق الإعدادات">
