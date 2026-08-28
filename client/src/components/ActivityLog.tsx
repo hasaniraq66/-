@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Debt, Expense, Budget, Project, Employee, SalaryPayment } from '../types';
 import { formatCurrency, formatDate } from '../utils';
+import ModalPortal from './ModalPortal';
 
 interface ActivityLogProps {
   debts: Debt[];
@@ -570,6 +571,7 @@ export default function ActivityLog({
 
       {/* Photo Lightbox Modal */}
       {selectedPhoto && (
+        <ModalPortal>
         <div 
           className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-[120] animate-fade-in cursor-zoom-out"
           onClick={() => setSelectedPhoto(null)}
@@ -585,6 +587,7 @@ export default function ActivityLog({
             </button>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

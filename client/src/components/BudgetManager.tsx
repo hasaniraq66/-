@@ -26,6 +26,7 @@ import { isPositiveFinancialAmount, isValidBudgetLimit } from '../utils/financia
 import AttachmentSelector from './AttachmentSelector';
 import ReferenceCopyButton from './ReferenceCopyButton';
 import FinancialAttachments from './FinancialAttachments';
+import ModalPortal from './ModalPortal';
 
 interface BudgetManagerProps {
   expenses: Expense[];
@@ -906,6 +907,7 @@ export default function BudgetManager({
 
       {/* Set/Edit Budget Modal */}
       {isBudgetModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="set-budget-modal">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -1004,10 +1006,12 @@ export default function BudgetManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Add Expense Modal */}
       {isExpenseModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="add-expense-modal">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -1114,10 +1118,12 @@ export default function BudgetManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Edit Expense Modal */}
       {isEditModalOpen && selectedExpense && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="edit-expense-modal">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -1222,10 +1228,12 @@ export default function BudgetManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Create / Edit Quick Expense Template Modal */}
       {isTemplateModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="template-modal">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -1320,10 +1328,12 @@ export default function BudgetManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Photo Lightbox Modal */}
       {selectedPhoto && (
+        <ModalPortal>
         <div 
           className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in cursor-zoom-out"
           onClick={() => setSelectedPhoto(null)}
@@ -1345,6 +1355,7 @@ export default function BudgetManager({
             <p className="text-white/60 text-[10px] mt-3 text-center font-semibold">اضغط في أي مكان لإغلاق المعاينة 🔍</p>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

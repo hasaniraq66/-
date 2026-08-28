@@ -23,6 +23,7 @@ import {
 import { Project, Employee, SalaryPayment, Debt, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
+import ModalPortal from './ModalPortal';
 
 interface ProjectManagerProps {
   projects: Project[];
@@ -1452,6 +1453,7 @@ export default function ProjectManager({
 
       {/* MODAL 1: ADD / EDIT PROJECT */}
       {isProjectModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -1582,10 +1584,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL 2: ADD / EDIT EMPLOYEE */}
       {isEmployeeModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -1675,10 +1679,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL 3: PAY EMPLOYEE SALARY */}
       {isSalaryModalOpen && payingEmployee && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -1780,10 +1786,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL 4: QUICK DEBT LINK */}
       {isDebtModalOpen && selectedProjectObj && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -1919,10 +1927,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL 5: QUICK EXPENSE LINK */}
       {isExpenseModalOpen && selectedProjectObj && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -2002,10 +2012,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL 6: EDIT PROJECT DEBT */}
       {editingDebtObj && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -2109,10 +2121,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL 7: EDIT PROJECT EXPENSE */}
       {editingExpenseObj && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -2205,10 +2219,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL 8: ADD DEBT INSTALLMENT PAYMENT */}
       {payingDebtObj && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-55 flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -2312,10 +2328,12 @@ export default function ProjectManager({
             </form>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Custom Confirmation Modal */}
       {confirmModal && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -2356,6 +2374,7 @@ export default function ProjectManager({
             </div>
           </motion.div>
         </div>
+        </ModalPortal>
       )}
 
     </div>
