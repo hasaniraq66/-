@@ -72,7 +72,15 @@ describe('سير العمل ينشر القواعد عند الدمج في main'
 
   it('يرفض مفتاحاً يخصّ مشروعاً آخر بدل النشر في المكان الخطأ', () => {
     const job = workflow.slice(workflow.indexOf('deploy-firebase-rules:'));
-    expect(job).toContain('Refusing to publish rules to the wrong project.');
+    expect(job).toContain('node scripts/validateServiceAccount.mjs');
+    const validator = readFileSync(resolve(ROOT, 'scripts/validateServiceAccount.mjs'), 'utf8');
+    expect(validator).toContain('رُفض النشر بدل إرساله إلى المشروع الخطأ');
+  });
+
+  it('يتحقق من المفتاح قبل خطوة النشر لا بعدها', () => {
+    const job = workflow.slice(workflow.indexOf('deploy-firebase-rules:'));
+    expect(job.indexOf('node scripts/validateServiceAccount.mjs'))
+      .toBeLessThan(job.indexOf('firebase deploy'));
   });
 
   it('يبقي المهمة الأخيرة في الملف فلا يبتلع القصّ خطواتٍ لاحقة', () => {

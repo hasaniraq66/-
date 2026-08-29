@@ -147,7 +147,8 @@ jobs:
 
       # يُكتب المفتاح خارج مساحة العمل حتى لا يلتقطه أمرٌ يمشّط المستودع،
       # ويُتحقّق من مطابقته للمشروع المقصود: مفتاح مشروع آخر ينشر القواعد في
-      # المكان الخطأ وينجح بصمت.
+      # المكان الخطأ وينجح بصمت. المنطق في سكربت مستقل لأنه قابل للاختبار،
+      # وأول إخفاق حقيقي أثبت الحاجة: رسالة "ليس JSON صالحاً" بلا سبب.
       - name: Materialize and validate the service account
         if: steps.credential.outputs.available == 'true'
         env:
@@ -160,27 +161,7 @@ jobs:
           umask 077
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$KEY_PATH"
 
-          node --input-type=module -e '
-            import { readFileSync } from "node:fs";
-            const path = process.env.KEY_PATH;
-            const expected = process.env.FIREBASE_PROJECT_ID;
-            let key;
-            try {
-              key = JSON.parse(readFileSync(path, "utf8"));
-            } catch {
-              console.error("The FIREBASE_SERVICE_ACCOUNT secret is not valid JSON. Paste the whole service-account key file, including its braces.");
-              process.exit(1);
-            }
-            if (key.type !== "service_account") {
-              console.error(`Expected a service-account key, got type "${key.type ?? "unknown"}".`);
-              process.exit(1);
-            }
-            if (key.project_id !== expected) {
-              console.error(`The key belongs to project "${key.project_id}" but this workflow deploys to "${expected}". Refusing to publish rules to the wrong project.`);
-              process.exit(1);
-            }
-            console.log(`Service account ${key.client_email} authenticated for ${key.project_id}.`);
-          '
+          node scripts/validateServiceAccount.mjs
 
       - name: Deploy the rules
         if: steps.credential.outputs.available == 'true'
