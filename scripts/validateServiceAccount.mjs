@@ -35,6 +35,17 @@ export function normalizeCredential(raw) {
 export function diagnose(text) {
   const lines = [`  الطول: ${text.length} بايت`];
 
+  // وقع هذا فعلاً: معرّف المفتاح هو ما يظهر في جدول تبويب Keys، والملف يُنزَّل
+  // ولا يُعرض. فمن الطبيعي أن يُنسخ الظاهر. أربعون محرفاً ست عشرياً بالضبط.
+  if (/^[0-9a-f]{40}$/i.test(text)) {
+    lines.push(
+      '  ← هذا معرّف المفتاح (private_key_id) لا محتوى الملف.',
+      '     المعرّف هو ما يظهر في جدول تبويب Keys، أما الملف فيُنزَّل ولا يُعرض:',
+      '     Keys ← Add key ← Create new key ← JSON، ثم الصق محتوى الملف المُنزَّل.',
+    );
+    return lines;
+  }
+
   if (!text.startsWith('{') || !text.endsWith('}')) {
     lines.push(
       `  يبدأ بـ "{": ${text.startsWith('{') ? 'نعم' : 'لا'} — ينتهي بـ "}": ${text.endsWith('}') ? 'نعم' : 'لا'}`,
