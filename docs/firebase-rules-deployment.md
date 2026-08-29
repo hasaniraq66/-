@@ -18,10 +18,14 @@
 
 ### 1) أنشئ حساب خدمة بأقلّ صلاحية
 
-في [Google Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts?project=gen-lang-client-0759922046)
-للمشروع `gen-lang-client-0759922046`:
+السرّ ليس قيمة جاهزة تنسخها من مكان ما في Firebase — أنت تُنشئها. وأمامك
+طريقان، والفرق بينهما جوهري.
 
-1. **Service Accounts** ← **Create service account**
+في [Google Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts?project=gen-lang-client-0759922046)
+للمشروع `gen-lang-client-0759922046` — وهي الطبقة نفسها التي تجلس تحت
+Firebase، بالحساب نفسه:
+
+1. **Create service account**
 2. الاسم: `github-rules-deployer`
 3. امنحه هذين الدورين فقط:
    - `Firebase Rules Admin` (`roles/firebaserules.admin`) — نشر القواعد
@@ -31,18 +35,37 @@
 لحذف شيء. لو أخفق النشر برسالة صلاحية، أضف
 `Service Usage Consumer` (`roles/serviceusage.serviceUsageConsumer`).
 
-> لماذا حساب خدمة بدل `firebase login:ci`؟ لأن رمز `login:ci` يمثّل حسابك
+> **تجنّب الطريق السريع.** زرّ **Generate new private key** في
+> [Firebase ← Project settings ← Service accounts](https://console.firebase.google.com/project/gen-lang-client-0759922046/settings/serviceaccounts/adminsdk)
+> أسرع، لكنه يعطي مفتاح حساب `firebase-adminsdk` الافتراضي: يقرأ ويكتب
+> ويحذف كل بيانات Firestore وكل ملفات التخزين، **ويتجاوز القواعد نفسها**.
+> مفتاح واحد مسرَّب هناك يساوي كل بيانات مستخدميك. يعمل للنشر، لكن الثمن
+> لا يستحق الدقيقة الموفَّرة.
+
+> ولماذا حساب خدمة بدل `firebase login:ci`؟ لأن رمز `login:ci` يمثّل حسابك
 > كاملاً وبكل مشاريعك ولا ينتهي. حساب الخدمة هنا محصور بمشروع واحد وبفعل
 > واحد، ويمكنك إبطاله وحده متى شئت.
 
 ### 2) نزّل مفتاح JSON
 
-في حساب الخدمة: **Keys** ← **Add key** ← **Create new key** ← **JSON**.
+في حساب الخدمة الذي أنشأته: تبويب **Keys** ← **Add key** ←
+**Create new key** ← **JSON** ← **Create**.
+
+يُنزَّل ملف بهذا الشكل:
+
+```json
+{
+  "type": "service_account",
+  "project_id": "gen-lang-client-0759922046",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n…",
+  "client_email": "github-rules-deployer@…"
+}
+```
 
 ### 3) ألصقه في أسرار المستودع
 
-في GitHub: **Settings** ← **Secrets and variables** ← **Actions** ←
-**New repository secret**
+مباشرةً عبر
+[Settings ← Secrets and variables ← Actions ← New repository secret](https://github.com/hasaniraq66/-/settings/secrets/actions/new)
 
 - الاسم: `FIREBASE_SERVICE_ACCOUNT`
 - القيمة: محتوى ملف JSON كاملاً، من `{` إلى `}`
