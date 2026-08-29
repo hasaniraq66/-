@@ -8,6 +8,8 @@ import {
   setDoc, 
   getDocs, 
   deleteDoc,
+  updateDoc,
+  deleteField,
   query,
   enableMultiTabIndexedDbPersistence,
   Firestore
@@ -121,6 +123,43 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
     handleFirestoreError(error, OperationType.GET);
     return null;
   }
+};
+
+/**
+ * يكشف الإشراف المعلّق: ملفٌ يحمل adminId بلا سجل subUsers مقابل عند المشرف.
+ * صاحبه يرى تطبيقاً معطّلاً بالكامل — كل قراءة وكتابة تُوجَّه إلى حساب لا يملك
+ * الوصول إليه.
+ *
+ * سجل subUsers نفسه لا يصلح للفحص لأن قراءته محصورة بالمالك، فيُرفض للمساعد
+ * الحقيقي والمعلَّق سواء. أما ملف المشرف فيقرأه المساعد الحقيقي وحده — وهذه هي
+ * العلامة الوحيدة التي تفرّق بين الحالتين من جهة العميل.
+ *
+ * يُرجع true عند رفض الصلاحية وحده. انقطاع الشبكة يُرجع false: لا نعرض على
+ * المستخدم فكّ ارتباطه بناءً على تعثّر مؤقت.
+ */
+export const isSupervisionLinkBroken = async (adminId: string): Promise<boolean> => {
+  if (!db || !adminId) return false;
+  try {
+    await getDoc(doc(db, 'users', adminId));
+    return false;
+  } catch (error) {
+    return getFirestoreErrorCode(error) === 'permission-denied';
+  }
+};
+
+/**
+ * يزيل الإشراف المعلّق عن حساب صاحبه. القواعد تسمح بالإزالة وحدها — لا بإضافة
+ * إشراف ولا بتحويله — وفقط حين يكون الارتباط معلّقاً فعلاً.
+ *
+ * الحذف بـ deleteField لا بـ saveUserProfile: الأخير يكتب بـ merge:true فلا
+ * يزيل حقلاً، فيبقى الحساب محبوساً بينما تبدو العملية ناجحة.
+ */
+export const releaseSupervision = async (userId: string): Promise<void> => {
+  if (!db) throw new Error('قاعدة البيانات غير مهيّأة');
+  await updateDoc(doc(db, 'users', userId), {
+    adminId: deleteField(),
+    allowedTabs: deleteField(),
+  });
 };
 
 export const saveUserProfile = async (profile: UserProfile): Promise<void> => {

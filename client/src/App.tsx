@@ -39,7 +39,9 @@ import {
   fetchCollection, 
   saveDocument, 
   deleteDocument,
-  sanitizeFinancialValue
+  sanitizeFinancialValue,
+  isSupervisionLinkBroken,
+  releaseSupervision
 } from './utils/firebaseService';
 import AuthScreen from './components/AuthScreen';
 import ConfirmModal from './components/ConfirmModal';
@@ -67,6 +69,7 @@ import { createNextReferenceNumber } from './utils/recordReferences';
 import Dashboard from './components/Dashboard';
 import FinancialDataLoadErrorNotice from './components/FinancialDataLoadErrorNotice';
 import LockScreen from './components/LockScreen';
+import SupervisionRecovery from './components/SupervisionRecovery';
 import CommandPalette from './components/CommandPalette';
 
 const DebtsManager = lazy(() => import('./components/DebtsManager'));
@@ -116,6 +119,9 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
   const [dataLoadError, setDataLoadError] = useState<string | null>(null);
+  // إشراف معلّق: adminId يشير إلى مشرف لا يملك سجل subUsers لهذا الحساب، فتُرفض
+  // كل بياناته. تُعرض شاشة استعادة بدل تطبيق فارغ بلا تفسير.
+  const [isSupervisionBroken, setIsSupervisionBroken] = useState<boolean>(false);
 
   const [currency, setCurrency] = useState<string>('ر.س');
   const [userName, setUserName] = useState<string>('مستخدم جديد');
@@ -202,6 +208,7 @@ export default function App() {
         setIsAuthLoading(true);
         setLoadingStage('profile');
         setDataLoadError(null);
+        setIsSupervisionBroken(false);
         try {
           // Firestore rules require a current Firebase Auth token. The helper
           // refreshes before this first read and retries it once if Auth and
@@ -221,6 +228,17 @@ export default function App() {
             setCurrency(profile.currency);
             setInitialCapital(profile.initialCapital || 0);
             if (profile.adminId) {
+              // فحص واحد قبل توجيه البيانات: المساعد الحقيقي يقرأ ملف مشرفه،
+              // والمعلَّق يُرفض. بلا هذا الفحص يُحمَّل التطبيق فارغاً بلا تفسير
+              // ولا مخرج، لأن القواعد تمنع صاحبه من إزالة adminId عن نفسه إلا
+              // في حالة التعليق تحديداً.
+              if (await isSupervisionLinkBroken(profile.adminId)) {
+                if (!loadCoordinator.isCurrent(requestId)) return;
+                setIsSupervisionBroken(true);
+                setIsAuthLoading(false);
+                return;
+              }
+              if (!loadCoordinator.isCurrent(requestId)) return;
               finalUid = profile.adminId;
               // If current active tab is not in allowedTabs, route to the first allowed tab
               const allowed = profile.allowedTabs || [];
@@ -314,6 +332,7 @@ export default function App() {
         setCurrentUser(null);
         setUserProfile(null);
         setDataLoadError(null);
+        setIsSupervisionBroken(false);
         setLoadingStage('auth');
         setIsAuthLoading(false);
         // Clear sensitive states on logout
@@ -1074,6 +1093,24 @@ export default function App() {
         verifyPin={verifyPin}
         userName={userName}
         onUnlock={() => setIsPinLocked(false)}
+      />
+    );
+  }
+
+  // يسبق التطبيق كله: صاحب الحساب المعلّق لا يملك بيانات يعرضها، فتقديم واجهة
+  // فارغة له إخفاءٌ للمشكلة لا حلّ.
+  if (isSupervisionBroken) {
+    return (
+      <SupervisionRecovery
+        userName={userName}
+        onRelease={async () => {
+          if (!currentUser) throw new Error('لا توجد جلسة');
+          await releaseSupervision(currentUser.uid);
+          // إعادة تحميل كاملة: الحساب صار مستقلاً، فتُبنى الحالة من جديد بدل
+          // ترقيع حالةٍ بُنيت على توجيهٍ لم يعد قائماً.
+          window.location.reload();
+        }}
+        onSignOut={() => void signOut(auth)}
       />
     );
   }

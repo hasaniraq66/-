@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # تشغيل يدوي: يتيح نشر القواعد فور إضافة السر من دون انتظار دفعة جديدة.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -84,3 +86,128 @@ jobs:
 
           echo "Vercel production did not become healthy within six minutes."
           exit 1
+
+  # قواعد Firestore وStorage هي حدّ الأمان الحقيقي، والعميل يتصل بقاعدة
+  # البيانات مباشرة. دمج القواعد في main لا يعني نشرها: بقيت مرة كاملةً في
+  # المستودع بينما الإنتاج يعمل بقواعد قديمة. هذه المهمة تسدّ تلك الفجوة —
+  # كل دمج في main ينشر القواعد بعد نجاح اختباراتها على المحاكي.
+  deploy-firebase-rules:
+    name: Deploy Firestore and Storage security rules
+    needs: verify
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: firebase-rules-deploy
+      cancel-in-progress: false
+    env:
+      FIREBASE_PROJECT_ID: gen-lang-client-0759922046
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      # السر غائب في مستودع لم يُهيّأ بعد. لا نُفشل الدمج، لكن لا نصمت:
+      # تحذير ظاهر في ملخّص التشغيل حتى لا تظنّ القواعد منشورةً وهي ليست كذلك.
+      - name: Check for the deployment credential
+        id: credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Firebase rules were NOT deployed::The FIREBASE_SERVICE_ACCOUNT secret is missing, so firestore.rules and storage.rules stay unpublished. Production is still running the previously deployed rules. See docs/firebase-rules-deployment.md."
+            {
+              echo "## ⚠️ لم تُنشر قواعد Firebase"
+              echo
+              echo "السر \`FIREBASE_SERVICE_ACCOUNT\` غير مضاف في إعدادات المستودع، فبقيت قواعد الإنتاج على نسختها السابقة."
+              echo
+              echo "خطوات الإضافة مرة واحدة في \`docs/firebase-rules-deployment.md\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      # يُكتب المفتاح خارج مساحة العمل حتى لا يلتقطه أمرٌ يمشّط المستودع،
+      # ويُتحقّق من مطابقته للمشروع المقصود: مفتاح مشروع آخر ينشر القواعد في
+      # المكان الخطأ وينجح بصمت.
+      - name: Materialize and validate the service account
+        if: steps.credential.outputs.available == 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          KEY_PATH: ${{ runner.temp }}/firebase-service-account.json
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          umask 077
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$KEY_PATH"
+
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const path = process.env.KEY_PATH;
+            const expected = process.env.FIREBASE_PROJECT_ID;
+            let key;
+            try {
+              key = JSON.parse(readFileSync(path, "utf8"));
+            } catch {
+              console.error("The FIREBASE_SERVICE_ACCOUNT secret is not valid JSON. Paste the whole service-account key file, including its braces.");
+              process.exit(1);
+            }
+            if (key.type !== "service_account") {
+              console.error(`Expected a service-account key, got type "${key.type ?? "unknown"}".`);
+              process.exit(1);
+            }
+            if (key.project_id !== expected) {
+              console.error(`The key belongs to project "${key.project_id}" but this workflow deploys to "${expected}". Refusing to publish rules to the wrong project.`);
+              process.exit(1);
+            }
+            console.log(`Service account ${key.client_email} authenticated for ${key.project_id}.`);
+          '
+
+      - name: Deploy the rules
+        if: steps.credential.outputs.available == 'true'
+        shell: bash
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          set -euo pipefail
+
+          pnpm exec firebase deploy \
+            --only firestore:rules,storage \
+            --project "$FIREBASE_PROJECT_ID" \
+            --non-interactive
+
+          {
+            echo "## ✅ نُشرت قواعد Firebase"
+            echo
+            echo "| الملف | البصمة (SHA-256) |"
+            echo "| --- | --- |"
+            echo "| \`firestore.rules\` | \`$(sha256sum firestore.rules | cut -c1-16)\` |"
+            echo "| \`storage.rules\` | \`$(sha256sum storage.rules | cut -c1-16)\` |"
+            echo
+            echo "المشروع: \`$FIREBASE_PROJECT_ID\` — الالتزام: \`${GITHUB_SHA:0:7}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # المفتاح يُمحى دائماً، حتى لو أخفق النشر، فلا يبقى في القرص المؤقت.
+      - name: Remove the credential
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"

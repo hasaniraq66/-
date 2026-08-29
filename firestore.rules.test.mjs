@@ -13,7 +13,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 
@@ -129,6 +129,87 @@ describe('اختطاف الحساب عبر adminId', () => {
     await assertSucceeds(
       setDoc(doc(asUser(OWNER), 'users', OWNER), profile(OWNER, { displayName: 'مالك جديد' })),
     );
+  });
+});
+
+/**
+ * ملفٌ يحمل adminId بلا سجل subUsers مقابل يقع خارج كل قاعدة: مالكه مُلزَم
+ * بإبقاء adminId، ومشرفه المزعوم يكذّبه isAdminOf. والواجهة توجّه بياناته إلى
+ * حساب ذلك المشرف فتُرفض كل قراءة وكتابة — حساب معطّل بلا مخرج. تنشأ الحالة من
+ * زرعٍ عبر الثغرة المغلقة، أو من إنشاء مساعد بالترتيب القديم.
+ */
+describe('فكّ حبس المستخدم المعلّق', () => {
+  /** يزرع ملفاً معلّقاً: adminId موجود ولا سجل subUsers يقابله. */
+  async function seedDangling() {
+    await env.clearFirestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', VICTIM), profile(VICTIM, { adminId: OUTSIDER }));
+    });
+  }
+
+  it('يسمح للضحية بإزالة الإشراف المعلّق عن نفسها', async () => {
+    await seedDangling();
+    await assertSucceeds(setDoc(doc(asUser(VICTIM), 'users', VICTIM), profile(VICTIM)));
+  });
+
+  it('ويعمل حسابها طبيعياً بعد الفكّ', async () => {
+    await seedDangling();
+    await assertSucceeds(setDoc(doc(asUser(VICTIM), 'users', VICTIM), profile(VICTIM)));
+    await assertSucceeds(
+      setDoc(doc(asUser(VICTIM), 'users', VICTIM, 'expenses', 'e1'), expense(VICTIM, 'e1')),
+    );
+  });
+
+  // الواجهة تحذف الحقل بـ deleteField لا بكتابة ملف كامل، لأن saveUserProfile
+  // يستخدم merge:true فلا يزيل شيئاً. تُختبر الصيغة التي ينفّذها التطبيق فعلاً.
+  it('يقبل الحذف بصيغة deleteField التي تستخدمها الواجهة', async () => {
+    await seedDangling();
+    await assertSucceeds(
+      updateDoc(doc(asUser(VICTIM), 'users', VICTIM), {
+        adminId: deleteField(),
+        allowedTabs: deleteField(),
+      }),
+    );
+  });
+
+  it('ويُرفض deleteField من غريب على ملف غيره', async () => {
+    await seedDangling();
+    await assertFails(
+      updateDoc(doc(asUser(OUTSIDER), 'users', VICTIM), { adminId: deleteField() }),
+    );
+  });
+
+  it('يمنع مساعداً حقيقياً من فكّ ارتباطه بنفسه', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(setDoc(doc(asUser(HELPER), 'users', HELPER), profile(HELPER)));
+  });
+
+  it('ويمنعه أيضاً بصيغة deleteField', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(
+      updateDoc(doc(asUser(HELPER), 'users', HELPER), { adminId: deleteField() }),
+    );
+  });
+
+  // العلامة التي يعتمد عليها العميل للتمييز: سجل subUsers لا يقرأه إلا المالك،
+  // فلا يصلح للفحص. أما ملف المشرف فيقرأه المساعد الحقيقي وحده.
+  it('يقرأ المساعد الحقيقي ملف مشرفه بينما يُرفض المعلَّق', async () => {
+    await seed(BUDGET_ONLY);
+    await assertSucceeds(getDoc(doc(asUser(HELPER), 'users', OWNER)));
+    await seedDangling();
+    await assertFails(getDoc(doc(asUser(VICTIM), 'users', OUTSIDER)));
+  });
+
+  it('لا يفتح الفكُّ باباً لتحويل الإشراف إلى مشرف آخر', async () => {
+    await seedDangling();
+    await assertFails(
+      setDoc(doc(asUser(VICTIM), 'users', VICTIM), profile(VICTIM, { adminId: OWNER })),
+    );
+  });
+
+  it('ولا يفكّ غريبٌ إشرافاً عن غيره', async () => {
+    await seedDangling();
+    await assertFails(setDoc(doc(asUser(OUTSIDER), 'users', VICTIM), profile(VICTIM)));
   });
 });
 

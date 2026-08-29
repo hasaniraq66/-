@@ -52,6 +52,28 @@ service cloud.firestore {
       return isOwner(userId) || (isSubUserOf(userId) && tab in helperTabs(userId));
     }
 
+    // المستخدم العادي لا يمسّ حقول الإشراف: لا يمنح نفسه مشرفاً ولا يوسّع تبويباته.
+    function keepsSupervisionFields(userId) {
+      return incoming().get('adminId', null) == existing().get('adminId', null)
+             && incoming().get('allowedTabs', null) == existing().get('allowedTabs', null);
+    }
+
+    // فكّ حَبس. ملفٌ يحمل adminId بلا سجل subUsers مقابل لا يستطيع مالكه تعديله
+    // (الشرط أعلاه يُلزمه بإبقاء adminId) ولا مشرفُه المزعوم (isAdminOf يكذّبه)،
+    // فيبقى الحساب معطّلاً إلى الأبد: الواجهة توجّه بياناته إلى حساب المشرف
+    // الوهمي فتُرفض كل قراءة وكتابة. تنشأ هذه الحالة من زرعٍ عبر الثغرة المغلقة،
+    // أو من إنشاء مساعد بالترتيب القديم قبل إصلاح PermissionsManager.
+    //
+    // المسموح هنا إزالة الإشراف وحدها — لا إضافته ولا تحويله إلى آخر — وفقط حين
+    // يكون الارتباط معلّقاً فعلاً. فالمساعد الحقيقي لا يفكّ ارتباطه بنفسه، ومَن
+    // يفكّه لا يكسب شيئاً: صلاحيات المساعد تُشتق من سجل subUsers عند المالك لا
+    // من هذا الحقل، فالفكّ نزولٌ إلى حساب فارغ لا ترقية.
+    function releasesDanglingSupervision(userId) {
+      return existing().get('adminId', null) != null
+             && incoming().get('adminId', null) == null
+             && !exists(subUserRef(existing().adminId, userId));
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -186,9 +208,11 @@ service cloud.firestore {
       // والمشرف يعدّل صلاحيات مساعده أو يفصله عنه. تُقرأ الحقول عبر get(...,null)
       // حتى لا تنفجر المقارنة لمستخدم بلا مشرف.
       allow update: if isValidUserProfile(incoming()) && (
-                      (isOwner(userId)
-                        && incoming().get('adminId', null) == existing().get('adminId', null)
-                        && incoming().get('allowedTabs', null) == existing().get('allowedTabs', null))
+                      (isOwner(userId) && (
+                        keepsSupervisionFields(userId)
+                        ||
+                        releasesDanglingSupervision(userId)
+                      ))
                       ||
                       (isAdminOf(userId)
                         && existing().get('adminId', null) == request.auth.uid
