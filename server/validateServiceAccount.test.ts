@@ -51,6 +51,18 @@ describe('رفض المفاتيح الخاطئة', () => {
 });
 
 describe('التشخيص يسمّي السبب', () => {
+  it('يكشف لصق معرّف المفتاح بدل الملف — وقع هذا فعلاً', () => {
+    const keyId = 'e5bc3375d9c003f2e4498ec1fb3db428b33e572a'; // 40 محرفاً ست عشرياً
+    const lines = diagnose(normalizeCredential(keyId)).join('\n');
+    expect(lines).toContain('معرّف المفتاح');
+    expect(lines).toContain('Create new key');
+  });
+
+  it('لا يخلط معرّف المفتاح بنصٍّ آخر طوله أربعون', () => {
+    const notHex = 'z'.repeat(40);
+    expect(diagnose(normalizeCredential(notHex)).join('\n')).not.toContain('معرّف المفتاح');
+  });
+
   it('يكشف النسخ الجزئي', () => {
     const partial = goodKey.slice(0, 60);
     const lines = diagnose(normalizeCredential(partial)).join('\n');
