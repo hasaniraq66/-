@@ -122,6 +122,40 @@ service cloud.firestore {
              isValidAttachments(data);
     }
 
+    // تصنيفات الدخل مغلقة على قائمة معروفة: حقل نصّي حر يجعل التقارير بلا معنى،
+    // ويفتح باباً لحشو نصوص طويلة في مستند يُقرأ في كل تحميل.
+    function isValidIncomeCategory(category) {
+      return category in ['salary', 'daily', 'sale', 'rent', 'gift', 'other'];
+    }
+
+    function isValidIncome(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'amount', 'category', 'date']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == userId &&
+             data.amount is number && data.amount >= 0 &&
+             isValidIncomeCategory(data.category) &&
+             data.date is string && data.date.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 1000)) &&
+             (!('sourceId' in data) || (data.sourceId is string && data.sourceId.size() <= 128)) &&
+             (!('projectId' in data) || (data.projectId is string && data.projectId.size() <= 128));
+    }
+
+    function isValidIncomeSource(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'amount', 'category', 'cadence', 'isActive']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == userId &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.amount is number && data.amount >= 0 &&
+             isValidIncomeCategory(data.category) &&
+             data.cadence in ['monthly', 'daily'] &&
+             data.isActive is bool &&
+             // يوم الاستحقاق محصور بـ 28 فلا ينكسر المصدر في فبراير
+             (!('dayOfMonth' in data) || (data.dayOfMonth is int && data.dayOfMonth >= 1 && data.dayOfMonth <= 28)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 1000)) &&
+             (!('lastCollectedDate' in data) || (data.lastCollectedDate is string && data.lastCollectedDate.size() <= 100));
+    }
+
     function isValidExpense(data, userId) {
       return data.keys().hasAll(['id', 'userId', 'amount', 'category', 'date']) &&
              data.id is string && data.id.size() <= 128 &&
@@ -239,6 +273,23 @@ service cloud.firestore {
         allow create, update: if canWriteTab(userId, 'budget')
                               && isValidId(expenseId) && isValidExpense(incoming(), userId);
         allow delete: if canWriteTab(userId, 'budget');
+      }
+
+      // الدخل تبويب مستقل عن الميزانية عمداً: مَن يُؤتمن على تسجيل المصاريف
+      // لا يُؤتمن بالضرورة على تعديل الوارد، والعكس. لوحة التحكم والتقارير
+      // تقرأه لأن رأس المال لا يُحسب بدونه.
+      match /incomes/{incomeId} {
+        allow read: if canReadTabs(userId, ['income', 'budget', 'dashboard', 'reports', 'alerts']);
+        allow create, update: if canWriteTab(userId, 'income')
+                              && isValidId(incomeId) && isValidIncome(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'income');
+      }
+
+      match /incomeSources/{sourceId} {
+        allow read: if canReadTabs(userId, ['income', 'dashboard', 'reports']);
+        allow create, update: if canWriteTab(userId, 'income')
+                              && isValidId(sourceId) && isValidIncomeSource(incoming(), userId);
+        allow delete: if canWriteTab(userId, 'income');
       }
 
       match /budgets/{budgetId} {

@@ -18,7 +18,8 @@ import {
   BarChart3,
   X
 } from 'lucide-react';
-import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment } from '../types';
+import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, Income } from '../types';
+import { totalIncome } from '../lib/incomeSchedule';
 import { formatCurrency, formatDate, generateAlerts, generateWhatsAppLink } from '../utils';
 import QuickEntry from './QuickEntry';
 import ReferenceQuickLookup from './ReferenceQuickLookup';
@@ -37,6 +38,8 @@ interface DashboardProps {
   projects?: Project[];
   employees?: Employee[];
   salaryPayments?: SalaryPayment[];
+  /** الدخل المستلَم فعلاً. يدخل في رأس المال كتدفّق داخل، وإلا صار الرصيد كاذباً. */
+  incomes?: Income[];
   onAddDebt?: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
   onAddExpense?: (expense: Omit<Expense, 'id'>) => void;
   initialCapital?: number;
@@ -98,6 +101,7 @@ export default function Dashboard({
   projects = [],
   employees = [],
   salaryPayments = [],
+  incomes = [],
   onAddDebt = () => {},
   onAddExpense = () => {},
   initialCapital = 0,
@@ -412,8 +416,13 @@ export default function Dashboard({
       .reduce((sum, sp) => sum + sp.amount, 0);
   }, [salaryPayments]);
 
+  // الدخل المستلَم تدفّق داخل كالديون المحصَّلة تماماً. قبل إضافته كان صاحب
+  // الراتب مضطراً إلى حشوه في «رأس المال الأولي»، فيختلط ما بدأ به بما كسبه
+  // ويصير الرقم بلا معنى.
+  const totalIncomeAllTime = useMemo(() => totalIncome(incomes), [incomes]);
+
   const totalCapitalOutflows = totalExpensesAllTime + totalUnlinkedPaidToOthers + totalSalariesAllTime;
-  const currentCapital = initialCapital + totalCollectedToMeAllTime - totalCapitalOutflows;
+  const currentCapital = initialCapital + totalIncomeAllTime + totalCollectedToMeAllTime - totalCapitalOutflows;
 
   // Isolated total balance of all projects
   const totalProjectsBalance = useMemo(() => {
