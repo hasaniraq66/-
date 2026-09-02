@@ -75,7 +75,7 @@
     "lucide-react": "^0.453.0",
     "mdast-util-to-hast": "13.2.1",
     "motion": "^13.1.0",
-    "mysql2": "^3.15.0",
+    "mysql2": "^3.24.3",
     "nanoid": "^5.1.16",
     "next-themes": "^0.4.6",
     "react": "^19.2.1",
@@ -126,7 +126,9 @@
   },
   "pnpm": {
     "overrides": {
-      "tar": "7.5.22"
+      "tar": "7.5.22",
+      "express@5>qs": "6.16.0",
+      "body-parser@2>qs": "6.16.0"
     }
   },
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af"
