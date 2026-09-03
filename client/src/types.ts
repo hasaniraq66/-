@@ -89,6 +89,49 @@ export interface ExpenseTemplate {
   note?: string;
 }
 
+/** تصنيفات الدخل الداخلة. الراتب والاستلام اليومي هما الحالتان الأشيع. */
+export type IncomeCategory = 'salary' | 'daily' | 'sale' | 'rent' | 'gift' | 'other';
+
+/**
+ * دفعة دخل مستلَمة فعلاً. لا تُسجَّل إلا بعد الاستلام، فما لم يُستلم بعد ليس
+ * دخلاً بل توقُّعاً — وخلط الاثنين يعطي رصيداً كاذباً.
+ */
+export interface Income {
+  id: string;
+  userId?: string;
+  amount: number;
+  category: IncomeCategory;
+  date: string; // YYYY-MM-DD
+  description: string;
+  note?: string;
+  /** مصدر متكرر وُلِّدت منه هذه الدفعة، إن وُجد. */
+  sourceId?: string;
+  projectId?: string;
+}
+
+/** دورية المصدر: شهري للراتب، يومي للاستلام اليومي. */
+export type IncomeCadence = 'monthly' | 'daily';
+
+/**
+ * مصدر دخل متكرر: الراتب الشهري، أو حصيلة اليوم. يختصر الإدخال إلى ضغطة
+ * واحدة بدل ملء نموذج كامل كل مرة، وهو جوهر الميزة لا زينة فيها: دخلٌ يحتاج
+ * دقيقة لتسجيله لا يُسجَّل.
+ */
+export interface IncomeSource {
+  id: string;
+  userId?: string;
+  title: string; // "راتب الوظيفة"، "مبيعات المحل"
+  amount: number; // المبلغ المعتاد، قابل للتعديل عند كل استلام
+  category: IncomeCategory;
+  cadence: IncomeCadence;
+  /** يوم الاستحقاق في الشهر (1..28) للمصادر الشهرية. */
+  dayOfMonth?: number;
+  note?: string;
+  isActive: boolean;
+  /** تاريخ آخر استلام مسجَّل، لمعرفة ما إذا كانت دفعة هذه الدورة قد سُجِّلت. */
+  lastCollectedDate?: string;
+}
+
 export interface Budget {
   monthlyLimit: number;
   month: string; // Format: "YYYY-MM"

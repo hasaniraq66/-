@@ -27,6 +27,7 @@ import {
   History,
   HeartHandshake,
   Command as CommandIcon,
+  TrendingUp,
   Search
 } from 'lucide-react';
 
@@ -60,7 +61,7 @@ import {
   withDataLoadTimeout,
 } from './lib/loadingTimeout';
 
-import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile } from './types';
+import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile, Income, IncomeSource } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
 import { createIndependentDebt } from './utils/debtRecords';
 import { createNextReferenceNumber } from './utils/recordReferences';
@@ -74,6 +75,7 @@ import CommandPalette from './components/CommandPalette';
 
 const DebtsManager = lazy(() => import('./components/DebtsManager'));
 const BudgetManager = lazy(() => import('./components/BudgetManager'));
+const IncomeManager = lazy(() => import('./components/IncomeManager'));
 const AlertsPanel = lazy(() => import('./components/AlertsPanel'));
 const FinancialUiReviewPreview = lazy(() => import('./components/FinancialUiReviewPreview'));
 const Reports = lazy(() => import('./components/Reports'));
@@ -118,6 +120,10 @@ export default function App() {
   const [debts, setDebts] = useState<Debt[]>(initialDebts);
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
+  // الدخل: كان النظام يعرف المصروف والدَّين ولا يعرف الوارد، فمن له راتب مضطر
+  // إلى تزويره كرأس مال أولي.
+  const [incomes, setIncomes] = useState<Income[]>([]);
+  const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
   const [dataLoadError, setDataLoadError] = useState<string | null>(null);
   // إشراف معلّق: adminId يشير إلى مشرف لا يملك سجل subUsers لهذا الحساب، فتُرفض
   // كل بياناته. تُعرض شاشة استعادة بدل تطبيق فارغ بلا تفسير.
@@ -273,13 +279,18 @@ export default function App() {
               fetchCollection<Budget>(finalUid, 'budgets'),
               fetchCollection<Project>(finalUid, 'projects'),
               fetchCollection<Employee>(finalUid, 'employees'),
-              fetchCollection<SalaryPayment>(finalUid, 'salaryPayments')
+              fetchCollection<SalaryPayment>(finalUid, 'salaryPayments'),
+              fetchCollection<Income>(finalUid, 'incomes'),
+              fetchCollection<IncomeSource>(finalUid, 'incomeSources')
             ]),
             FIREBASE_RECORDS_LOAD_TIMEOUT_MS,
           );
           if (!loadCoordinator.isCurrent(requestId)) return;
 
-          const [settledDebts, settledExpenses, settledBudgets, settledProjects, settledEmployees, settledPayments] =
+          const [
+            settledDebts, settledExpenses, settledBudgets, settledProjects, settledEmployees, settledPayments,
+            settledIncomes, settledIncomeSources,
+          ] =
             settled as [
               PromiseSettledResult<Debt[]>,
               PromiseSettledResult<Expense[]>,
@@ -287,6 +298,8 @@ export default function App() {
               PromiseSettledResult<Project[]>,
               PromiseSettledResult<Employee[]>,
               PromiseSettledResult<SalaryPayment[]>,
+              PromiseSettledResult<Income[]>,
+              PromiseSettledResult<IncomeSource[]>,
             ];
 
           if (shouldReportLoadFailure(settled)) {
@@ -309,6 +322,10 @@ export default function App() {
           const finalProjects = resolveCollection<Project>(settledProjects, localProjectsSaved ? JSON.parse(localProjectsSaved) : null);
           const finalEmployees = resolveCollection<Employee>(settledEmployees, localEmployeesSaved ? JSON.parse(localEmployeesSaved) : null);
           const finalPayments = resolveCollection<SalaryPayment>(settledPayments, localPaymentsSaved ? JSON.parse(localPaymentsSaved) : null);
+          const localIncomesSaved = localStorage.getItem(`personal_incomes_${finalUid}`);
+          const localIncomeSourcesSaved = localStorage.getItem(`personal_income_sources_${finalUid}`);
+          const finalIncomes = resolveCollection<Income>(settledIncomes, localIncomesSaved ? JSON.parse(localIncomesSaved) : null);
+          const finalIncomeSources = resolveCollection<IncomeSource>(settledIncomeSources, localIncomeSourcesSaved ? JSON.parse(localIncomeSourcesSaved) : null);
           const finalReadAlerts = localReadAlertsSaved ? JSON.parse(localReadAlertsSaved) : [];
 
           setDebts(finalDebts);
@@ -317,6 +334,8 @@ export default function App() {
           setProjects(finalProjects);
           setEmployees(finalEmployees);
           setSalaryPayments(finalPayments);
+          setIncomes(finalIncomes);
+          setIncomeSources(finalIncomeSources);
           setReadAlertIds(finalReadAlerts);
         } catch (err) {
           if (!loadCoordinator.isCurrent(requestId)) return;
@@ -339,6 +358,8 @@ export default function App() {
         setDebts([]);
         setExpenses([]);
         setBudgets([]);
+        setIncomes([]);
+        setIncomeSources([]);
         setProjects([]);
         setEmployees([]);
         setSalaryPayments([]);
@@ -373,6 +394,18 @@ export default function App() {
       localStorage.setItem(`personal_budgets_${targetUid}`, JSON.stringify(budgets));
     }
   }, [budgets, currentUser, targetUid]);
+
+  useEffect(() => {
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_incomes_${targetUid}`, JSON.stringify(incomes));
+    }
+  }, [incomes, currentUser, targetUid]);
+
+  useEffect(() => {
+    if (currentUser && targetUid) {
+      localStorage.setItem(`personal_income_sources_${targetUid}`, JSON.stringify(incomeSources));
+    }
+  }, [incomeSources, currentUser, targetUid]);
 
   useEffect(() => {
     if (currentUser && targetUid) {
@@ -760,6 +793,51 @@ export default function App() {
     }
   };
 
+  // الدخل يُكتب فوراً في Firestore كبقية السجلات، فالحالة المحلية وحدها تضيع
+  // عند إغلاق التبويب.
+  const handleAddIncome = (newIncomeData: Omit<Income, 'id'>) => {
+    const newIncome: Income = { ...newIncomeData, id: `inc-${generateId()}`, userId: targetUid };
+    setIncomes((prev) => [newIncome, ...prev]);
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'incomes', newIncome.id, newIncome);
+    }
+  };
+
+  const handleEditIncome = (editedIncome: Income) => {
+    const withOwner: Income = { ...editedIncome, userId: targetUid };
+    setIncomes((prev) => prev.map((entry) => (entry.id === withOwner.id ? withOwner : entry)));
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'incomes', withOwner.id, withOwner);
+    }
+  };
+
+  const handleDeleteIncome = (id: string) => {
+    setIncomes((prev) => prev.filter((entry) => entry.id !== id));
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'incomes', id);
+    }
+  };
+
+  const handleSaveIncomeSource = (source: IncomeSource) => {
+    const withOwner: IncomeSource = { ...source, userId: targetUid };
+    setIncomeSources((prev) => {
+      const exists = prev.some((item) => item.id === withOwner.id);
+      return exists ? prev.map((item) => (item.id === withOwner.id ? withOwner : item)) : [...prev, withOwner];
+    });
+    if (currentUser && targetUid) {
+      saveDocument(targetUid, 'incomeSources', withOwner.id, withOwner);
+    }
+  };
+
+  // الدفعات المسجَّلة من المصدر تبقى: حذف المصدر يوقف التذكير ولا يمحو تاريخاً
+  // مالياً حدث فعلاً.
+  const handleDeleteIncomeSource = (id: string) => {
+    setIncomeSources((prev) => prev.filter((item) => item.id !== id));
+    if (currentUser && targetUid) {
+      deleteDocument(targetUid, 'incomeSources', id);
+    }
+  };
+
   const handleUpdateInitialCapital = async (newCapital: number) => {
     setInitialCapital(newCapital);
     if (userProfile && currentUser) {
@@ -1002,6 +1080,8 @@ export default function App() {
     setDebts([]);
     setExpenses([]);
     setBudgets([]);
+    setIncomes([]);
+    setIncomeSources([]);
     setReadAlertIds([]);
     setProjects([]);
     setEmployees([]);
@@ -1317,7 +1397,7 @@ export default function App() {
             )}
 
             {/* Category 2: Core Operations */}
-            {hasCategoryPermission(['debts', 'budget', 'projects']) && (
+            {hasCategoryPermission(['debts', 'income', 'budget', 'projects']) && (
               <div className="space-y-1">
                 <span className="block text-[9px] font-black text-slate-600 uppercase tracking-widest px-3 mb-1">المعاملات المالية</span>
                 
@@ -1336,6 +1416,24 @@ export default function App() {
                       <span>الديون والالتزامات</span>
                     </span>
                     {activeTab === 'debts' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                  </button>
+                )}
+
+                {hasTabPermission('income') && (
+                  <button
+                    id="nav-income"
+                    onClick={() => { setActiveTab('income'); setIsSidebarOpen(false); }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-right flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                      activeTab === 'income'
+                        ? 'bg-emerald-600 text-white font-extrabold shadow-[0_4px_12px_rgba(5,150,105,0.25)]'
+                        : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <TrendingUp className="w-4 h-4 shrink-0" />
+                      <span>الدخل والرواتب</span>
+                    </span>
+                    {activeTab === 'income' && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
                   </button>
                 )}
 
@@ -1547,6 +1645,7 @@ export default function App() {
                 projects={projects}
                 employees={employees}
                 salaryPayments={salaryPayments}
+                incomes={incomes}
                 onAddDebt={handleAddDebt}
                 onAddExpense={handleAddExpense}
                 initialCapital={initialCapital}
@@ -1580,6 +1679,21 @@ export default function App() {
                   onAddExpense={handleAddExpense}
                   onEditExpense={handleEditExpense}
                   onDeleteExpense={handleDeleteExpense}
+                />
+              </Suspense>
+            )}
+
+            {activeTab === 'income' && (
+              <Suspense fallback={<DeferredViewLoader label="الدخل" />}>
+                <IncomeManager
+                  incomes={incomes}
+                  sources={incomeSources}
+                  currency={currency}
+                  onAddIncome={handleAddIncome}
+                  onEditIncome={handleEditIncome}
+                  onDeleteIncome={handleDeleteIncome}
+                  onSaveSource={handleSaveIncomeSource}
+                  onDeleteSource={handleDeleteIncomeSource}
                 />
               </Suspense>
             )}

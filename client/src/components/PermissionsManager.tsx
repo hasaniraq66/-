@@ -23,7 +23,8 @@ import {
   Bell,
   Database,
   Loader2,
-  History
+  History,
+  TrendingUp
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth';
@@ -50,6 +51,7 @@ const TAB_DEFINITIONS = [
   { id: 'dashboard', label: 'لوحة التحكم الرئيسية', desc: 'رؤية ملخص الديون والمصاريف والحدود الإجمالية', icon: LayoutDashboard, color: 'text-sky-500 bg-sky-50' },
   { id: 'advisor', label: 'المستشار المالي الذكي (AI)', desc: 'المحادثة واستشارات الذكاء الاصطناعي التوليدي', icon: Sparkles, color: 'text-indigo-500 bg-indigo-50' },
   { id: 'debts', label: 'الديون واللتزامات', desc: 'إضافة، تعديل، وسداد الديون والمستحقات والعمليات', icon: CreditCard, color: 'text-emerald-500 bg-emerald-50' },
+  { id: 'income', label: 'الدخل والرواتب', desc: 'تسجيل الوارد ومصادره المتكررة: الراتب الشهري والاستلام اليومي', icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50' },
   { id: 'budget', label: 'الميزانية والمصاريف', desc: 'تحديد الميزانية الشهرية وتسجيل المصاريف اليومية', icon: Wallet, color: 'text-amber-500 bg-amber-50' },
   { id: 'projects', label: 'مشاريع العمل والرواتب', desc: 'إدارة مشاريع المقاولات، الموظفين، وصرف الرواتب', icon: Briefcase, color: 'text-purple-500 bg-purple-50' },
   { id: 'reports', label: 'التقارير الرسومية', desc: 'الرسوم البيانية وتحليلات الأداء المالي والمصاريف', icon: BarChart3, color: 'text-rose-500 bg-rose-50' },

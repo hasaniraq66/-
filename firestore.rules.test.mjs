@@ -34,6 +34,10 @@ const profile = (uid, extra = {}) => ({ userId: uid, displayName: 'اسم', curr
 const debt = (uid, id) => ({ id, userId: uid, type: 'to_me', personName: 'طرف', amount: 100, paidAmount: 0, status: 'unpaid' });
 const expense = (uid, id) => ({ id, userId: uid, amount: 50, category: 'عام', date: '2026-01-01' });
 const subUser = (uid, allowedTabs) => ({ id: uid, displayName: 'مساعد', email: 'h@example.com', allowedTabs });
+const income = (uid, id, extra = {}) => ({ id, userId: uid, amount: 500, category: 'salary', date: '2026-01-01', ...extra });
+const incomeSource = (uid, id, extra = {}) => ({
+  id, userId: uid, title: 'راتب الوظيفة', amount: 500, category: 'salary', cadence: 'monthly', isActive: true, ...extra,
+});
 
 const asUser = (uid) => env.authenticatedContext(uid).firestore();
 
@@ -293,6 +297,125 @@ describe('تطبيق صلاحيات التبويبات', () => {
     const db = asUser(HELPER);
     await assertFails(setDoc(doc(db, 'users', OWNER, 'debts', 'x'), debt(OWNER, 'x')));
     await assertFails(setDoc(doc(db, 'users', OWNER, 'expenses', 'x'), expense(OWNER, 'x')));
+  });
+});
+
+/**
+ * الدخل تبويب مستقل عن الميزانية: مَن يُؤتمن على تسجيل المصاريف لا يُؤتمن
+ * بالضرورة على تعديل الوارد. وهذا الفصل بلا قيمة ما لم تفرضه القواعد، فالواجهة
+ * وحدها قابلة للتجاوز عبر مكتبة Firebase مباشرة.
+ */
+describe('الدخل', () => {
+  const INCOME_ONLY = ['income'];
+
+  it('يسمح لصاحب الحساب بتسجيل دخل وقراءته', async () => {
+    await seed(BUDGET_ONLY);
+    const db = asUser(OWNER);
+    await assertSucceeds(setDoc(doc(db, 'users', OWNER, 'incomes', 'inc1'), income(OWNER, 'inc1')));
+    await assertSucceeds(getDoc(doc(db, 'users', OWNER, 'incomes', 'inc1')));
+  });
+
+  it('يمنع غريباً من قراءة دخل غيره أو الكتابة فيه', async () => {
+    await seed(BUDGET_ONLY);
+    const db = asUser(OUTSIDER);
+    await assertFails(getDoc(doc(db, 'users', OWNER, 'incomes', 'inc1')));
+    await assertFails(setDoc(doc(db, 'users', OWNER, 'incomes', 'x'), income(OWNER, 'x')));
+  });
+
+  it('يمنع مساعد الميزانية من الكتابة في الدخل رغم صلاحيته على المصاريف', async () => {
+    await seed(BUDGET_ONLY);
+    const db = asUser(HELPER);
+    await assertSucceeds(setDoc(doc(db, 'users', OWNER, 'expenses', 'exp9'), expense(OWNER, 'exp9')));
+    await assertFails(setDoc(doc(db, 'users', OWNER, 'incomes', 'x'), income(OWNER, 'x')));
+  });
+
+  it('يسمح لمساعد الدخل بالكتابة فيه ويمنعه من المصاريف', async () => {
+    await seed(INCOME_ONLY);
+    const db = asUser(HELPER);
+    await assertSucceeds(setDoc(doc(db, 'users', OWNER, 'incomes', 'inc2'), income(OWNER, 'inc2')));
+    await assertFails(setDoc(doc(db, 'users', OWNER, 'expenses', 'x'), expense(OWNER, 'x')));
+  });
+
+  it('يقرأ مساعد التقارير الدخل ولا يكتبه، فرأس المال لا يُحسب بدونه', async () => {
+    await seed(REPORTS_ONLY);
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', OWNER, 'incomes', 'inc1'), income(OWNER, 'inc1'));
+    });
+    const db = asUser(HELPER);
+    await assertSucceeds(getDoc(doc(db, 'users', OWNER, 'incomes', 'inc1')));
+    await assertFails(setDoc(doc(db, 'users', OWNER, 'incomes', 'x'), income(OWNER, 'x')));
+  });
+
+  it('يرفض تصنيفاً خارج القائمة المعروفة فلا تنهار التقارير', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(
+      setDoc(doc(asUser(OWNER), 'users', OWNER, 'incomes', 'x'), income(OWNER, 'x', { category: 'بلا تصنيف' })),
+    );
+  });
+
+  it('يرفض مبلغاً سالباً', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(
+      setDoc(doc(asUser(OWNER), 'users', OWNER, 'incomes', 'x'), income(OWNER, 'x', { amount: -50 })),
+    );
+  });
+
+  it('يرفض تزوير userId داخل السجل', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(
+      setDoc(doc(asUser(OWNER), 'users', OWNER, 'incomes', 'x'), income(OWNER, 'x', { userId: OUTSIDER })),
+    );
+  });
+
+  it('يسمح للمالك بحذف دخله', async () => {
+    await seed(BUDGET_ONLY);
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', OWNER, 'incomes', 'inc1'), income(OWNER, 'inc1'));
+    });
+    await assertSucceeds(deleteDoc(doc(asUser(OWNER), 'users', OWNER, 'incomes', 'inc1')));
+  });
+});
+
+describe('مصادر الدخل المتكررة', () => {
+  it('يسمح للمالك بإنشاء مصدر راتب شهري', async () => {
+    await seed(BUDGET_ONLY);
+    await assertSucceeds(
+      setDoc(doc(asUser(OWNER), 'users', OWNER, 'incomeSources', 'src1'), incomeSource(OWNER, 'src1', { dayOfMonth: 25 })),
+    );
+  });
+
+  it('يسمح بمصدر استلام يومي', async () => {
+    await seed(BUDGET_ONLY);
+    await assertSucceeds(
+      setDoc(doc(asUser(OWNER), 'users', OWNER, 'incomeSources', 'src2'),
+        incomeSource(OWNER, 'src2', { title: 'مبيعات المحل', category: 'daily', cadence: 'daily' })),
+    );
+  });
+
+  it('يرفض يوم استحقاق خارج 1..28 فلا ينكسر المصدر في فبراير', async () => {
+    await seed(BUDGET_ONLY);
+    const db = asUser(OWNER);
+    await assertFails(setDoc(doc(db, 'users', OWNER, 'incomeSources', 'x'), incomeSource(OWNER, 'x', { dayOfMonth: 31 })));
+    await assertFails(setDoc(doc(db, 'users', OWNER, 'incomeSources', 'y'), incomeSource(OWNER, 'y', { dayOfMonth: 0 })));
+  });
+
+  it('يرفض دورية غير معروفة', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(
+      setDoc(doc(asUser(OWNER), 'users', OWNER, 'incomeSources', 'x'), incomeSource(OWNER, 'x', { cadence: 'weekly' })),
+    );
+  });
+
+  it('يرفض عنواناً فارغاً', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(
+      setDoc(doc(asUser(OWNER), 'users', OWNER, 'incomeSources', 'x'), incomeSource(OWNER, 'x', { title: '' })),
+    );
+  });
+
+  it('يمنع غريباً من قراءة مصادر دخل غيره', async () => {
+    await seed(BUDGET_ONLY);
+    await assertFails(getDoc(doc(asUser(OUTSIDER), 'users', OWNER, 'incomeSources', 'src1')));
   });
 });
 
