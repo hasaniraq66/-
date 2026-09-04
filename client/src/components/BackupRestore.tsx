@@ -25,8 +25,9 @@ import {
   getBackupsFromDrive, 
   downloadBackupFromDrive, 
   deleteBackupFromDrive, 
-  DriveBackupFile 
+  DriveBackupFile
 } from '../utils/googleDrive';
+import { currentHost, describeGoogleAuthFailure } from '../lib/googleAuthError';
 
 interface BackupRestoreProps {
   onImportData: (data: any) => boolean;
@@ -199,10 +200,13 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
           console.error('Failed to load initial backups', e);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setCloudStatus('error');
-      setCloudMessage('فشل تسجيل الدخول أو ربط حساب Google Drive.');
+      // النسخ الاحتياطي يمرّ بدخول Google نفسه، فيتعطّل بالسبب نفسه ويستحق
+      // التشخيص نفسه بدل رسالة عامة تُخفي أن الإصلاح إعدادٌ لا إعادة محاولة.
+      const failure = describeGoogleAuthFailure(err, currentHost());
+      setCloudMessage(`${failure.title} — ${failure.detail}`);
     } finally {
       setIsLoading(false);
     }

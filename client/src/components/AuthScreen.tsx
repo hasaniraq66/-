@@ -21,6 +21,7 @@ import {
 } from 'firebase/auth';
 import { auth, saveUserProfile } from '../utils/firebaseService';
 import { runWithFirebaseSessionRecovery } from '../lib/firebaseSession';
+import { currentHost, describeGoogleAuthFailure } from '../lib/googleAuthError';
 
 interface AuthScreenProps {
   onAuthSuccess: (userId: string, displayName: string, currency: string) => void;
@@ -55,26 +56,27 @@ export default function AuthScreen({ onAuthSuccess, statusMessage }: AuthScreenP
       // يقوم مستمع المصادقة في App وحده بتحميل أو إنشاء ملف Firestore.
       // تجنب القراءة المتوازية هنا يمنع تعارض تجديد الرمز بعد تسجيل الدخول.
       onAuthSuccess(user.uid, user.displayName || 'مستثمر جديد', 'ر.س');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      if (err.code === 'auth/operation-not-allowed') {
-        setError(
-          <div className="space-y-1.5 leading-relaxed">
-            <p className="font-extrabold text-red-400 text-right">⚠️ تسجيل الدخول باستخدام Google غير مفعّل في منصة Firebase لهذا المشروع.</p>
-            <p className="font-normal text-slate-300 text-right text-[11px]">لتفعيله: يرجى الانتقال إلى وحدة تحكم Firebase (Firebase Console) والدخول إلى قسم Authentication ثم تبويب Sign-in method وقم بتمكين موفر Google.</p>
-            <a 
-              href="https://console.firebase.google.com/project/gen-lang-client-0759922046/authentication/providers" 
-              target="_blank" 
-              rel="noopener noreferrer" 
+      // الرسالة السابقة كانت تدعو إلى «المحاولة لاحقاً» لكل خطأ عدا واحد،
+      // وهذا يضلّل في أشيع حالة: نطاق غير مصرَّح به لا يُصلحه الانتظار أبداً.
+      const failure = describeGoogleAuthFailure(err, currentHost());
+      setError(
+        <div className="space-y-1.5 leading-relaxed">
+          <p className="font-extrabold text-red-400 text-right">⚠️ {failure.title}</p>
+          <p className="font-normal text-slate-300 text-right text-[11px]">{failure.detail}</p>
+          {failure.consoleUrl && (
+            <a
+              href={failure.consoleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 underline font-extrabold mt-1 text-[11px]"
             >
-              افتح إعدادات تسجيل الدخول في Firebase ➔
+              افتح الإعداد في Firebase ➔
             </a>
-          </div>
-        );
-      } else {
-        setError('فشل تسجيل الدخول باستخدام حساب Google. يرجى المحاولة لاحقاً.');
-      }
+          )}
+        </div>
+      );
     } finally {
       setIsLoading(false);
     }
