@@ -53,6 +53,7 @@ import { resolveCollection, shouldReportLoadFailure } from './lib/collectionAcce
 import { sanitizeRecordsForExport } from './lib/backupSanitizer';
 import { clearPin, hasPin, migrateLegacyPin, setPin, verifyPin } from './lib/appLockCredential';
 import { runWithFirebaseSessionRecovery } from './lib/firebaseSession';
+import { nextProfile, shouldPersistProfile } from './lib/profilePersistence';
 import { createAuthLoadCoordinator } from './lib/authLoadCoordinator';
 import { createAuthBootstrapWatchdog } from './lib/authBootstrapWatchdog';
 import {
@@ -477,17 +478,22 @@ export default function App() {
     };
   }, [isSidebarOpen]);
 
-  // Save changes to username & currency to Firestore profile
+  // حفظ الاسم والعملة في الملف الشخصي.
+  //
+  // كان الشرط `currentUser && !isAuthLoading` وحده، فيكتب حتى حين يُخفق تحميل
+  // الملف — والاسم وقتها ما زال «مستخدم جديد» الافتراضي، فيُكتب فوق الاسم
+  // الحقيقي. مهلةٌ واحدة على شبكة بطيئة عند الفتح كانت تكفي لمحوه.
+  //
+  // الآن لا يُكتب شيء ما لم يوجد ملفٌ محمَّل نقارن به، ولا إلا إذا تغيّر شيء.
+  // وتُعاد النسخة المحدَّثة إلى الحالة فيتوقف الشرط عن التحقق ولا تدور حلقة.
   useEffect(() => {
-    if (currentUser && !isAuthLoading) {
-      saveUserProfile({
-        userId: currentUser.uid,
-        displayName: userName,
-        currency: currency,
-        createdAt: new Date().toISOString()
-      });
-    }
-  }, [userName, currency, currentUser, isAuthLoading]);
+    if (!currentUser || isAuthLoading || !userProfile) return;
+    if (!shouldPersistProfile(userProfile, userName, currency)) return;
+
+    const updated = nextProfile(userProfile, currentUser.uid, userName, currency);
+    setUserProfile(updated);
+    void saveUserProfile(updated);
+  }, [userName, currency, currentUser, isAuthLoading, userProfile]);
 
   // Generate Alerts in Real-time from Debts
   const alerts: SystemAlert[] = useMemo(() => {
