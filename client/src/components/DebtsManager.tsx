@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
+import { buildPaymentReceipt, type PaymentReceipt } from '../lib/paymentReceipt';
 import { getAccountStatementDebts } from '../utils/debtRecords';
 import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
 import { isPaymentWithinRemainingBalance, isPositiveFinancialAmount } from '../utils/financialInputValidation';
@@ -163,6 +164,8 @@ export default function DebtsManager({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  // إشعار التسديد المقترح بعد تسجيل دفعة. اقتراحٌ لا إجبار: يُغلق بلا إرسال.
+  const [paymentReceipt, setPaymentReceipt] = useState<PaymentReceipt | null>(null);
 
   // Printable Account Statement State
   const [printableAccountPerson, setPrintableAccountPerson] = useState<string | null>(null);
@@ -363,13 +366,26 @@ export default function DebtsManager({
     setFormError(null);
     
     onAddInstallment(
-      selectedDebt.id, 
-      Number(paymentAmount), 
-      paymentDate, 
-      paymentNotes, 
+      selectedDebt.id,
+      Number(paymentAmount),
+      paymentDate,
+      paymentNotes,
       selectedDebt.type === 'to_others' ? linkToBudget : false
     );
     setIsPaymentModalOpen(false);
+
+    // يُبنى الإشعار من الدفعة المسجَّلة لا من حالة الدين: الحالة لم تُحدَّث بعد
+    // بهذه الدفعة، فقراءتها تعطي متبقياً أعلى من الحقيقي — أي رسالة تطالب
+    // بمالٍ سُدِّد فعلاً.
+    setPaymentReceipt(
+      buildPaymentReceipt({
+        debt: selectedDebt,
+        amount: Number(paymentAmount),
+        date: paymentDate,
+        notes: paymentNotes,
+        currency,
+      }),
+    );
   };
 
   // Toggle expand installments logs
@@ -2025,6 +2041,61 @@ export default function DebtsManager({
             </form>
           </div>
         </div>
+        </ModalPortal>
+      )}
+
+      {/* اقتراح إرسال إشعار التسديد بعد تسجيل الدفعة */}
+      {paymentReceipt && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md" id="payment-receipt-modal">
+            <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800">
+                <h2 className="flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  {paymentReceipt.isSettled ? 'سُدِّد الدين بالكامل' : 'سُجِّلت الدفعة'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setPaymentReceipt(null)}
+                  aria-label="إغلاق"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-5 text-xs">
+                <p className="font-bold text-slate-600 dark:text-slate-300">
+                  هل تريد إرسال إشعار بالتسديد عبر واتساب؟
+                </p>
+
+                <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-right text-[11px] leading-6 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200" dir="rtl">
+{paymentReceipt.message}
+                </pre>
+
+                <div className="flex flex-col gap-2">
+                  <a
+                    href={paymentReceipt.whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setPaymentReceipt(null)}
+                    id="send-payment-receipt-whatsapp"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-black text-white transition hover:bg-emerald-700"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    إرسال عبر واتساب
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentReceipt(null)}
+                    className="min-h-11 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    لا، شكراً
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </ModalPortal>
       )}
 
