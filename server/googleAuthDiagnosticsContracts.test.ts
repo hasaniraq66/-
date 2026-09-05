@@ -45,3 +45,50 @@ describe('المساران يتشاركان التشخيص نفسه', () => {
     expect(backup).toContain('currentHost()');
   });
 });
+
+/**
+ * المستخدم طلب صراحةً ألا تظهر معلومات حساسة مثل اسم مشروع Firebase.
+ *
+ * ورسائل الخطأ تُعرض لكل زائر لا لصاحب التطبيق وحده، فرابطٌ يحمل معرّف المشروع
+ * يكشفه لمن ليس له به شأن. وحدة التحكم تفتح آخر مشروع مختار على الصفحة نفسها،
+ * فالمسار يُذكر نصاً ولا يُفقد شيء.
+ *
+ * يُفحص المصدر نصّاً لأن الرابط قد يُكتب مباشرة في JSX بلا مرور بالمُشخِّص —
+ * وهذا بالضبط ما وقع: رابطٌ ثالثٌ مكتوب بيده في شاشة الدخول نجا من التنقية.
+ */
+describe('لا يُكشف معرّف مشروع Firebase في الواجهة', () => {
+  const uiSources: Array<[string, string]> = [
+    ['شاشة الدخول', authScreen],
+    ['شاشة النسخ الاحتياطي', backup],
+    ['مُشخِّص أخطاء Google', read('client/src/lib/googleAuthError.ts')],
+  ];
+
+  it.each(uiSources)('%s لا تحمل رابطاً بمعرّف المشروع', (_name, source) => {
+    expect(source).not.toMatch(/console\.firebase\.google\.com\/project\//);
+    expect(source).not.toMatch(/console\.cloud\.google\.com\/[^"'\s]*project=/);
+  });
+
+  it('ولا تكتب معرّف المشروع نصاً صريحاً', () => {
+    for (const [, source] of uiSources) {
+      expect(source).not.toContain('gen-lang-client');
+    }
+  });
+});
+
+/**
+ * شاشة Google تقول «تم حظر إمكانية الوصول… يتم اختبار التطبيق». هذا رفضٌ دائم
+ * سببه أن التطبيق لم يُنشر بعد، ولا يصل إلى Firebase برمز خاص — فالتقاطه يجب
+ * أن يكون من متن الرسالة، وإلا ظهر للمستخدم بوصفه إلغاءً منه.
+ */
+describe('رفض وضع الاختبار يُسمّى باسمه', () => {
+  const diagnostics = read('client/src/lib/googleAuthError.ts');
+
+  it('يُفحص متن الرسالة لا الرمز وحده', () => {
+    expect(diagnostics).toContain('access_denied');
+    expect(diagnostics).toContain('isConsentScreenRefusal');
+  });
+
+  it('يوجّه إلى صفحة الجمهور حيث يقع الإصلاح فعلاً', () => {
+    expect(diagnostics).toContain('console.cloud.google.com/auth/audience');
+  });
+});
