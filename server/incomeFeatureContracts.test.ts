@@ -48,10 +48,13 @@ describe('وصل الميزة بالتطبيق', () => {
     expect(settledBlock).toContain("'expenses'");
   });
 
+  // المسار صار يمرّ بطابور الكتابات بدل استدعاء firebaseService مباشرة: النية
+  // نفسها — الدخل يُكتب في السحابة لا في الحالة وحدها — والطابور يضمن فوقها
+  // ألا يضيع الإخفاق صامتاً.
   it('يكتب الدخل في Firestore لا في الحالة المحلية وحدها', () => {
-    expect(app).toContain("saveDocument(targetUid, 'incomes'");
-    expect(app).toContain("saveDocument(targetUid, 'incomeSources'");
-    expect(app).toContain("deleteDocument(targetUid, 'incomes'");
+    expect(app).toContain("enqueueSave('incomes'");
+    expect(app).toContain("enqueueSave('incomeSources'");
+    expect(app).toContain("enqueueDelete('incomes'");
   });
 
   it('يمسح الدخل عند تسجيل الخروج، فهو بيانات مالية حسّاسة', () => {
