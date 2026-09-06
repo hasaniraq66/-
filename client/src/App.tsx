@@ -37,13 +37,22 @@ import {
   auth, 
   fetchUserProfile, 
   saveUserProfile, 
-  fetchCollection, 
-  saveDocument, 
-  deleteDocument,
+  fetchCollection,
   sanitizeFinancialValue,
   isSupervisionLinkBroken,
   releaseSupervision
 } from './utils/firebaseService';
+// كل كتابة تمرّ بالطابور لا بـ firebaseService مباشرة: الاستدعاء المباشر كان
+// بلا await وبلا catch، فيضيع إخفاقه في وعدٍ مرفوض لا يلتقطه أحد.
+import {
+  attachWriteSync,
+  enqueueDelete,
+  enqueueProfileSave,
+  enqueueSave,
+  retryPendingWrites,
+  subscribeWriteSync,
+} from './utils/writeSync';
+import type { WriteQueueStatus } from './lib/writeQueue';
 import AuthScreen from './components/AuthScreen';
 import ConfirmModal from './components/ConfirmModal';
 import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './components/DataLoadingExperience';
@@ -70,6 +79,7 @@ import { createNextReferenceNumber } from './utils/recordReferences';
 // Import components
 import Dashboard from './components/Dashboard';
 import FinancialDataLoadErrorNotice from './components/FinancialDataLoadErrorNotice';
+import UnsyncedWritesNotice from './components/UnsyncedWritesNotice';
 import LockScreen from './components/LockScreen';
 import SupervisionRecovery from './components/SupervisionRecovery';
 import CommandPalette from './components/CommandPalette';
@@ -116,6 +126,19 @@ export default function App() {
   const targetUid = useMemo(() => {
     return (currentUser && userProfile?.adminId) ? userProfile.adminId : (currentUser?.uid || '');
   }, [currentUser, userProfile]);
+
+  // حالة الكتابات غير المؤكَّدة. تُعرض للمستخدم لأن الكتابة التي لم تصل كانت
+  // تبدو ناجحة تماماً: السجل ظاهر في الشاشة ومحفوظ في localStorage، ولا شيء
+  // يشي بأنه لم يبلغ Firebase.
+  const [writeStatus, setWriteStatus] = useState<WriteQueueStatus>({ pending: 0, failing: 0 });
+
+  // الطابور مفصول بصاحبه: كتابةٌ مؤجَّلة تحمل مسار مستند تحت uid معيّن، وتنفيذها
+  // باسم غيره إمّا يُرفض أو يكتب بيانات شخص في حساب آخر.
+  useEffect(() => {
+    attachWriteSync(targetUid || null);
+  }, [targetUid]);
+
+  useEffect(() => subscribeWriteSync(setWriteStatus), []);
 
   // State variables (will be populated immediately once Auth state loads)
   const [debts, setDebts] = useState<Debt[]>(initialDebts);
@@ -492,7 +515,7 @@ export default function App() {
 
     const updated = nextProfile(userProfile, currentUser.uid, userName, currency);
     setUserProfile(updated);
-    void saveUserProfile(updated);
+    enqueueProfileSave(updated);
   }, [userName, currency, currentUser, isAuthLoading, userProfile]);
 
   // Generate Alerts in Real-time from Debts
@@ -627,28 +650,28 @@ export default function App() {
 
     setDebts((prev) => [newDebt, ...prev]);
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'debts', newDebt.id, newDebt);
+      enqueueSave('debts', newDebt.id, newDebt);
     }
   };
 
   const handleEditDebt = (editedDebt: Debt) => {
     setDebts((prev) => prev.map((d) => (d.id === editedDebt.id ? editedDebt : d)));
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'debts', editedDebt.id, editedDebt);
+      enqueueSave('debts', editedDebt.id, editedDebt);
     }
   };
 
   const handleDeleteDebt = (id: string) => {
     setDebts((prev) => prev.filter((d) => d.id !== id));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'debts', id);
+      enqueueDelete('debts', id);
     }
     // Remove linked expenses if any
     const expensesToDelete = expenses.filter((e) => e.linkedDebtId === id);
     setExpenses((prev) => prev.filter((e) => e.linkedDebtId !== id));
     if (currentUser && targetUid) {
       expensesToDelete.forEach((e) => {
-        deleteDocument(targetUid, 'expenses', e.id);
+        enqueueDelete('expenses', e.id);
       });
     }
   };
@@ -699,12 +722,12 @@ export default function App() {
       };
       setExpenses((prev) => [newExpense, ...prev]);
       if (currentUser && targetUid) {
-        saveDocument(targetUid, 'expenses', newExpense.id, newExpense);
+        enqueueSave('expenses', newExpense.id, newExpense);
       }
     }
 
     if (currentUser && targetUid && updatedDebtItem) {
-      saveDocument(targetUid, 'debts', debtId, updatedDebtItem);
+      enqueueSave('debts', debtId, updatedDebtItem);
     }
   };
 
@@ -747,13 +770,13 @@ export default function App() {
     setExpenses((prev) => {
       const matchingExpense = prev.find(e => e.linkedDebtId === debtId && instToDeleteAmount !== null && Math.abs(e.amount - instToDeleteAmount) < 0.01);
       if (currentUser && targetUid && matchingExpense) {
-        deleteDocument(targetUid, 'expenses', matchingExpense.id);
+        enqueueDelete('expenses', matchingExpense.id);
       }
       return prev.filter(e => e.id !== matchingExpense?.id);
     });
 
     if (currentUser && targetUid && updatedDebtItem) {
-      saveDocument(targetUid, 'debts', debtId, updatedDebtItem);
+      enqueueSave('debts', debtId, updatedDebtItem);
     }
   };
 
@@ -769,7 +792,7 @@ export default function App() {
       }
     });
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'budgets', month, updatedBudget);
+      enqueueSave('budgets', month, updatedBudget);
     }
   };
 
@@ -781,21 +804,21 @@ export default function App() {
     };
     setExpenses((prev) => [newExpense, ...prev]);
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'expenses', newExpense.id, newExpense);
+      enqueueSave('expenses', newExpense.id, newExpense);
     }
   };
 
   const handleEditExpense = (editedExpense: Expense) => {
     setExpenses((prev) => prev.map((e) => (e.id === editedExpense.id ? editedExpense : e)));
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'expenses', editedExpense.id, editedExpense);
+      enqueueSave('expenses', editedExpense.id, editedExpense);
     }
   };
 
   const handleDeleteExpense = (id: string) => {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'expenses', id);
+      enqueueDelete('expenses', id);
     }
   };
 
@@ -805,7 +828,7 @@ export default function App() {
     const newIncome: Income = { ...newIncomeData, id: `inc-${generateId()}`, userId: targetUid };
     setIncomes((prev) => [newIncome, ...prev]);
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'incomes', newIncome.id, newIncome);
+      enqueueSave('incomes', newIncome.id, newIncome);
     }
   };
 
@@ -813,14 +836,14 @@ export default function App() {
     const withOwner: Income = { ...editedIncome, userId: targetUid };
     setIncomes((prev) => prev.map((entry) => (entry.id === withOwner.id ? withOwner : entry)));
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'incomes', withOwner.id, withOwner);
+      enqueueSave('incomes', withOwner.id, withOwner);
     }
   };
 
   const handleDeleteIncome = (id: string) => {
     setIncomes((prev) => prev.filter((entry) => entry.id !== id));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'incomes', id);
+      enqueueDelete('incomes', id);
     }
   };
 
@@ -831,7 +854,7 @@ export default function App() {
       return exists ? prev.map((item) => (item.id === withOwner.id ? withOwner : item)) : [...prev, withOwner];
     });
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'incomeSources', withOwner.id, withOwner);
+      enqueueSave('incomeSources', withOwner.id, withOwner);
     }
   };
 
@@ -840,7 +863,7 @@ export default function App() {
   const handleDeleteIncomeSource = (id: string) => {
     setIncomeSources((prev) => prev.filter((item) => item.id !== id));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'incomeSources', id);
+      enqueueDelete('incomeSources', id);
     }
   };
 
@@ -883,21 +906,21 @@ export default function App() {
     };
     setProjects((prev) => [...prev, newProj]);
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'projects', newProj.id, newProj);
+      enqueueSave('projects', newProj.id, newProj);
     }
   };
 
   const handleEditProject = (editedProj: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === editedProj.id ? editedProj : p)));
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'projects', editedProj.id, editedProj);
+      enqueueSave('projects', editedProj.id, editedProj);
     }
   };
 
   const handleDeleteProject = (projectId: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'projects', projectId);
+      enqueueDelete('projects', projectId);
     }
 
     // Remove references
@@ -905,7 +928,7 @@ export default function App() {
     setEmployees((prev) => prev.filter((e) => e.projectId !== projectId));
     if (currentUser && targetUid) {
       employeesToDelete.forEach((e) => {
-        deleteDocument(targetUid, 'employees', e.id);
+        enqueueDelete('employees', e.id);
       });
     }
 
@@ -913,8 +936,8 @@ export default function App() {
     setSalaryPayments((prev) => prev.filter((sp) => sp.projectId !== projectId));
     if (currentUser && targetUid) {
       salaryPaymentsToDelete.forEach((sp) => {
-        deleteDocument(targetUid, 'salaryPayments', sp.id);
-        deleteDocument(targetUid, 'expenses', `salary-exp-${sp.id}`);
+        enqueueDelete('salaryPayments', sp.id);
+        enqueueDelete('expenses', `salary-exp-${sp.id}`);
       });
     }
 
@@ -925,14 +948,14 @@ export default function App() {
     setDebts((prev) => prev.map((d) => d.projectId === projectId ? { ...d, projectId: undefined } : d));
     if (currentUser && targetUid) {
       detachDebts.forEach((d) => {
-        saveDocument(targetUid, 'debts', d.id, { ...d, projectId: undefined });
+        enqueueSave('debts', d.id, { ...d, projectId: undefined });
       });
     }
 
     setExpenses((prev) => prev.map((e) => e.projectId === projectId ? { ...e, projectId: undefined } : e));
     if (currentUser && targetUid) {
       detachExpenses.forEach((e) => {
-        saveDocument(targetUid, 'expenses', e.id, { ...e, projectId: undefined });
+        enqueueSave('expenses', e.id, { ...e, projectId: undefined });
       });
     }
   };
@@ -944,28 +967,28 @@ export default function App() {
     };
     setEmployees((prev) => [...prev, newEmp]);
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'employees', newEmp.id, newEmp);
+      enqueueSave('employees', newEmp.id, newEmp);
     }
   };
 
   const handleEditEmployee = (editedEmp: Employee) => {
     setEmployees((prev) => prev.map((e) => (e.id === editedEmp.id ? editedEmp : e)));
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'employees', editedEmp.id, editedEmp);
+      enqueueSave('employees', editedEmp.id, editedEmp);
     }
   };
 
   const handleDeleteEmployee = (employeeId: string) => {
     setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'employees', employeeId);
+      enqueueDelete('employees', employeeId);
     }
     // Remove salary payments and their auto-generated expenses
     const paymentsToRemove = salaryPayments.filter((sp) => sp.employeeId === employeeId);
     if (currentUser && targetUid) {
       paymentsToRemove.forEach((p) => {
-        deleteDocument(targetUid, 'salaryPayments', p.id);
-        deleteDocument(targetUid, 'expenses', `salary-exp-${p.id}`);
+        enqueueDelete('salaryPayments', p.id);
+        enqueueDelete('expenses', `salary-exp-${p.id}`);
       });
     }
     setSalaryPayments((prev) => prev.filter((sp) => sp.employeeId !== employeeId));
@@ -981,7 +1004,7 @@ export default function App() {
     
     setSalaryPayments((prev) => [...prev, newPayment]);
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'salaryPayments', newPayment.id, newPayment);
+      enqueueSave('salaryPayments', newPayment.id, newPayment);
     }
 
     // Automatically create a linked expense
@@ -1001,19 +1024,19 @@ export default function App() {
     
     setExpenses((prev) => [newExpense, ...prev]);
     if (currentUser && targetUid) {
-      saveDocument(targetUid, 'expenses', newExpense.id, newExpense);
+      enqueueSave('expenses', newExpense.id, newExpense);
     }
   };
 
   const handleDeleteSalaryPayment = (paymentId: string) => {
     setSalaryPayments((prev) => prev.filter((sp) => sp.id !== paymentId));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'salaryPayments', paymentId);
+      enqueueDelete('salaryPayments', paymentId);
     }
     // Delete auto-generated expense
     setExpenses((prev) => prev.filter((e) => e.id !== `salary-exp-${paymentId}`));
     if (currentUser && targetUid) {
-      deleteDocument(targetUid, 'expenses', `salary-exp-${paymentId}`);
+      enqueueDelete('expenses', `salary-exp-${paymentId}`);
     }
   };
 
@@ -1044,22 +1067,22 @@ export default function App() {
       if (parsedData.username) setUserName(parsedData.username);
 
       if (currentUser && targetUid) {
-        Promise.all([
-          ...dbt.map((d: any) => saveDocument(targetUid, 'debts', d.id, d)),
-          ...exp.map((e: any) => saveDocument(targetUid, 'expenses', e.id, e)),
-          ...bdg.map((b: any) => saveDocument(targetUid, 'budgets', b.month, b)),
-          ...prj.map((p: any) => saveDocument(targetUid, 'projects', p.id, p)),
-          ...emp.map((em: any) => saveDocument(targetUid, 'employees', em.id, em)),
-          ...sal.map((s: any) => saveDocument(targetUid, 'salaryPayments', s.id, s)),
-          saveUserProfile({
-            userId: currentUser.uid,
-            displayName: usr,
-            currency: cur,
-            createdAt: new Date().toISOString(),
-            ...(userProfile?.adminId ? { adminId: userProfile.adminId, allowedTabs: userProfile.allowedTabs } : {})
-          })
-        ]).catch((syncErr) => {
-          console.error('Error syncing imported backup to Firestore:', syncErr);
+        // الاستعادة أحوج ما يكون إلى الطابور: دفعةٌ من مئات الكتابات دفعةً واحدة،
+        // وهي أكثر ما يصطدم بالشبكة أو الحصة. كانت تُطلق ويُكتفى بتسجيل الإخفاق
+        // في الكونسول — فتبدو الاستعادة ناجحة وقد وصل نصفها.
+        dbt.forEach((d: any) => enqueueSave('debts', d.id, d));
+        exp.forEach((e: any) => enqueueSave('expenses', e.id, e));
+        bdg.forEach((b: any) => enqueueSave('budgets', b.month, b));
+        prj.forEach((p: any) => enqueueSave('projects', p.id, p));
+        emp.forEach((em: any) => enqueueSave('employees', em.id, em));
+        sal.forEach((s: any) => enqueueSave('salaryPayments', s.id, s));
+        enqueueProfileSave({
+          userId: currentUser.uid,
+          displayName: usr,
+          currency: cur,
+          // يُحفظ تاريخ الإنشاء الأصلي: استعادةُ نسخة ليست إنشاءَ حساب جديد.
+          createdAt: userProfile?.createdAt ?? new Date().toISOString(),
+          ...(userProfile?.adminId ? { adminId: userProfile.adminId, allowedTabs: userProfile.allowedTabs } : {})
         });
       }
       return true;
@@ -1069,18 +1092,16 @@ export default function App() {
 
   const handleResetAllData = async () => {
     if (currentUser && targetUid) {
-      try {
-        await Promise.all([
-          ...debts.map((d) => deleteDocument(targetUid, 'debts', d.id)),
-          ...expenses.map((e) => deleteDocument(targetUid, 'expenses', e.id)),
-          ...budgets.map((b) => deleteDocument(targetUid, 'budgets', b.month)),
-          ...projects.map((p) => deleteDocument(targetUid, 'projects', p.id)),
-          ...employees.map((em) => deleteDocument(targetUid, 'employees', em.id)),
-          ...salaryPayments.map((sp) => deleteDocument(targetUid, 'salaryPayments', sp.id))
-        ]);
-      } catch (resetErr) {
-        console.error('Error resetting Firestore data:', resetErr);
-      }
+      debts.forEach((d) => enqueueDelete('debts', d.id));
+      expenses.forEach((e) => enqueueDelete('expenses', e.id));
+      budgets.forEach((b) => enqueueDelete('budgets', b.month));
+      projects.forEach((p) => enqueueDelete('projects', p.id));
+      employees.forEach((em) => enqueueDelete('employees', em.id));
+      salaryPayments.forEach((sp) => enqueueDelete('salaryPayments', sp.id));
+      // الدخل ومصادره كانا يُمسحان من الحالة وحدها: التصفير يبدو تاماً ثم يعودان
+      // من السحابة عند الفتح التالي. سهوٌ من إضافة الميزة — الحذف لم يلحق التحميل.
+      incomes.forEach((i) => enqueueDelete('incomes', i.id));
+      incomeSources.forEach((s) => enqueueDelete('incomeSources', s.id));
     }
 
     setDebts([]);
@@ -1629,6 +1650,9 @@ export default function App() {
         {dataLoadError && (activeTab === 'dashboard' || activeTab === 'debts') && (
           <FinancialDataLoadErrorNotice message={dataLoadError} onRetry={() => window.location.reload()} />
         )}
+        {/* يظهر في كل تبويب لا في لوحة التحكم وحدها: الكتابة قد تُخفق وأنت في
+            أي شاشة، وإخفاء ذلك حتى تعود إلى اللوحة يُبقي العطل صامتاً. */}
+        <UnsyncedWritesNotice status={writeStatus} onRetry={retryPendingWrites} />
         {/* Dynamic active view injection */}
         <AnimatePresence mode="wait">
           <motion.div
