@@ -1,7 +1,78 @@
 import { describe, expect, it } from 'vitest';
-import { describeGoogleAuthFailure, errorCode } from './googleAuthError';
+import { describeGoogleAuthFailure, errorCode, isConsentScreenRefusal } from './googleAuthError';
 
 const HOST = 'www.iqcma.com';
+
+/**
+ * الحادثة الثانية: شاشة Google تقول «تم حظر إمكانية الوصول… يتم اختبار التطبيق
+ * ولا يمكن الوصول إليه إلا من قِبل مختبِرين» — وهذا رفضٌ دائم لا إلغاء عابر.
+ */
+describe('رفض شاشة الموافقة', () => {
+  it('يلتقط access_denied من متن الرسالة لا من الرمز', () => {
+    expect(isConsentScreenRefusal({ message: 'Error 403: access_denied' })).toBe(true);
+    expect(isConsentScreenRefusal('access_denied')).toBe(true);
+    expect(isConsentScreenRefusal({ customData: { message: 'admin_policy_enforced' } })).toBe(true);
+  });
+
+  it('لا يلتقط ما ليس رفضاً', () => {
+    expect(isConsentScreenRefusal({ message: 'network error' })).toBe(false);
+    expect(isConsentScreenRefusal(null)).toBe(false);
+    expect(isConsentScreenRefusal(undefined)).toBe(false);
+    expect(isConsentScreenRefusal({ message: 42 })).toBe(false);
+  });
+
+  it('يسبق فحصُه الرموزَ فلا يخفيه رمز عام', () => {
+    const f = describeGoogleAuthFailure(
+      { code: 'auth/internal-error', message: 'access_denied' },
+      HOST,
+    );
+    expect(f.title).toContain('وضع الاختبار');
+  });
+
+  it('لا يدعو إلى إعادة المحاولة — فهي لا تنفع قبل النشر', () => {
+    const f = describeGoogleAuthFailure({ message: 'access_denied' }, HOST);
+    expect(f.retryable).toBe(false);
+  });
+
+  it('يذكر الحلّين: النشر الدائم وإضافة مختبِر فوراً', () => {
+    const f = describeGoogleAuthFailure({ message: 'access_denied' }, HOST);
+    expect(f.detail).toContain('نشر التطبيق');
+    expect(f.detail).toContain('مستخدمو الاختبار');
+  });
+
+  it('يشير إلى صفحة الجمهور لا إلى صفحة مصادقة لا شأن لها', () => {
+    expect(describeGoogleAuthFailure({ message: 'access_denied' }, HOST).consoleUrl).toBe(
+      'https://console.cloud.google.com/auth/audience',
+    );
+  });
+});
+
+/**
+ * المستخدم طلب صراحةً ألا يظهر اسم مشروع Firebase. الرسالة تُعرض لكل زائر،
+ * فمعرّف المشروع داخل رابط وحدة التحكم يكشفه لمن ليس صاحب التطبيق.
+ */
+describe('لا يتسرّب معرّف المشروع إلى الواجهة', () => {
+  const codes = [
+    'auth/unauthorized-domain',
+    'auth/operation-not-allowed',
+    'auth/popup-closed-by-user',
+    'auth/popup-blocked',
+    'auth/network-request-failed',
+    'auth/something-new',
+  ];
+
+  it.each(codes)('%s لا يذكر معرّف المشروع في الرابط ولا في النص', (code) => {
+    const f = describeGoogleAuthFailure({ code }, HOST);
+    const surface = `${f.title} ${f.detail} ${f.consoleUrl ?? ''}`;
+    expect(surface).not.toContain('gen-lang-client');
+    expect(surface).not.toContain('firebaseapp.com');
+  });
+
+  it('ولا في رسالة رفض شاشة الموافقة', () => {
+    const f = describeGoogleAuthFailure({ message: 'access_denied' }, HOST);
+    expect(`${f.title} ${f.detail} ${f.consoleUrl}`).not.toContain('gen-lang-client');
+  });
+});
 
 describe('errorCode', () => {
   it('يقرأ رمز خطأ Firebase', () => {
@@ -36,8 +107,11 @@ describe('النطاق غير المصرَّح به', () => {
     expect(failure.detail).toContain('www');
   });
 
-  it('يعطي رابط الإعداد الصحيح', () => {
-    expect(failure.consoleUrl).toContain('/authentication/settings');
+  // الرابط بلا معرّف المشروع كي لا يُكشف لكل زائر؛ والمسار يُذكر نصاً بدلاً منه
+  // فلا تُفقد الدلالة على الصفحة المقصودة.
+  it('يعطي رابط وحدة التحكم ويسمّي المسار نصاً', () => {
+    expect(failure.consoleUrl).toBe('https://console.firebase.google.com/');
+    expect(failure.detail).toContain('Authorized domains');
   });
 });
 
@@ -45,16 +119,21 @@ describe('بقية الحالات', () => {
   it('يميّز موفّر Google غير المفعّل ويشير إلى صفحته', () => {
     const f = describeGoogleAuthFailure({ code: 'auth/operation-not-allowed' }, HOST);
     expect(f.retryable).toBe(false);
-    expect(f.consoleUrl).toContain('/authentication/providers');
+    expect(f.consoleUrl).toBe('https://console.firebase.google.com/');
+    expect(f.detail).toContain('Sign-in method');
   });
 
   it('يعتبر حجب النافذة قابلاً لإعادة المحاولة', () => {
     expect(describeGoogleAuthFailure({ code: 'auth/popup-blocked' }, HOST).retryable).toBe(true);
   });
 
-  it('لا يعامل إغلاق المستخدم للنافذة كعطل', () => {
+  // الرفض في وضع الاختبار يقع على صفحة Google، فلا يصل Firebase إلا أن النافذة
+  // أُغلقت. الجزم بأن «المستخدم ألغى» يُلبس عطلاً دائماً ثوب اختيارٍ عابر.
+  it('لا يجزم بأن المستخدم ألغى، ويسمّي احتمال وضع الاختبار', () => {
     const f = describeGoogleAuthFailure({ code: 'auth/popup-closed-by-user' }, HOST);
-    expect(f.title).toContain('أُلغيت');
+    expect(f.title).not.toContain('أُلغيت');
+    expect(f.detail).toContain('تم حظر إمكانية الوصول');
+    expect(f.detail).toContain('وضع الاختبار');
     expect(f.retryable).toBe(true);
   });
 

@@ -72,7 +72,7 @@ export default function AuthScreen({ onAuthSuccess, statusMessage }: AuthScreenP
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 underline font-extrabold mt-1 text-[11px]"
             >
-              افتح الإعداد في Firebase ➔
+              افتح صفحة الإعداد ➔
             </a>
           )}
         </div>
@@ -169,12 +169,12 @@ export default function AuthScreen({ onAuthSuccess, statusMessage }: AuthScreenP
             <p className="font-extrabold text-red-400 text-right">⚠️ طريقة تسجيل الدخول هذه (البريد وكلمة المرور) غير مفعلة حالياً في مشروع Firebase الخاص بك.</p>
             <p className="font-normal text-slate-300 text-right text-[11px]">لتفعيلها: يرجى الانتقال إلى وحدة تحكم Firebase (Firebase Console) والدخول إلى قسم Authentication ثم تبويب Sign-in method وقم بتمكين (Enable) خيار Email/Password ثم حفظ التغييرات.</p>
             <a 
-              href="https://console.firebase.google.com/project/gen-lang-client-0759922046/authentication/providers" 
+              href="https://console.firebase.google.com/"
               target="_blank" 
               rel="noopener noreferrer" 
               className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 underline font-extrabold mt-1 text-[11px]"
             >
-              افتح إعدادات تسجيل الدخول في Firebase ➔
+              افتح صفحة الإعداد ➔
             </a>
           </div>
         );
