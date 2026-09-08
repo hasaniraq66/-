@@ -350,7 +350,22 @@ export default function DebtsManager({
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDebt) return;
-    const remainingBalance = Math.max(selectedDebt.amount - selectedDebt.paidAmount, 0);
+    const accountDebts = nonProjectDebts
+      .filter((debt) =>
+        debt.personName.trim().toLowerCase() === selectedDebt.personName.trim().toLowerCase()
+        && debt.type === selectedDebt.type
+        && debt.status !== 'paid'
+        && debt.amount - debt.paidAmount > 0
+      )
+      .sort((first, second) => {
+        if (first.id === selectedDebt.id) return -1;
+        if (second.id === selectedDebt.id) return 1;
+        return (first.dueDate || first.startDate || '').localeCompare(second.dueDate || second.startDate || '');
+      });
+    const remainingBalance = accountDebts.reduce(
+      (total, debt) => total + Math.max(debt.amount - debt.paidAmount, 0),
+      0,
+    );
     if (!isPositiveFinancialAmount(paymentAmount)) {
       setFormError('أدخل مبلغ دفعة أكبر من صفر قبل تسجيلها.');
       return;
@@ -365,13 +380,21 @@ export default function DebtsManager({
     }
     setFormError(null);
     
-    onAddInstallment(
-      selectedDebt.id,
-      Number(paymentAmount),
-      paymentDate,
-      paymentNotes,
-      selectedDebt.type === 'to_others' ? linkToBudget : false
-    );
+    let amountLeft = Number(paymentAmount);
+    accountDebts.forEach((debt) => {
+      if (amountLeft <= 0) return;
+      const debtRemaining = Math.max(debt.amount - debt.paidAmount, 0);
+      const amountForDebt = Math.min(amountLeft, debtRemaining);
+      if (amountForDebt <= 0) return;
+      onAddInstallment(
+        debt.id,
+        amountForDebt,
+        paymentDate,
+        paymentNotes,
+        debt.type === 'to_others' ? linkToBudget : false
+      );
+      amountLeft -= amountForDebt;
+    });
     setIsPaymentModalOpen(false);
 
     // يُبنى الإشعار من الدفعة المسجَّلة لا من حالة الدين: الحالة لم تُحدَّث بعد
@@ -2103,8 +2126,11 @@ export default function DebtsManager({
       {isPaymentModalOpen && selectedDebt && (() => {
         const personDebts = nonProjectDebts.filter(
           (d) => d.personName.trim().toLowerCase() === selectedDebt.personName.trim().toLowerCase()
+            && d.type === selectedDebt.type
         );
-        const remainingForSelected = selectedDebt.amount - selectedDebt.paidAmount;
+        const remainingForAccount = personDebts
+          .filter((d) => d.status !== 'paid')
+          .reduce((total, d) => total + Math.max(d.amount - d.paidAmount, 0), 0);
 
         return (
           <ModalPortal>
@@ -2122,50 +2148,28 @@ export default function DebtsManager({
               
               <form onSubmit={handlePaymentSubmit} className="p-5 space-y-4 text-xs" id="payment-form">
                 {formError && <FormValidationAlert message={formError} />}
-                {/* Selector if person has multiple debts */}
-                {personDebts.length > 1 && (
-                  <div className="space-y-1.5 bg-sky-50/80 p-3 rounded-xl border border-sky-100">
-                    <label className="block text-sky-900 font-extrabold text-xs">
-                      اختر بند الدين المراد تسديده لهذا الشخص:
-                    </label>
-                    <select
-                      value={selectedDebt.id}
-                      onChange={(e) => {
-                        const found = personDebts.find((d) => d.id === e.target.value);
-                        if (found) {
-                          setSelectedDebt(found);
-                          setPaymentAmount('');
-                        }
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-sky-300 rounded-xl font-bold text-slate-800 text-xs focus:ring-2 focus:ring-sky-500"
-                    >
-                      {personDebts.map((d, idx) => {
-                        const rem = d.amount - d.paidAmount;
-                        return (
-                          <option key={d.id} value={d.id}>
-                            #{idx + 1} {d.description || d.category} ({d.type === 'to_me' ? 'له' : 'عليه'}) - المتبقي: {formatCurrency(rem, currency)} {d.status === 'paid' ? '✅ مسدد' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                )}
+                <div className="space-y-1.5 bg-sky-50/80 p-3 rounded-xl border border-sky-100">
+                  <p className="text-sky-900 font-extrabold text-xs">السداد من إجمالي حساب {selectedDebt.personName}</p>
+                  <p className="text-[10px] leading-relaxed text-sky-700">
+                    سيتم توزيع الدفعة تلقائياً على الديون المفتوحة لهذا الحساب، دون الحاجة لاختيار بند محدد.
+                  </p>
+                </div>
 
                 {/* Quick stats for the selected debt */}
                 <div className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
                   <div className="flex justify-between text-center">
                     <div>
-                      <span className="block text-[10px] text-slate-400">إجمالي البند</span>
-                      <span className="font-bold text-slate-700">{formatCurrency(selectedDebt.amount, currency)}</span>
+                    <span className="block text-[10px] text-slate-400">إجمالي الحساب</span>
+                    <span className="font-bold text-slate-700">{formatCurrency(personDebts.reduce((total, debt) => total + debt.amount, 0), currency)}</span>
                     </div>
                     <div>
                       <span className="block text-[10px] text-slate-400">المدفوع سابقاً</span>
-                      <span className="font-bold text-emerald-600">{formatCurrency(selectedDebt.paidAmount, currency)}</span>
+                      <span className="font-bold text-emerald-600">{formatCurrency(personDebts.reduce((total, debt) => total + debt.paidAmount, 0), currency)}</span>
                     </div>
                     <div>
                       <span className="block text-[10px] text-slate-400">الرصيد المتبقي</span>
                       <span className="font-extrabold text-rose-600">
-                        {formatCurrency(remainingForSelected, currency)}
+                        {formatCurrency(remainingForAccount, currency)}
                       </span>
                     </div>
                   </div>
@@ -2202,7 +2206,7 @@ export default function DebtsManager({
                       required
                       min="0.1"
                       step="any"
-                      max={remainingForSelected > 0 ? remainingForSelected : undefined}
+                      max={remainingForAccount > 0 ? remainingForAccount : undefined}
                       placeholder="أدخل قيمة الدفعة الحالية..."
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
@@ -2211,22 +2215,22 @@ export default function DebtsManager({
                   </div>
 
                   {/* Quick Fill Buttons */}
-                  {remainingForSelected > 0 && (
+                  {remainingForAccount > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <button
                         type="button"
-                        onClick={() => setPaymentAmount(remainingForSelected)}
+                        onClick={() => setPaymentAmount(remainingForAccount)}
                         className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
                       >
-                        تسديد المبلغ المتبقي بالكامل ({formatCurrency(remainingForSelected, currency)})
+                        تسديد إجمالي المتبقي ({formatCurrency(remainingForAccount, currency)})
                       </button>
-                      {remainingForSelected > 1 && (
+                      {remainingForAccount > 1 && (
                         <button
                           type="button"
-                          onClick={() => setPaymentAmount(Math.round(remainingForSelected / 2))}
+                          onClick={() => setPaymentAmount(Math.round(remainingForAccount / 2))}
                           className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
                         >
-                          تسديد 50% ({formatCurrency(Math.round(remainingForSelected / 2), currency)})
+                          تسديد 50% ({formatCurrency(Math.round(remainingForAccount / 2), currency)})
                         </button>
                       )}
                     </div>
