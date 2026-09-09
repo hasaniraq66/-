@@ -678,38 +678,29 @@ export default function App() {
 
   const handleAddInstallment = (debtId: string, amount: number, date: string, notes: string, linkToBudget: boolean) => {
     const installmentId = `inst-${generateId()}`;
-    let updatedDebtItem: Debt | null = null;
+    const currentDebt = debts.find((debt) => debt.id === debtId);
+    if (!currentDebt) return;
 
-    setDebts((prev) => 
-      prev.map((debt) => {
-        if (debt.id !== debtId) return debt;
+    const safeAmount = sanitizeFinancialValue(amount);
+    const updatedInstallments = [...currentDebt.installments, { id: installmentId, amount: safeAmount, date, notes }];
+    const newPaidAmount = currentDebt.paidAmount + safeAmount;
+    const newStatus: Debt['status'] = newPaidAmount >= currentDebt.amount
+      ? 'paid'
+      : newPaidAmount > 0
+        ? 'partial'
+        : 'unpaid';
+    const updatedDebtItem: Debt = {
+      ...currentDebt,
+      paidAmount: Math.min(newPaidAmount, currentDebt.amount),
+      status: newStatus,
+      installments: updatedInstallments,
+    };
 
-        const safeAmount = sanitizeFinancialValue(amount);
-        const updatedInstallments = [...debt.installments, { id: installmentId, amount: safeAmount, date, notes }];
-        const newPaidAmount = debt.paidAmount + safeAmount;
-        let newStatus: Debt['status'] = 'unpaid';
-
-        if (newPaidAmount >= debt.amount) {
-          newStatus = 'paid';
-        } else if (newPaidAmount > 0) {
-          newStatus = 'partial';
-        }
-
-        const updated = {
-          ...debt,
-          paidAmount: Math.min(newPaidAmount, debt.amount),
-          status: newStatus,
-          installments: updatedInstallments,
-        };
-        updatedDebtItem = updated;
-        return updated;
-      })
-    );
+    setDebts((prev) => prev.map((debt) => debt.id === debtId ? updatedDebtItem : debt));
 
     // Link repayment to budget as an expense
     if (linkToBudget) {
-      const debtItem = debts.find(d => d.id === debtId);
-      const expenseDescription = `دفعة سداد لدين: ${debtItem?.personName || ''} (${notes || 'بدون ملاحظات'})`;
+      const expenseDescription = `دفعة سداد لدين: ${currentDebt.personName} (${notes || 'بدون ملاحظات'})`;
       
       const newExpense: Expense = {
         id: `exp-${generateId()}`,
@@ -726,7 +717,7 @@ export default function App() {
       }
     }
 
-    if (currentUser && targetUid && updatedDebtItem) {
+    if (currentUser && targetUid) {
       enqueueSave('debts', debtId, updatedDebtItem);
     }
   };
