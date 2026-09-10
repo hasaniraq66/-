@@ -722,28 +722,30 @@ export default function App() {
     }
   };
 
-  const handleReduceDebtBalance = (debtId: string, amount: number, invoice?: DebtSettlementInvoice) => {
-    const currentDebt = debts.find((debt) => debt.id === debtId);
-    if (!currentDebt) return;
-
-    const safeReduction = sanitizeFinancialValue(amount);
-    const updatedAmount = Math.max(currentDebt.paidAmount, currentDebt.amount - safeReduction);
-    const updatedDebt: Debt = {
-      ...currentDebt,
-      amount: updatedAmount,
-      settlementInvoices: invoice
-        ? [...(currentDebt.settlementInvoices || []), invoice]
-        : currentDebt.settlementInvoices,
-      status: currentDebt.paidAmount >= updatedAmount
-        ? 'paid'
-        : currentDebt.paidAmount > 0
-          ? 'partial'
-          : 'unpaid',
-    };
-
-    setDebts((prev) => prev.map((debt) => debt.id === debtId ? updatedDebt : debt));
+  const handleSettleAccount = (allocations: Array<{ debtId: string; amount: number }>, invoice: DebtSettlementInvoice) => {
+    const allocationMap = new Map(allocations.map(({ debtId, amount }) => [debtId, sanitizeFinancialValue(amount)]));
+    const updatedDebts: Debt[] = debts.map((debt) => {
+      const reduction = allocationMap.get(debt.id);
+      if (!reduction) return debt;
+      const updatedAmount = Math.max(debt.paidAmount, debt.amount - reduction);
+      return {
+        ...debt,
+        amount: updatedAmount,
+        settlementInvoices: debt.id === allocations[0]?.debtId
+          ? [...(debt.settlementInvoices || []), invoice]
+          : debt.settlementInvoices,
+        status: debt.paidAmount >= updatedAmount
+          ? 'paid'
+          : debt.paidAmount > 0
+            ? 'partial'
+            : 'unpaid',
+      };
+    });
+    setDebts(updatedDebts);
     if (currentUser && targetUid) {
-      enqueueSave('debts', debtId, updatedDebt);
+      updatedDebts.forEach((updatedDebt, index) => {
+        if (updatedDebt !== debts[index]) enqueueSave('debts', updatedDebt.id, updatedDebt);
+      });
     }
   };
 
@@ -1708,7 +1710,7 @@ export default function App() {
                   onAddDebt={handleAddDebt}
                   onEditDebt={handleEditDebt}
                   onDeleteDebt={handleDeleteDebt}
-                  onReduceDebtBalance={handleReduceDebtBalance}
+                  onSettleAccount={handleSettleAccount}
                   onDeleteInstallment={handleDeleteInstallment}
                 />
               </Suspense>

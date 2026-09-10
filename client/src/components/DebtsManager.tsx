@@ -138,7 +138,7 @@ interface DebtsManagerProps {
   onAddDebt: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
   onEditDebt: (debt: Debt) => void;
   onDeleteDebt: (id: string) => void;
-  onReduceDebtBalance: (debtId: string, amount: number, invoice?: DebtSettlementInvoice) => void;
+  onSettleAccount: (allocations: Array<{ debtId: string; amount: number }>, invoice: DebtSettlementInvoice) => void;
   onDeleteInstallment: (debtId: string, installmentId: string) => void;
 }
 
@@ -149,7 +149,7 @@ export default function DebtsManager({
   onAddDebt,
   onEditDebt,
   onDeleteDebt,
-  onReduceDebtBalance,
+  onSettleAccount,
   onDeleteInstallment,
 }: DebtsManagerProps) {
   // Tabs & Filters State
@@ -371,7 +371,7 @@ export default function DebtsManager({
     setFormError(null);
     
     let amountLeft = Number(paymentAmount);
-    let invoiceAttached = false;
+    const allocations: Array<{ debtId: string; amount: number }> = [];
     const settlementInvoice: DebtSettlementInvoice = {
       id: `settlement-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       amount: Number(paymentAmount),
@@ -384,10 +384,14 @@ export default function DebtsManager({
       const debtRemaining = Math.max(debt.amount - debt.paidAmount, 0);
       const amountForDebt = Math.min(amountLeft, debtRemaining);
       if (amountForDebt <= 0) return;
-      onReduceDebtBalance(debt.id, amountForDebt, invoiceAttached ? undefined : settlementInvoice);
-      invoiceAttached = true;
+      allocations.push({ debtId: debt.id, amount: amountForDebt });
       amountLeft -= amountForDebt;
     });
+    if (allocations.length === 0) {
+      setFormError('تعذر العثور على بند مفتوح لهذا الحساب. لم يتم تغيير أي بيانات.');
+      return;
+    }
+    onSettleAccount(allocations, settlementInvoice);
     setIsPaymentModalOpen(false);
   };
 
