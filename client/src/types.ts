@@ -7,6 +7,14 @@ export interface PaymentInstallment {
   notes: string;
 }
 
+export interface DebtSettlementInvoice {
+  id: string;
+  amount: number;
+  date: string;
+  referenceNumber?: string;
+  notes?: string;
+}
+
 export type AttachmentReviewStatus = 'pending_review' | 'reviewed';
 
 export interface AttachmentReviewActor {
@@ -59,6 +67,7 @@ export interface Debt {
   description: string;
   status: 'unpaid' | 'partial' | 'paid';
   installments: PaymentInstallment[];
+  settlementInvoices?: DebtSettlementInvoice[];
   note?: string;
   photo?: string; // base64 representation
   attachments?: FinancialAttachment[];

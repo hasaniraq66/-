@@ -71,7 +71,7 @@ import {
   withDataLoadTimeout,
 } from './lib/loadingTimeout';
 
-import { Debt, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile, Income, IncomeSource } from './types';
+import { Debt, DebtSettlementInvoice, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile, Income, IncomeSource } from './types';
 import { generateAlerts, getCurrentMonthString } from './utils';
 import { createIndependentDebt } from './utils/debtRecords';
 import { createNextReferenceNumber } from './utils/recordReferences';
@@ -722,7 +722,7 @@ export default function App() {
     }
   };
 
-  const handleReduceDebtBalance = (debtId: string, amount: number) => {
+  const handleReduceDebtBalance = (debtId: string, amount: number, invoice?: DebtSettlementInvoice) => {
     const currentDebt = debts.find((debt) => debt.id === debtId);
     if (!currentDebt) return;
 
@@ -731,6 +731,9 @@ export default function App() {
     const updatedDebt: Debt = {
       ...currentDebt,
       amount: updatedAmount,
+      settlementInvoices: invoice
+        ? [...(currentDebt.settlementInvoices || []), invoice]
+        : currentDebt.settlementInvoices,
       status: currentDebt.paidAmount >= updatedAmount
         ? 'paid'
         : currentDebt.paidAmount > 0

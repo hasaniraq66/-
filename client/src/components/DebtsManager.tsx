@@ -31,7 +31,7 @@ import {
   RotateCcw,
   TrendingUp
 } from 'lucide-react';
-import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
+import { Debt, DebtType, PaymentInstallment, Expense, DebtSettlementInvoice } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
 import type { PaymentReceipt } from '../lib/paymentReceipt';
 import { getAccountStatementDebts } from '../utils/debtRecords';
@@ -138,7 +138,7 @@ interface DebtsManagerProps {
   onAddDebt: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
   onEditDebt: (debt: Debt) => void;
   onDeleteDebt: (id: string) => void;
-  onReduceDebtBalance: (debtId: string, amount: number) => void;
+  onReduceDebtBalance: (debtId: string, amount: number, invoice?: DebtSettlementInvoice) => void;
   onDeleteInstallment: (debtId: string, installmentId: string) => void;
 }
 
@@ -371,12 +371,21 @@ export default function DebtsManager({
     setFormError(null);
     
     let amountLeft = Number(paymentAmount);
+    let invoiceAttached = false;
+    const settlementInvoice: DebtSettlementInvoice = {
+      id: `settlement-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      amount: Number(paymentAmount),
+      date: getLocalDateString(),
+      referenceNumber: `SET-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+      notes: 'فاتورة تسديد من إجمالي حساب الشخص',
+    };
     accountDebts.forEach((debt) => {
       if (amountLeft <= 0) return;
       const debtRemaining = Math.max(debt.amount - debt.paidAmount, 0);
       const amountForDebt = Math.min(amountLeft, debtRemaining);
       if (amountForDebt <= 0) return;
-      onReduceDebtBalance(debt.id, amountForDebt);
+      onReduceDebtBalance(debt.id, amountForDebt, invoiceAttached ? undefined : settlementInvoice);
+      invoiceAttached = true;
       amountLeft -= amountForDebt;
     });
     setIsPaymentModalOpen(false);
@@ -2441,6 +2450,29 @@ export default function DebtsManager({
                     <span>طباعة الكشف 🖨️</span>
                   </button>
                 </div>
+
+                {personDebts.some((debt) => (debt.settlementInvoices || []).length > 0) && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3" id="settlement-invoices-section">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="flex items-center gap-2 text-xs font-black text-emerald-900">
+                        <FileText className="h-4 w-4 text-emerald-600" />
+                        فواتير التسديد
+                      </h3>
+                      <span className="text-[10px] font-bold text-emerald-700">لا تغيّر سجل الدفعات</span>
+                    </div>
+                    <div className="space-y-2">
+                      {personDebts.flatMap((debt) => debt.settlementInvoices || []).map((invoice) => (
+                        <div key={invoice.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-[11px]">
+                          <div className="flex items-center gap-2 font-bold text-slate-700">
+                            <span className="font-mono text-emerald-700">{invoice.referenceNumber || 'فاتورة تسديد'}</span>
+                            <span>{formatDate(invoice.date)}</span>
+                          </div>
+                          <strong className="text-emerald-700">{formatCurrency(invoice.amount, currency)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* TAB 1: Debt Items Breakdown */}
                 {accountModalTab === 'items' && (
