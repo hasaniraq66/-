@@ -203,11 +203,11 @@ export default function DebtsManager({
   // Expand installment logs
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
 
-  // Expand person sub-debts list state (defaults to true)
+  // Expand person sub-debts list state (collapsed by default to keep the overview calm)
   const [expandedPersons, setExpandedPersons] = useState<Record<string, boolean>>({});
 
   const isPersonExpanded = (personName: string) => {
-    return expandedPersons[personName] !== false; // Expanded by default so sub-debts & extra details are always visible!
+    return expandedPersons[personName] === true;
   };
 
   const togglePersonExpand = (personName: string) => {
@@ -696,17 +696,20 @@ export default function DebtsManager({
   }, [nonProjectDebts]);
 
   return (
-    <div className="space-y-6" id="debts-viewport">
+    <div className="space-y-5" id="debts-viewport">
       {/* Page Header */}
-      <div className="vault-page-header flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl shadow-xs border border-slate-100" id="debts-header">
-        <div className="space-y-1">
-          <h1 className="text-xl font-bold text-slate-800">إدارة الديون والتسديدات 💳</h1>
-          <p className="text-xs text-slate-400">سجل الديون والالتزامات المستحقة لك والواجبة عليك وقسمها إلى دفعات</p>
+      <div className="vault-page-header flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white px-5 py-4 rounded-2xl shadow-xs border border-slate-100" id="debts-header">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden="true" />
+            <h1 className="text-xl font-black tracking-tight text-slate-800">إدارة الديون</h1>
+          </div>
+          <p className="text-xs text-slate-500">تابع المستحقات، وسجّل الدفعات، وافتح كشف الحساب عند الحاجة.</p>
         </div>
         <button
           id="add-debt-main-btn"
           onClick={() => openAddModal()}
-          className="min-h-11 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-white text-sm font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2"
+          className="min-h-10 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-white text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2"
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
           <span>إضافة دين جديد</span>
@@ -715,17 +718,17 @@ export default function DebtsManager({
 
       {activeTab !== 'accounts' && activeTab !== 'history' && (
         <section className="debt-summary-strip grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-label="ملخص سجل الديون">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-600 to-cyan-500 p-4 text-white shadow-sm">
-            <ArrowDownLeft className="absolute -left-2 -bottom-3 w-16 h-16 text-white/10" />
-            <span className="relative text-xs font-bold text-sky-100">مستحق لك الآن</span>
-            <strong className="relative mt-1 block text-lg font-black">{formatCurrency(debtSummary.toMe, currency)}</strong>
-            <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-white/80"><Wallet className="w-3 h-3" /> تحصيلات قيد المتابعة</span>
+          <div className="relative overflow-hidden rounded-2xl bg-sky-50 border border-sky-100 p-4 text-slate-800 shadow-xs">
+            <ArrowDownLeft className="absolute -left-2 -bottom-3 w-16 h-16 text-sky-600/10" />
+            <span className="relative text-xs font-bold text-sky-700">مستحق لك الآن</span>
+            <strong className="relative mt-1 block text-lg font-black text-slate-900">{formatCurrency(debtSummary.toMe, currency)}</strong>
+            <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"><Wallet className="w-3 h-3 text-sky-600" /> تحصيلات قيد المتابعة</span>
           </div>
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-600 to-orange-500 p-4 text-white shadow-sm">
-            <ArrowUpRight className="absolute -left-2 -bottom-3 w-16 h-16 text-white/10" />
-            <span className="relative text-xs font-bold text-rose-100">التزامات عليك</span>
-            <strong className="relative mt-1 block text-lg font-black">{formatCurrency(debtSummary.toOthers, currency)}</strong>
-            <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-white/80"><CreditCard className="w-3 h-3" /> رتّب أولويات السداد</span>
+          <div className="relative overflow-hidden rounded-2xl bg-rose-50 border border-rose-100 p-4 text-slate-800 shadow-xs">
+            <ArrowUpRight className="absolute -left-2 -bottom-3 w-16 h-16 text-rose-600/10" />
+            <span className="relative text-xs font-bold text-rose-700">التزامات عليك</span>
+            <strong className="relative mt-1 block text-lg font-black text-slate-900">{formatCurrency(debtSummary.toOthers, currency)}</strong>
+            <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"><CreditCard className="w-3 h-3 text-rose-600" /> رتّب أولويات السداد</span>
           </div>
           <button type="button" onClick={() => setDueFilter('overdue')} aria-label={`عرض ${debtSummary.overdue} من البنود المتأخرة`} className="min-h-28 text-right relative overflow-hidden rounded-2xl bg-amber-50 border border-amber-200 p-4 shadow-sm transition-colors hover:bg-amber-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2">
             <AlertTriangle className="absolute -left-2 -bottom-3 w-16 h-16 text-amber-500/10" aria-hidden="true" />
@@ -733,7 +736,7 @@ export default function DebtsManager({
             <strong className="relative mt-1 block text-lg font-black text-amber-900">{debtSummary.overdue} بند</strong>
             <span className="relative mt-2 block text-[10px] font-bold text-amber-700">انقر لعرضها ومعالجتها</span>
           </button>
-          <div className="relative overflow-hidden rounded-2xl bg-emerald-50 border border-emerald-200 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-2xl bg-emerald-50 border border-emerald-200 p-4 shadow-xs">
             <TrendingUp className="absolute -left-2 -bottom-3 w-16 h-16 text-emerald-600/10" />
             <span className="relative block text-xs font-bold text-emerald-800">معدل السداد</span>
             <strong className="relative mt-1 block text-lg font-black text-emerald-900">{debtSummary.settlementRate}%</strong>
@@ -743,7 +746,7 @@ export default function DebtsManager({
       )}
 
       {/* Tabs and Filters Control */}
-      <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 space-y-4" id="debts-filters-panel">
+      <div className="bg-white p-3 rounded-2xl shadow-xs border border-slate-100 space-y-3" id="debts-filters-panel">
         {/* Row 1: Primary Tabs */}
         <div className="flex border-b border-slate-100 pb-2 overflow-x-auto gap-1" id="debts-type-tabs" role="tablist" aria-label="أقسام سجل الديون">
           <button
