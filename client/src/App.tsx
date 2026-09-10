@@ -722,6 +722,28 @@ export default function App() {
     }
   };
 
+  const handleReduceDebtBalance = (debtId: string, amount: number) => {
+    const currentDebt = debts.find((debt) => debt.id === debtId);
+    if (!currentDebt) return;
+
+    const safeReduction = sanitizeFinancialValue(amount);
+    const updatedAmount = Math.max(currentDebt.paidAmount, currentDebt.amount - safeReduction);
+    const updatedDebt: Debt = {
+      ...currentDebt,
+      amount: updatedAmount,
+      status: currentDebt.paidAmount >= updatedAmount
+        ? 'paid'
+        : currentDebt.paidAmount > 0
+          ? 'partial'
+          : 'unpaid',
+    };
+
+    setDebts((prev) => prev.map((debt) => debt.id === debtId ? updatedDebt : debt));
+    if (currentUser && targetUid) {
+      enqueueSave('debts', debtId, updatedDebt);
+    }
+  };
+
   const handleDeleteInstallment = (debtId: string, installmentId: string) => {
     let updatedDebtItem: Debt | null = null;
     let instToDeleteAmount: number | null = null;
@@ -1683,7 +1705,7 @@ export default function App() {
                   onAddDebt={handleAddDebt}
                   onEditDebt={handleEditDebt}
                   onDeleteDebt={handleDeleteDebt}
-                  onAddInstallment={handleAddInstallment}
+                  onReduceDebtBalance={handleReduceDebtBalance}
                   onDeleteInstallment={handleDeleteInstallment}
                 />
               </Suspense>

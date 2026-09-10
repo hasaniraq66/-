@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { Debt, DebtType, PaymentInstallment, Expense } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
-import { buildPaymentReceipt, type PaymentReceipt } from '../lib/paymentReceipt';
+import type { PaymentReceipt } from '../lib/paymentReceipt';
 import { getAccountStatementDebts } from '../utils/debtRecords';
 import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
 import { isPaymentWithinRemainingBalance, isPositiveFinancialAmount } from '../utils/financialInputValidation';
@@ -138,7 +138,7 @@ interface DebtsManagerProps {
   onAddDebt: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
   onEditDebt: (debt: Debt) => void;
   onDeleteDebt: (id: string) => void;
-  onAddInstallment: (debtId: string, amount: number, date: string, notes: string, linkToBudget: boolean) => void;
+  onReduceDebtBalance: (debtId: string, amount: number) => void;
   onDeleteInstallment: (debtId: string, installmentId: string) => void;
 }
 
@@ -149,7 +149,7 @@ export default function DebtsManager({
   onAddDebt,
   onEditDebt,
   onDeleteDebt,
-  onAddInstallment,
+  onReduceDebtBalance,
   onDeleteInstallment,
 }: DebtsManagerProps) {
   // Tabs & Filters State
@@ -196,9 +196,6 @@ export default function DebtsManager({
   
   // Payment installment fields
   const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
-  const [paymentDate, setPaymentDate] = useState(getLocalDateString());
-  const [paymentNotes, setPaymentNotes] = useState('');
-  const [linkToBudget, setLinkToBudget] = useState(true);
 
   // Expand installment logs
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
@@ -276,9 +273,6 @@ export default function DebtsManager({
     setFormError(null);
     setSelectedDebt(debt);
     setPaymentAmount('');
-    setPaymentDate(getLocalDateString());
-    setPaymentNotes('');
-    setLinkToBudget(debt.type === 'to_others'); // default to true only if it's our debt (to others)
     setIsPaymentModalOpen(true);
   };
 
@@ -346,7 +340,7 @@ export default function DebtsManager({
     setIsEditModalOpen(false);
   };
 
-  // Submit Payment/Installment
+  // Submit balance reduction without creating a payment installment
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDebt) return;
@@ -367,15 +361,11 @@ export default function DebtsManager({
       0,
     );
     if (!isPositiveFinancialAmount(paymentAmount)) {
-      setFormError('أدخل مبلغ دفعة أكبر من صفر قبل تسجيلها.');
+      setFormError('أدخل مبلغًا أكبر من صفر لخفض الرصيد.');
       return;
     }
     if (!isPaymentWithinRemainingBalance(paymentAmount, remainingBalance)) {
-      setFormError(`لا يمكن أن تتجاوز الدفعة الرصيد المتبقي (${formatCurrency(remainingBalance, currency)}).`);
-      return;
-    }
-    if (!paymentDate) {
-      setFormError('اختر تاريخ الدفعة قبل تسجيلها.');
+      setFormError(`لا يمكن أن يتجاوز المبلغ الرصيد المتبقي (${formatCurrency(remainingBalance, currency)}).`);
       return;
     }
     setFormError(null);
@@ -386,29 +376,10 @@ export default function DebtsManager({
       const debtRemaining = Math.max(debt.amount - debt.paidAmount, 0);
       const amountForDebt = Math.min(amountLeft, debtRemaining);
       if (amountForDebt <= 0) return;
-      onAddInstallment(
-        debt.id,
-        amountForDebt,
-        paymentDate,
-        paymentNotes,
-        debt.type === 'to_others' ? linkToBudget : false
-      );
+      onReduceDebtBalance(debt.id, amountForDebt);
       amountLeft -= amountForDebt;
     });
     setIsPaymentModalOpen(false);
-
-    // يُبنى الإشعار من الدفعة المسجَّلة لا من حالة الدين: الحالة لم تُحدَّث بعد
-    // بهذه الدفعة، فقراءتها تعطي متبقياً أعلى من الحقيقي — أي رسالة تطالب
-    // بمالٍ سُدِّد فعلاً.
-    setPaymentReceipt(
-      buildPaymentReceipt({
-        debt: selectedDebt,
-        amount: Number(paymentAmount),
-        date: paymentDate,
-        notes: paymentNotes,
-        currency,
-      }),
-    );
   };
 
   // Toggle expand installments logs
@@ -2141,7 +2112,7 @@ export default function DebtsManager({
             <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                 <div>
-                  <h2 className="text-base font-bold text-slate-800">تسجيل دفعة سداد جديدة 💸</h2>
+                  <h2 className="text-base font-bold text-slate-800">خفض رصيد الحساب</h2>
                   <p className="text-[11px] text-slate-400">الحساب: <strong className="text-slate-700">{selectedDebt.personName}</strong></p>
                 </div>
                 <button onClick={() => setIsPaymentModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
@@ -2152,9 +2123,9 @@ export default function DebtsManager({
               <form onSubmit={handlePaymentSubmit} className="p-5 space-y-4 text-xs" id="payment-form">
                 {formError && <FormValidationAlert message={formError} />}
                 <div className="space-y-1.5 bg-sky-50/80 p-3 rounded-xl border border-sky-100">
-                  <p className="text-sky-900 font-extrabold text-xs">السداد من إجمالي حساب {selectedDebt.personName}</p>
+                  <p className="text-sky-900 font-extrabold text-xs">إنقاص مبلغ من إجمالي حساب {selectedDebt.personName}</p>
                   <p className="text-[10px] leading-relaxed text-sky-700">
-                    سيتم توزيع الدفعة تلقائياً على الديون المفتوحة لهذا الحساب، دون الحاجة لاختيار بند محدد.
+                    سينخفض الرصيد فقط. لن تُضاف دفعة أو قسط جديد إلى سجل الحركات.
                   </p>
                 </div>
 
@@ -2199,8 +2170,8 @@ export default function DebtsManager({
                 {/* Installment Amount */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <label className="block text-slate-500 font-semibold">قيمة الدفعة الحالية ({currency})</label>
-                    <span className="text-[10px] text-slate-400 font-bold">ينقص المتبقي تلقائياً</span>
+                    <label className="block text-slate-500 font-semibold">مبلغ الإنقاص ({currency})</label>
+                    <span className="text-[10px] text-slate-400 font-bold">ينقص من الرصيد فقط</span>
                   </div>
                   <div className="relative">
                     <DollarSign className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -2210,7 +2181,7 @@ export default function DebtsManager({
                       min="0.1"
                       step="any"
                       max={remainingForAccount > 0 ? remainingForAccount : undefined}
-                      placeholder="أدخل قيمة الدفعة الحالية..."
+                      placeholder="أدخل المبلغ المراد إنقاصه..."
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
@@ -2240,53 +2211,6 @@ export default function DebtsManager({
                   )}
                 </div>
 
-              {/* Installment Date */}
-              <div className="space-y-1.5">
-                <label className="block text-slate-500 font-semibold">تاريخ السداد</label>
-                <input
-                  type="date"
-                  required
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
-                />
-                <div className="text-[10px] text-emerald-600 font-extrabold text-right mt-1" id="installment-date-formatted-preview">
-                  {paymentDate ? formatDate(paymentDate) : 'لم يتم اختيار تاريخ'}
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-1.5">
-                <label className="block text-slate-500 font-semibold">ملاحظات الدفعة (اختياري)</label>
-                <input
-                  type="text"
-                  placeholder="مثال: الدفعة الأولى، قسط شهر 6..."
-                  value={paymentNotes}
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
-                />
-              </div>
-
-              {/* Integrated Budget feature */}
-              {selectedDebt.type === 'to_others' && (
-                <div className="bg-emerald-50 border border-emerald-100 p-3.5 rounded-xl space-y-2" id="integrated-budget-checkbox-wrapper">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={linkToBudget}
-                      onChange={(e) => setLinkToBudget(e.target.checked)}
-                      className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4 shrink-0"
-                    />
-                    <div>
-                      <span className="block font-bold text-emerald-800 text-xs">خصم الدفعة من الميزانية الشهرية؟</span>
-                      <span className="block text-[10px] text-emerald-600/90 leading-relaxed">
-                        عند التفعيل، سيتم تلقائياً تسجيل هذا المبلغ كمصروف ضمن الميزانية الحالية تحت فئة "تسديد ديون"، لضمان تطابق حسابات الميزانية.
-                      </span>
-                    </div>
-                  </label>
-                </div>
-              )}
-
               {/* Buttons */}
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
                 <button
@@ -2300,7 +2224,7 @@ export default function DebtsManager({
                   type="submit"
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer"
                 >
-                  تسجيل الدفعة
+                  خفض الرصيد
                 </button>
               </div>
             </form>
