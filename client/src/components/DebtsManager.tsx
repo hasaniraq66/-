@@ -348,7 +348,6 @@ export default function DebtsManager({
       .filter((debt) =>
         debt.personName.trim().toLowerCase() === selectedDebt.personName.trim().toLowerCase()
         && debt.type === selectedDebt.type
-        && debt.status !== 'paid'
         && debt.amount - debt.paidAmount > 0
       )
       .sort((first, second) => {
