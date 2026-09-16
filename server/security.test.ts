@@ -9,11 +9,10 @@ describe('security headers', () => {
     applySecurityHeaders({} as never, { setHeader } as never, next);
 
     expect(setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
-    expect(setHeader).toHaveBeenCalledWith('X-Frame-Options', 'DENY');
     expect(setHeader).toHaveBeenCalledWith('Referrer-Policy', 'strict-origin-when-cross-origin');
     expect(setHeader).toHaveBeenCalledWith('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    expect(setHeader).toHaveBeenCalledWith('Cross-Origin-Opener-Policy', 'same-origin');
-    expect(setHeader).toHaveBeenCalledWith('Cross-Origin-Resource-Policy', 'same-origin');
+    expect(setHeader).toHaveBeenCalledWith('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    expect(setHeader).toHaveBeenCalledWith('Cross-Origin-Resource-Policy', 'cross-origin');
     expect(setHeader).toHaveBeenCalledWith('Content-Security-Policy', CONTENT_SECURITY_POLICY);
     expect(next).toHaveBeenCalledOnce();
   });

@@ -57,7 +57,7 @@ import AuthScreen from './components/AuthScreen';
 import ConfirmModal from './components/ConfirmModal';
 import { AppDataLoadingExperience, DeferredSectionLoadingExperience } from './components/DataLoadingExperience';
 import type { DataLoadingStage } from './lib/loadingExperience';
-import { getFinancialDataLoadErrorMessage } from './lib/firestoreError';
+import { getFinancialDataLoadErrorMessage, getFirestoreErrorCode } from './lib/firestoreError';
 import { resolveCollection, shouldReportLoadFailure } from './lib/collectionAccess';
 import { sanitizeRecordsForExport } from './lib/backupSanitizer';
 import { clearPin, hasPin, migrateLegacyPin, setPin, verifyPin } from './lib/appLockCredential';
@@ -72,8 +72,8 @@ import {
 } from './lib/loadingTimeout';
 
 import { Debt, DebtSettlementInvoice, Expense, Budget, SystemAlert, Project, Employee, SalaryPayment, UserProfile, Income, IncomeSource } from './types';
-import { generateAlerts, getCurrentMonthString } from './utils';
-import { createIndependentDebt } from './utils/debtRecords';
+import { generateAlerts, getCurrentMonthString, getLocalDateString } from './utils';
+import { createIndependentDebt, normalizeDebtRecord } from './utils/debtRecords';
 import { createNextReferenceNumber } from './utils/recordReferences';
 
 // Import components
@@ -352,7 +352,7 @@ export default function App() {
           const finalIncomeSources = resolveCollection<IncomeSource>(settledIncomeSources, localIncomeSourcesSaved ? JSON.parse(localIncomeSourcesSaved) : null);
           const finalReadAlerts = localReadAlertsSaved ? JSON.parse(localReadAlertsSaved) : [];
 
-          setDebts(finalDebts);
+          setDebts(finalDebts.map(normalizeDebtRecord));
           setExpenses(finalExpenses);
           setBudgets(finalBudgets);
           setProjects(finalProjects);
@@ -363,6 +363,18 @@ export default function App() {
           setReadAlertIds(finalReadAlerts);
         } catch (err) {
           if (!loadCoordinator.isCurrent(requestId)) return;
+          const errorCode = getFirestoreErrorCode(err);
+          if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/user-token-expired') {
+            console.warn('Session credential invalidated, resetting session:', errorCode);
+            void signOut(auth).catch(() => {});
+            setCurrentUser(null);
+            setUserProfile(null);
+            setDataLoadError(null);
+            setLoadingStage('auth');
+            setAuthBootstrapRecoveryMessage('انتهت صلاحية جلسة تسجيل الدخول أو أصبحت غير صالحة. يرجى تسجيل الدخول من جديد.');
+            setIsAuthLoading(false);
+            return;
+          }
           console.error('Error fetching user collections:', err);
           setDataLoadError(getFinancialDataLoadErrorMessage(err));
         } finally {
@@ -655,9 +667,10 @@ export default function App() {
   };
 
   const handleEditDebt = (editedDebt: Debt) => {
-    setDebts((prev) => prev.map((d) => (d.id === editedDebt.id ? editedDebt : d)));
+    const normalized = normalizeDebtRecord(editedDebt);
+    setDebts((prev) => prev.map((d) => (d.id === normalized.id ? normalized : d)));
     if (currentUser && targetUid) {
-      enqueueSave('debts', editedDebt.id, editedDebt);
+      enqueueSave('debts', normalized.id, normalized);
     }
   };
 
@@ -722,26 +735,72 @@ export default function App() {
     }
   };
 
-  const handleSettleAccount = (allocations: Array<{ debtId: string; amount: number }>, invoice: DebtSettlementInvoice) => {
+  const handleSettleAccount = (
+    allocations: Array<{ debtId: string; amount: number }>,
+    invoice: DebtSettlementInvoice,
+    notes?: string,
+    linkToBudget?: boolean
+  ) => {
     const allocationMap = new Map(allocations.map(({ debtId, amount }) => [debtId, sanitizeFinancialValue(amount)]));
     const updatedDebts: Debt[] = debts.map((debt) => {
-      const reduction = allocationMap.get(debt.id);
-      if (!reduction) return debt;
-      const updatedAmount = Math.max(debt.paidAmount, debt.amount - reduction);
+      const allocatedPayment = allocationMap.get(debt.id);
+      if (!allocatedPayment || allocatedPayment <= 0) return debt;
+
+      const safePayment = sanitizeFinancialValue(allocatedPayment);
+      const newPaidAmount = Math.min(debt.amount, sanitizeFinancialValue(debt.paidAmount + safePayment));
+      const installmentId = `inst-${generateId()}`;
+      const newInstallment = {
+        id: installmentId,
+        amount: safePayment,
+        date: invoice.date || getLocalDateString(),
+        notes: notes || invoice.notes || 'تسديد دفعة حساب',
+      };
+      const updatedInstallments = [...(debt.installments || []), newInstallment];
+      const newStatus: Debt['status'] = newPaidAmount >= debt.amount
+        ? 'paid'
+        : newPaidAmount > 0
+          ? 'partial'
+          : 'unpaid';
+
       return {
         ...debt,
-        amount: updatedAmount,
+        paidAmount: newPaidAmount,
+        status: newStatus,
+        installments: updatedInstallments,
         settlementInvoices: debt.id === allocations[0]?.debtId
           ? [...(debt.settlementInvoices || []), invoice]
           : debt.settlementInvoices,
-        status: debt.paidAmount >= updatedAmount
-          ? 'paid'
-          : debt.paidAmount > 0
-            ? 'partial'
-            : 'unpaid',
       };
     });
+
     setDebts(updatedDebts);
+
+    // Link repayment to budget as expense if debt is owed to others
+    if (linkToBudget) {
+      const newExpenses: Expense[] = [];
+      allocations.forEach(({ debtId, amount }) => {
+        const targetDebt = debts.find((d) => d.id === debtId);
+        if (targetDebt && targetDebt.type === 'to_others' && amount > 0) {
+          const expense: Expense = {
+            id: `exp-${generateId()}`,
+            referenceNumber: createNextReferenceNumber([...expenses, ...newExpenses], 'INV', invoice.date || getLocalDateString()),
+            amount: sanitizeFinancialValue(amount),
+            category: 'تسديد ديون',
+            date: invoice.date || getLocalDateString(),
+            description: `دفعة سداد لدين: ${targetDebt.personName} (${notes || invoice.notes || 'تسديد دفعة'})`,
+            linkedDebtId: debtId,
+          };
+          newExpenses.push(expense);
+        }
+      });
+      if (newExpenses.length > 0) {
+        setExpenses((prev) => [...newExpenses, ...prev]);
+        if (currentUser && targetUid) {
+          newExpenses.forEach((exp) => enqueueSave('expenses', exp.id, exp));
+        }
+      }
+    }
+
     if (currentUser && targetUid) {
       updatedDebts.forEach((updatedDebt, index) => {
         if (updatedDebt !== debts[index]) enqueueSave('debts', updatedDebt.id, updatedDebt);
@@ -1206,7 +1265,9 @@ export default function App() {
           setUserName(displayName);
           setCurrency(userCurrency);
           // يجدد الرمز بعد نجاح نموذج الدخول كي يستمر المستمع المركزي بتهيئة البيانات.
-          void auth.currentUser?.getIdToken(true);
+          void auth.currentUser?.getIdToken(true).catch((tokenErr) => {
+            console.warn('Initial token refresh skipped or failed:', tokenErr);
+          });
         }} 
       />
     );
@@ -1710,6 +1771,7 @@ export default function App() {
                   onAddDebt={handleAddDebt}
                   onEditDebt={handleEditDebt}
                   onDeleteDebt={handleDeleteDebt}
+                  onAddInstallment={handleAddInstallment}
                   onSettleAccount={handleSettleAccount}
                   onDeleteInstallment={handleDeleteInstallment}
                 />

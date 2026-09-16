@@ -26,4 +26,11 @@ describe('Firestore load error diagnostics', () => {
     expect(getFinancialDataLoadErrorMessage(error)).toContain('وقتاً أطول');
     expect(getFinancialDataLoadErrorMessage(error)).toContain('أعد المحاولة');
   });
+
+  it('identifies auth/invalid-credential from raw Firebase error message', () => {
+    const error = new Error('Firebase: Error (auth/invalid-credential).');
+
+    expect(getFirestoreErrorCode(error)).toBe('auth/invalid-credential');
+    expect(getFinancialDataLoadErrorMessage(error)).toContain('انتهت صلاحية جلسة الدخول');
+  });
 });

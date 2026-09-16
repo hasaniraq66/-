@@ -201,11 +201,15 @@ export default function BackupRestore({ onImportData, onResetData, exportPayload
         }
       }
     } catch (err: unknown) {
-      console.error(err);
+      const failure = describeGoogleAuthFailure(err, currentHost());
+      if (failure.retryable) {
+        console.warn('Google Drive auth attempt failed:', failure.title);
+      } else {
+        console.error('Google Drive auth error:', err);
+      }
       setCloudStatus('error');
       // النسخ الاحتياطي يمرّ بدخول Google نفسه، فيتعطّل بالسبب نفسه ويستحق
       // التشخيص نفسه بدل رسالة عامة تُخفي أن الإصلاح إعدادٌ لا إعادة محاولة.
-      const failure = describeGoogleAuthFailure(err, currentHost());
       setCloudMessage(`${failure.title} — ${failure.detail}`);
     } finally {
       setIsLoading(false);

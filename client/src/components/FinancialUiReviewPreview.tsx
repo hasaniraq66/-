@@ -37,7 +37,7 @@ export default function FinancialUiReviewPreview() {
           {view === 'dashboard' ? (
             <Dashboard debts={[]} expenses={[]} budget={null} alerts={[]} currency="ر.ع" onNavigate={() => {}} onMarkAlertAsRead={() => {}} projects={[]} employees={[]} salaryPayments={[]} initialCapital={0} />
           ) : (
-            <DebtsManager debts={[]} currency="ر.ع" ownerUid="ui-review-only" onAddDebt={() => {}} onEditDebt={() => {}} onDeleteDebt={() => {}} onAddInstallment={() => {}} onDeleteInstallment={() => {}} />
+            <DebtsManager debts={[]} currency="ر.ع" ownerUid="ui-review-only" onAddDebt={() => {}} onEditDebt={() => {}} onDeleteDebt={() => {}} onAddInstallment={() => {}} onSettleAccount={() => {}} onDeleteInstallment={() => {}} />
           )}
         </div>
       </section>

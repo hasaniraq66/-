@@ -147,6 +147,12 @@ describe('بقية الحالات', () => {
     expect(f.detail).toContain('كلمة المرور');
   });
 
+  it('يتعامل مع بيانات الاعتماد غير الصالحة أو المنتهية', () => {
+    const f = describeGoogleAuthFailure({ code: 'auth/invalid-credential' }, HOST);
+    expect(f.title).toContain('غير صالحة');
+    expect(f.retryable).toBe(true);
+  });
+
   it('يعطي رسالة عامة لرمز مجهول بلا رابط إعداد مضلِّل', () => {
     const f = describeGoogleAuthFailure({ code: 'auth/something-new' }, HOST);
     expect(f.consoleUrl).toBeUndefined();

@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { Debt, DebtType, PaymentInstallment, Expense, DebtSettlementInvoice } from '../types';
 import { formatCurrency, formatDate, getLocalDateString, generateWhatsAppLink } from '../utils';
-import type { PaymentReceipt } from '../lib/paymentReceipt';
+import { buildPaymentReceipt, type PaymentReceipt } from '../lib/paymentReceipt';
 import { getAccountStatementDebts } from '../utils/debtRecords';
 import { getArabicReferenceLabel, getDisplayReferenceNumber, matchesReferenceSearch } from '../utils/recordReferences';
 import { isPaymentWithinRemainingBalance, isPositiveFinancialAmount } from '../utils/financialInputValidation';
@@ -138,7 +138,8 @@ interface DebtsManagerProps {
   onAddDebt: (debt: Omit<Debt, 'id' | 'paidAmount' | 'status' | 'installments'>) => void;
   onEditDebt: (debt: Debt) => void;
   onDeleteDebt: (id: string) => void;
-  onSettleAccount: (allocations: Array<{ debtId: string; amount: number }>, invoice: DebtSettlementInvoice) => void;
+  onAddInstallment?: (debtId: string, amount: number, date: string, notes: string, linkToBudget: boolean) => void;
+  onSettleAccount: (allocations: Array<{ debtId: string; amount: number }>, invoice: DebtSettlementInvoice, notes?: string, linkToBudget?: boolean) => void;
   onDeleteInstallment: (debtId: string, installmentId: string) => void;
 }
 
@@ -149,6 +150,7 @@ export default function DebtsManager({
   onAddDebt,
   onEditDebt,
   onDeleteDebt,
+  onAddInstallment,
   onSettleAccount,
   onDeleteInstallment,
 }: DebtsManagerProps) {
@@ -196,6 +198,10 @@ export default function DebtsManager({
   
   // Payment installment fields
   const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
+  const [paymentDate, setPaymentDate] = useState<string>(getLocalDateString());
+  const [paymentNotes, setPaymentNotes] = useState<string>('');
+  const [paymentLinkToBudget, setPaymentLinkToBudget] = useState<boolean>(true);
+  const [paymentScope, setPaymentScope] = useState<'single_debt' | 'account'>('single_debt');
 
   // Expand installment logs
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
@@ -222,7 +228,7 @@ export default function DebtsManager({
     // Find active (unpaid or partial) debt, otherwise pick the first debt
     const targetDebt = personDebts.find((d) => d.status !== 'paid') || personDebts[0];
     if (targetDebt) {
-      openPaymentModal(targetDebt);
+      openPaymentModal(targetDebt, 'account');
     }
   };
 
@@ -269,10 +275,19 @@ export default function DebtsManager({
   };
 
   // Handle open payment modal
-  const openPaymentModal = (debt: Debt) => {
+  const openPaymentModal = (debt: Debt, scope: 'single_debt' | 'account' = 'single_debt') => {
     setFormError(null);
     setSelectedDebt(debt);
-    setPaymentAmount('');
+    setPaymentScope(scope);
+    const targetRemaining = scope === 'single_debt'
+      ? Math.max(0, debt.amount - debt.paidAmount)
+      : nonProjectDebts
+          .filter((d) => d.personName.trim().toLowerCase() === debt.personName.trim().toLowerCase() && d.type === debt.type)
+          .reduce((sum, d) => sum + Math.max(0, d.amount - d.paidAmount), 0);
+    setPaymentAmount(targetRemaining > 0 ? targetRemaining : '');
+    setPaymentDate(getLocalDateString());
+    setPaymentNotes('');
+    setPaymentLinkToBudget(debt.type === 'to_others');
     setIsPaymentModalOpen(true);
   };
 
@@ -340,7 +355,7 @@ export default function DebtsManager({
     setIsEditModalOpen(false);
   };
 
-  // Submit balance reduction without creating a payment installment
+  // Submit payment installment or account settlement
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDebt) return;
@@ -355,12 +370,17 @@ export default function DebtsManager({
         if (second.id === selectedDebt.id) return 1;
         return (first.dueDate || first.startDate || '').localeCompare(second.dueDate || second.startDate || '');
       });
-    const remainingBalance = accountDebts.reduce(
-      (total, debt) => total + Math.max(debt.amount - debt.paidAmount, 0),
-      0,
-    );
+
+    const isSingleDebt = paymentScope === 'single_debt' || accountDebts.length <= 1;
+    const remainingBalance = isSingleDebt
+      ? Math.max(selectedDebt.amount - selectedDebt.paidAmount, 0)
+      : accountDebts.reduce(
+          (total, debt) => total + Math.max(debt.amount - debt.paidAmount, 0),
+          0,
+        );
+
     if (!isPositiveFinancialAmount(paymentAmount)) {
-      setFormError('أدخل مبلغًا أكبر من صفر لخفض الرصيد.');
+      setFormError('أدخل مبلغ سداد صحيح أكبر من صفر.');
       return;
     }
     if (!isPaymentWithinRemainingBalance(paymentAmount, remainingBalance)) {
@@ -368,29 +388,51 @@ export default function DebtsManager({
       return;
     }
     setFormError(null);
-    
-    let amountLeft = Number(paymentAmount);
-    const allocations: Array<{ debtId: string; amount: number }> = [];
-    const settlementInvoice: DebtSettlementInvoice = {
-      id: `settlement-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      amount: Number(paymentAmount),
-      date: getLocalDateString(),
-      referenceNumber: `SET-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
-      notes: 'فاتورة تسديد من إجمالي حساب الشخص',
-    };
-    accountDebts.forEach((debt) => {
-      if (amountLeft <= 0) return;
-      const debtRemaining = Math.max(debt.amount - debt.paidAmount, 0);
-      const amountForDebt = Math.min(amountLeft, debtRemaining);
-      if (amountForDebt <= 0) return;
-      allocations.push({ debtId: debt.id, amount: amountForDebt });
-      amountLeft -= amountForDebt;
-    });
-    if (allocations.length === 0) {
-      setFormError('تعذر العثور على بند مفتوح لهذا الحساب. لم يتم تغيير أي بيانات.');
-      return;
+
+    const safeAmount = Number(paymentAmount);
+    const safeDate = paymentDate || getLocalDateString();
+    const safeNotes = paymentNotes.trim();
+
+    if (isSingleDebt && onAddInstallment) {
+      onAddInstallment(selectedDebt.id, safeAmount, safeDate, safeNotes, paymentLinkToBudget);
+    } else {
+      let amountLeft = safeAmount;
+      const allocations: Array<{ debtId: string; amount: number }> = [];
+      const settlementInvoice: DebtSettlementInvoice = {
+        id: `settlement-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        amount: safeAmount,
+        date: safeDate,
+        referenceNumber: `SET-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+        notes: safeNotes || 'فاتورة تسديد من إجمالي حساب الشخص',
+      };
+      accountDebts.forEach((debt) => {
+        if (amountLeft <= 0) return;
+        const debtRemaining = Math.max(debt.amount - debt.paidAmount, 0);
+        const amountForDebt = Math.min(amountLeft, debtRemaining);
+        if (amountForDebt <= 0) return;
+        allocations.push({ debtId: debt.id, amount: amountForDebt });
+        amountLeft -= amountForDebt;
+      });
+      if (allocations.length === 0) {
+        setFormError('تعذر العثور على بند مفتوح لهذا الحساب. لم يتم تغيير أي بيانات.');
+        return;
+      }
+      onSettleAccount(allocations, settlementInvoice, safeNotes, paymentLinkToBudget);
     }
-    onSettleAccount(allocations, settlementInvoice);
+
+    try {
+      const receipt = buildPaymentReceipt({
+        debt: selectedDebt,
+        amount: safeAmount,
+        date: safeDate,
+        notes: safeNotes,
+        currency,
+      });
+      setPaymentReceipt(receipt);
+    } catch {
+      // Ignored
+    }
+
     setIsPaymentModalOpen(false);
   };
 
@@ -1426,10 +1468,45 @@ export default function DebtsManager({
                                   <div className="bg-slate-100 p-2 rounded-lg space-y-1 text-[10px] border border-slate-200">
                                     <span className="font-extrabold text-slate-600 block">سجل الدفعات المسددة لهذا البند:</span>
                                     {debt.installments.map((inst, idx) => (
-                                      <div key={inst.id || idx} className="flex justify-between items-center bg-white p-1 rounded border border-slate-200/60">
-                                        <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
-                                        <span className="text-slate-400">{formatDate(inst.date)}</span>
-                                        {inst.notes && <span className="text-slate-600 font-medium">({inst.notes})</span>}
+                                      <div key={inst.id || idx} className="flex justify-between items-center bg-white p-1.5 rounded border border-slate-200/60">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
+                                          <span className="text-slate-400">{formatDate(inst.date)}</span>
+                                          {inst.notes && <span className="text-slate-600 font-medium">({inst.notes})</span>}
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const r = buildPaymentReceipt({
+                                                debt,
+                                                amount: inst.amount,
+                                                date: inst.date,
+                                                notes: inst.notes,
+                                                currency,
+                                              });
+                                              setPaymentReceipt(r);
+                                            }}
+                                            title="إشعار واتساب"
+                                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                          >
+                                            <MessageSquare className="w-3 h-3" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setConfirmModal({
+                                                title: 'حذف الدفعة المسددة',
+                                                message: `هل أنت متأكد من حذف الدفعة بقيمة ${formatCurrency(inst.amount, currency)}؟ سيُعاد المبلغ إلى الرصيد المتبقي.`,
+                                                onConfirm: () => onDeleteInstallment(debt.id, inst.id)
+                                              });
+                                            }}
+                                            title="حذف الدفعة"
+                                            className="p-1 text-rose-500 hover:bg-rose-50 rounded transition-colors"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
@@ -2117,45 +2194,81 @@ export default function DebtsManager({
         const remainingForAccount = personDebts
           .filter((d) => d.status !== 'paid')
           .reduce((total, d) => total + Math.max(d.amount - d.paidAmount, 0), 0);
+        const remainingForDebt = Math.max(0, selectedDebt.amount - selectedDebt.paidAmount);
+        const targetRemaining = paymentScope === 'single_debt' ? remainingForDebt : remainingForAccount;
 
         return (
           <ModalPortal>
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in" id="payment-modal">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100">
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-100 overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div>
-                  <h2 className="text-base font-bold text-slate-800">خفض رصيد الحساب</h2>
-                  <p className="text-[11px] text-slate-400">الحساب: <strong className="text-slate-700">{selectedDebt.personName}</strong></p>
+                  <h2 className="text-base font-bold text-slate-800">تسجيل دفعة سداد</h2>
+                  <p className="text-[11px] text-slate-500">الطرف: <strong className="text-slate-800">{selectedDebt.personName}</strong></p>
                 </div>
-                <button onClick={() => setIsPaymentModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
+                <button onClick={() => setIsPaymentModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
               <form onSubmit={handlePaymentSubmit} className="p-5 space-y-4 text-xs" id="payment-form">
                 {formError && <FormValidationAlert message={formError} />}
-                <div className="space-y-1.5 bg-sky-50/80 p-3 rounded-xl border border-sky-100">
-                  <p className="text-sky-900 font-extrabold text-xs">إنقاص مبلغ من إجمالي حساب {selectedDebt.personName}</p>
-                  <p className="text-[10px] leading-relaxed text-sky-700">
-                    سينخفض الرصيد فقط. لن تُضاف دفعة أو قسط جديد إلى سجل الحركات.
-                  </p>
-                </div>
 
-                {/* Quick stats for the selected debt */}
-                <div className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
+                {/* Scope selector if person has multiple debts */}
+                {personDebts.length > 1 && (
+                  <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentScope('single_debt');
+                        setPaymentAmount(remainingForDebt > 0 ? remainingForDebt : '');
+                      }}
+                      className={`flex-1 py-1.5 text-center text-xs font-bold rounded-lg transition-all ${
+                        paymentScope === 'single_debt'
+                          ? 'bg-white text-sky-700 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      هذا البند فقط
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentScope('account');
+                        setPaymentAmount(remainingForAccount > 0 ? remainingForAccount : '');
+                      }}
+                      className={`flex-1 py-1.5 text-center text-xs font-bold rounded-lg transition-all ${
+                        paymentScope === 'account'
+                          ? 'bg-white text-sky-700 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      إجمالي حساب الشخص ({personDebts.length} بنود)
+                    </button>
+                  </div>
+                )}
+
+                {/* Quick stats for the selected debt or account */}
+                <div className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-200/70">
                   <div className="flex justify-between text-center">
                     <div>
-                    <span className="block text-[10px] text-slate-400">إجمالي الحساب</span>
-                    <span className="font-bold text-slate-700">{formatCurrency(personDebts.reduce((total, debt) => total + debt.amount, 0), currency)}</span>
+                      <span className="block text-[10px] text-slate-400">
+                        {paymentScope === 'single_debt' ? 'أصل هذا الدين' : 'إجمالي الحساب'}
+                      </span>
+                      <span className="font-bold text-slate-700">
+                        {formatCurrency(paymentScope === 'single_debt' ? selectedDebt.amount : personDebts.reduce((t, d) => t + d.amount, 0), currency)}
+                      </span>
                     </div>
                     <div>
                       <span className="block text-[10px] text-slate-400">المدفوع سابقاً</span>
-                      <span className="font-bold text-emerald-600">{formatCurrency(personDebts.reduce((total, debt) => total + debt.paidAmount, 0), currency)}</span>
+                      <span className="font-bold text-emerald-600">
+                        {formatCurrency(paymentScope === 'single_debt' ? selectedDebt.paidAmount : personDebts.reduce((t, d) => t + d.paidAmount, 0), currency)}
+                      </span>
                     </div>
                     <div>
                       <span className="block text-[10px] text-slate-400">الرصيد المتبقي</span>
                       <span className="font-extrabold text-rose-600">
-                        {formatCurrency(remainingForAccount, currency)}
+                        {formatCurrency(targetRemaining, currency)}
                       </span>
                     </div>
                   </div>
@@ -2168,13 +2281,13 @@ export default function DebtsManager({
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                       : 'bg-rose-50 text-rose-700 border border-rose-200/60'
                   }`}>
-                    <span>{selectedDebt.projectId ? '🔒 حساب المشروع المستقل:' : '🏛️ تأثير التسديد:'}</span>
+                    <span>{selectedDebt.projectId ? '🔒 حساب المشروع:' : '🏛️ أثر التسديد:'}</span>
                     <span>
                       {selectedDebt.projectId
-                        ? 'هذا الدين مرتبط بمشروع عمل معزول؛ يتم خصمه/إضافته من ميزانية المشروع ولا يُسحب من رأس المال العام'
+                        ? 'دين مشروع مستقل؛ لا يؤثر على رأس المال والسيولة العامة'
                         : selectedDebt.type === 'to_me' 
-                        ? 'تضاف هذه الدفعة فوراً إلى رأس المال والسيولة المتاحة ➕' 
-                        : 'تسحب هذه الدفعة فوراً من رأس المال والسيولة المتاحة ➖'}
+                        ? 'تُسجل دفعة وتُضاف فوراً إلى السيولة ورأس المال ➕' 
+                        : 'تُسجل دفعة وتُخصم من السيولة ورأس المال ➖'}
                     </span>
                   </div>
                 </div>
@@ -2182,67 +2295,115 @@ export default function DebtsManager({
                 {/* Installment Amount */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <label className="block text-slate-500 font-semibold">مبلغ الإنقاص ({currency})</label>
-                    <span className="text-[10px] text-slate-400 font-bold">ينقص من الرصيد فقط</span>
+                    <label className="block text-slate-600 font-bold">مبلغ الدفعة ({currency}) *</label>
+                    <span className="text-[10px] text-slate-400 font-bold">
+                      المتبقي: {formatCurrency(targetRemaining, currency)}
+                    </span>
                   </div>
                   <div className="relative">
                     <DollarSign className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="number"
                       required
-                      min="0.1"
+                      min="0.01"
                       step="any"
-                      max={remainingForAccount > 0 ? remainingForAccount : undefined}
-                      placeholder="أدخل المبلغ المراد إنقاصه..."
+                      max={targetRemaining > 0 ? targetRemaining : undefined}
+                      placeholder="أدخل مبلغ الدفعة..."
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-900 dark:text-slate-100 dark:bg-slate-900 dark:border-slate-700 font-bold"
+                      className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white text-slate-900 font-bold text-sm"
                     />
                   </div>
 
                   {/* Quick Fill Buttons */}
-                  {remainingForAccount > 0 && (
+                  {targetRemaining > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <button
                         type="button"
-                        onClick={() => setPaymentAmount(remainingForAccount)}
+                        onClick={() => setPaymentAmount(targetRemaining)}
                         className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
                       >
-                        تسديد إجمالي المتبقي ({formatCurrency(remainingForAccount, currency)})
+                        تسديد كامل المتبقي ({formatCurrency(targetRemaining, currency)})
                       </button>
-                      {remainingForAccount > 1 && (
+                      {targetRemaining > 1 && (
                         <button
                           type="button"
-                          onClick={() => setPaymentAmount(Math.round(remainingForAccount / 2))}
+                          onClick={() => setPaymentAmount(Math.round(targetRemaining / 2))}
                           className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
                         >
-                          تسديد 50% ({formatCurrency(Math.round(remainingForAccount / 2), currency)})
+                          تسديد 50% ({formatCurrency(Math.round(targetRemaining / 2), currency)})
                         </button>
                       )}
                     </div>
                   )}
                 </div>
 
-              {/* Buttons */}
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPaymentModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-700 transition-colors cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  خفض الرصيد
-                </button>
-              </div>
-            </form>
+                {/* Payment Date */}
+                <div className="space-y-1.5">
+                  <label className="block text-slate-600 font-bold">تاريخ الدفعة *</label>
+                  <div className="relative">
+                    <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="date"
+                      required
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white text-slate-900 font-medium text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Notes / Statement */}
+                <div className="space-y-1.5">
+                  <label className="block text-slate-600 font-bold">بيان / ملاحظات الدفعة (اختياري)</label>
+                  <div className="relative">
+                    <FileText className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="مثال: نقداً / تحويل بنكي / شيك رقم..."
+                      value={paymentNotes}
+                      onChange={(e) => setPaymentNotes(e.target.value)}
+                      className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white text-slate-900 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Link to Budget checkbox (for debts to others) */}
+                {selectedDebt.type === 'to_others' && (
+                  <label className="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={paymentLinkToBudget}
+                      onChange={(e) => setPaymentLinkToBudget(e.target.checked)}
+                      className="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-700">
+                      تسجيل الدفعة تلقائياً كمصروف ضمن الميزانية العامة
+                    </span>
+                  </label>
+                )}
+
+                {/* Buttons */}
+                <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentModalOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-700 transition-colors cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>حفظ وتسجيل الدفعة</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-        </ModalPortal>
+          </ModalPortal>
         );
       })()}
 
@@ -2634,10 +2795,45 @@ export default function DebtsManager({
                                 <div className="bg-slate-100/70 p-2.5 rounded-xl space-y-1.5 border border-slate-200/60 mt-2">
                                   <span className="text-[10px] text-slate-500 font-extrabold block">سجل الدفعات المسددة لهذا البند:</span>
                                   {debt.installments.map((inst, idx) => (
-                                    <div key={inst.id || idx} className="flex justify-between items-center text-[11px] bg-white p-1.5 rounded-lg border border-slate-200/50">
-                                      <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
-                                      <span className="text-slate-400">{formatDate(inst.date)}</span>
-                                      {inst.notes && <span className="text-slate-500 text-[10px]">({inst.notes})</span>}
+                                    <div key={inst.id || idx} className="flex flex-wrap justify-between items-center text-[11px] bg-white p-2 rounded-lg border border-slate-200/50 gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-bold text-emerald-700">#{idx + 1} {formatCurrency(inst.amount, currency)}</span>
+                                        <span className="text-slate-400 text-[10px]">{formatDate(inst.date)}</span>
+                                        {inst.notes && <span className="text-slate-500 text-[10px] max-w-[140px] truncate" title={inst.notes}>({inst.notes})</span>}
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const r = buildPaymentReceipt({
+                                              debt,
+                                              amount: inst.amount,
+                                              date: inst.date,
+                                              notes: inst.notes,
+                                              currency,
+                                            });
+                                            setPaymentReceipt(r);
+                                          }}
+                                          title="إشعار واتساب"
+                                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                        >
+                                          <MessageSquare className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setConfirmModal({
+                                              title: 'حذف الدفعة المسددة',
+                                              message: `هل أنت متأكد من حذف الدفعة بقيمة ${formatCurrency(inst.amount, currency)}؟ سيُعاد المبلغ إلى الرصيد المتبقي.`,
+                                              onConfirm: () => onDeleteInstallment(debt.id, inst.id)
+                                            });
+                                          }}
+                                          title="حذف الدفعة"
+                                          className="p-1 text-rose-500 hover:bg-rose-50 rounded transition-colors"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   ))}
                                 </div>

@@ -147,6 +147,13 @@ export function describeGoogleAuthFailure(error: unknown, host: string): GoogleA
         retryable: false,
       };
 
+    case 'auth/invalid-credential':
+      return {
+        title: 'بيانات الاعتماد غير صالحة أو منتهية',
+        detail: 'تعذر التحقق من بيانات الدخول بحساب Google أو انتهت صلاحية الجلسة. أعد المحاولة أو سجّل الدخول مجدداً.',
+        retryable: true,
+      };
+
     default:
       return {
         title: 'تعذّر تسجيل الدخول بحساب Google',

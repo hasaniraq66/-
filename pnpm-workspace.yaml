@@ -1,9 +1,0 @@
-packages:
-  - .
-
-# ملاحظة: `overrides` تُقرأ من هذا الملف ابتداءً من pnpm 10.6 فقط، والمشروع
-# مثبَّت على pnpm 10.4.1 عبر حقل packageManager. لذلك تُعرَّف التجاوزات في
-# package.json تحت `pnpm.overrides` حيث يقرأها الإصدار المستخدم فعلاً.
-
-patchedDependencies:
-  wouter@3.7.1: patches/wouter@3.7.1.patch

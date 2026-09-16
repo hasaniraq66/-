@@ -21,7 +21,7 @@ import {
 } from 'firebase/auth';
 import { auth, saveUserProfile } from '../utils/firebaseService';
 import { runWithFirebaseSessionRecovery } from '../lib/firebaseSession';
-import { currentHost, describeGoogleAuthFailure } from '../lib/googleAuthError';
+import { currentHost, describeGoogleAuthFailure, errorCode } from '../lib/googleAuthError';
 
 interface AuthScreenProps {
   onAuthSuccess: (userId: string, displayName: string, currency: string) => void;
@@ -57,7 +57,14 @@ export default function AuthScreen({ onAuthSuccess, statusMessage }: AuthScreenP
       // تجنب القراءة المتوازية هنا يمنع تعارض تجديد الرمز بعد تسجيل الدخول.
       onAuthSuccess(user.uid, user.displayName || 'مستثمر جديد', 'ر.س');
     } catch (err: unknown) {
-      console.error(err);
+      const code = errorCode(err);
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        console.warn('Google sign-in popup cancelled by user');
+      } else if (code === 'auth/invalid-credential') {
+        console.warn('Google sign-in returned invalid credential');
+      } else {
+        console.error(err);
+      }
       // الرسالة السابقة كانت تدعو إلى «المحاولة لاحقاً» لكل خطأ عدا واحد،
       // وهذا يضلّل في أشيع حالة: نطاق غير مصرَّح به لا يُصلحه الانتظار أبداً.
       const failure = describeGoogleAuthFailure(err, currentHost());
@@ -154,16 +161,19 @@ export default function AuthScreen({ onAuthSuccess, statusMessage }: AuthScreenP
         onAuthSuccess(user.uid, newProfile.displayName, newProfile.currency);
       }
     } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      const code = err?.code || (typeof err?.message === 'string' && err.message.includes('auth/invalid-credential') ? 'auth/invalid-credential' : '');
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        console.warn('Login attempt with invalid credentials');
         setError('بيانات الدخول غير صحيحة. يرجى التحقق من البريد أو رقم الهاتف وكلمة المرور.');
-      } else if (err.code === 'auth/email-already-in-use') {
+      } else if (code === 'auth/email-already-in-use') {
+        console.warn('Registration attempt with existing account');
         if (authMethod === 'email') {
           setError('البريد الإلكتروني مستخدم بالفعل! البريد الإلكتروني الذي أدخلته مسجل لحساب آخر مسبقاً. يرجى استخدام بريد إلكتروني جديد أو تسجيل الدخول.');
         } else {
           setError('رقم الهاتف مستخدم بالفعل! رقم الهاتف الذي أدخلته مسجل لحساب آخر مسبقاً. يرجى استخدام رقم هاتف جديد أو تسجيل الدخول.');
         }
-      } else if (err.code === 'auth/operation-not-allowed') {
+      } else if (code === 'auth/operation-not-allowed') {
+        console.error('Sign-in method not allowed in Firebase console:', err);
         setError(
           <div className="space-y-1.5 leading-relaxed">
             <p className="font-extrabold text-red-400 text-right">⚠️ طريقة تسجيل الدخول هذه (البريد وكلمة المرور) غير مفعلة حالياً في مشروع Firebase الخاص بك.</p>

@@ -77,7 +77,11 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
-    console.error('Sign-In Error:', error);
+    if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request' || error?.code === 'auth/invalid-credential') {
+      console.warn('Google sign-in popup cancelled or invalid credential:', error.code);
+    } else {
+      console.error('Sign-In Error:', error);
+    }
     throw error;
   } finally {
     isSigningIn = false;

@@ -1,0 +1,8 @@
+{
+  "name": "ديوني وميزانيتي برو",
+  "description": "نظام عربي متكامل لإدارة الديون والميزانية والمصاريف والمشاريع والتقارير المالية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
