@@ -104,6 +104,25 @@ const trpcClient = trpc.createClient({
   ],
 });
 
+// تحميل التحليلات اختيارياً فقط إذا كان الرابط صالحاً
+const analyticsEndpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
+const analyticsWebsiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
+if (
+  typeof window !== "undefined" &&
+  analyticsEndpoint &&
+  typeof analyticsEndpoint === "string" &&
+  analyticsEndpoint.startsWith("http") &&
+  analyticsWebsiteId &&
+  analyticsWebsiteId !== "none" &&
+  !analyticsWebsiteId.startsWith("%")
+) {
+  const script = document.createElement("script");
+  script.defer = true;
+  script.src = `${analyticsEndpoint.replace(/\/$/, "")}/umami`;
+  script.setAttribute("data-website-id", analyticsWebsiteId);
+  document.head.appendChild(script);
+}
+
 // تكامل الغلاف الأصلي (أندرويد/iOS). لا يفعل شيئاً في المتصفح، ولا يُؤخّر
 // عرض الواجهة، فأي فشل فيه لا يمنع إقلاع التطبيق.
 void bootstrapNativeShell().catch((error) => {
