@@ -6,7 +6,7 @@ export function formatCurrency(amount: number, currency: string = 'د.إ'): stri
 }
 
 // Convert date string to readable Arabic date
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr?: string | null): string {
   if (!dateStr) return '';
   try {
     let date: Date;
@@ -62,7 +62,7 @@ export function generateAlerts(debts: Debt[]): SystemAlert[] {
   const today = new Date(todayStr);
 
   debts.forEach((debt) => {
-    if (debt.status === 'paid') return;
+    if (debt.status === 'paid' || !debt.dueDate) return;
 
     const dueDate = new Date(debt.dueDate);
     const diffTime = dueDate.getTime() - today.getTime();
@@ -112,11 +112,12 @@ export function generateAlerts(debts: Debt[]): SystemAlert[] {
 export function generateWhatsAppLink(debt: Debt, currency: string = 'د.إ'): string {
   const remainingAmount = debt.amount - debt.paidAmount;
   let text = '';
+  const dueSuffix = debt.dueDate ? ` والمستحقة في تاريخ ${debt.dueDate}` : '';
 
   if (debt.type === 'to_me') {
-    text = `مرحباً ${debt.personName}، أرجو أن تكون بخير. أود فقط تذكيرك بلطف بموعد الدفعة المستحقة بقيمة ${remainingAmount} ${currency} والمستحقة في تاريخ ${debt.dueDate}. شكراً لك وجزاك الله خيراً.`;
+    text = `مرحباً ${debt.personName}، أرجو أن تكون بخير. أود فقط تذكيرك بلطف بموعد الدفعة المستحقة بقيمة ${remainingAmount} ${currency}${dueSuffix}. شكراً لك وجزاك الله خيراً.`;
   } else {
-    text = `مرحباً ${debt.personName}، أرجو أن تكون بخير. بخصوص دفعتكم المستحقة عليّ بقيمة ${remainingAmount} ${currency} والمجدولة بتاريخ ${debt.dueDate}، أود أن أؤكد لكم أنني أعمل على سدادها في الموعد المحدد بإذن الله.`;
+    text = `مرحباً ${debt.personName}، أرجو أن تكون بخير. بخصوص دفعتكم المستحقة عليّ بقيمة ${remainingAmount} ${currency}${dueSuffix}، أود أن أؤكد لكم أنني أعمل على سدادها في أقرب فرصة بإذن الله.`;
   }
 
   return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;

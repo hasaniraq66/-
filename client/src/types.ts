@@ -61,7 +61,7 @@ export interface Debt {
   personName: string;
   amount: number;
   paidAmount: number;
-  dueDate: string;
+  dueDate?: string;
   startDate: string;
   category: string; // عائلي, تجاري, شخصي, عمل, أخرى
   description: string;

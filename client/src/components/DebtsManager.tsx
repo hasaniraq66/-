@@ -82,7 +82,7 @@ export function getPersonActivityHistory(personDebts: Debt[]): ActivityEvent[] {
     // 1. Creation event
     events.push({
       id: `add-${debt.id}`,
-      date: debt.startDate || debt.dueDate,
+      date: debt.startDate || debt.dueDate || getLocalDateString(),
       type: 'debt_added',
       debtId: debt.id,
       personName: debt.personName,
@@ -116,7 +116,7 @@ export function getPersonActivityHistory(personDebts: Debt[]): ActivityEvent[] {
       const lastInst = debt.installments[debt.installments.length - 1];
       events.push({
         id: `completed-${debt.id}`,
-        date: lastInst?.date || debt.dueDate,
+        date: lastInst?.date || debt.dueDate || getLocalDateString(),
         type: 'debt_completed',
         debtId: debt.id,
         personName: debt.personName,
@@ -264,7 +264,7 @@ export default function DebtsManager({
     setPersonName(debt.personName);
     setType(debt.type);
     setAmount(debt.amount);
-    setDueDate(debt.dueDate);
+    setDueDate(debt.dueDate || '');
     setStartDate(debt.startDate);
     setCategory(debt.category);
     setDescription(debt.description);
@@ -302,16 +302,12 @@ export default function DebtsManager({
       setFormError('أدخل قيمة دين أكبر من صفر قبل الحفظ.');
       return;
     }
-    if (!dueDate) {
-      setFormError('اختر تاريخ الاستحقاق قبل حفظ سجل الدين.');
-      return;
-    }
     setFormError(null);
     onAddDebt({
       personName,
       type,
       amount: Number(amount),
-      dueDate,
+      dueDate: dueDate.trim() || undefined,
       startDate,
       category,
       description,
@@ -334,17 +330,13 @@ export default function DebtsManager({
       setFormError('أدخل قيمة دين أكبر من صفر قبل حفظ التعديلات.');
       return;
     }
-    if (!dueDate) {
-      setFormError('اختر تاريخ الاستحقاق قبل حفظ التعديلات.');
-      return;
-    }
     setFormError(null);
     onEditDebt({
       ...selectedDebt,
       personName,
       type,
       amount: Number(amount),
-      dueDate,
+      dueDate: dueDate.trim() || undefined,
       startDate,
       category,
       description,
@@ -527,8 +519,8 @@ export default function DebtsManager({
     return {
       toMe: activeDebts.filter(debt => debt.type === 'to_me').reduce((sum, debt) => sum + Math.max(0, debt.amount - debt.paidAmount), 0),
       toOthers: activeDebts.filter(debt => debt.type === 'to_others').reduce((sum, debt) => sum + Math.max(0, debt.amount - debt.paidAmount), 0),
-      overdue: activeDebts.filter(debt => debt.dueDate < today).length,
-      upcoming: activeDebts.filter(debt => debt.dueDate >= today && debt.dueDate <= weekLimit).length,
+      overdue: activeDebts.filter(debt => !!debt.dueDate && debt.dueDate < today).length,
+      upcoming: activeDebts.filter(debt => !!debt.dueDate && debt.dueDate >= today && debt.dueDate <= weekLimit).length,
       settlementRate: totalValue > 0 ? Math.round((totalPaid / totalValue) * 100) : 0,
     };
   }, [nonProjectDebts]);
@@ -560,7 +552,7 @@ export default function DebtsManager({
       const statusStr = d.status === 'paid' ? '✅ مسدد' : d.status === 'partial' ? '⏳ مسدد جزئياً' : '🔴 غير مسدد';
       
       msg += `${idx + 1}. [${getArabicReferenceLabel(getDisplayReferenceNumber(d, 'DBT'))}] ${typeStr} - ${formatCurrency(d.amount, currency)} (${statusStr})\n`;
-      msg += `   المتبقي: ${formatCurrency(rem, currency)} | تاريخ الاستحقاق: ${formatDate(d.dueDate)}\n`;
+      msg += `   المتبقي: ${formatCurrency(rem, currency)} | تاريخ الاستحقاق: ${d.dueDate ? formatDate(d.dueDate) : 'غير محدد'}\n`;
       if (d.description) msg += `   ملاحظة: ${d.description}\n`;
       msg += `\n`;
     });
@@ -609,7 +601,7 @@ export default function DebtsManager({
       // 3. Status filter
       if (statusFilter === 'overdue') {
         const todayStr = getLocalDateString();
-        if (d.status === 'paid' || d.dueDate >= todayStr) return false;
+        if (d.status === 'paid' || !d.dueDate || d.dueDate >= todayStr) return false;
       } else if (statusFilter !== 'all' && d.status !== statusFilter) {
         return false;
       }
@@ -619,17 +611,17 @@ export default function DebtsManager({
 
       const todayStr = getLocalDateString();
       const weekLimit = getDateOffsetString(7);
-      if (dueFilter === 'overdue' && (d.status === 'paid' || d.dueDate >= todayStr)) return false;
-      if (dueFilter === 'this_week' && (d.status === 'paid' || d.dueDate < todayStr || d.dueDate > weekLimit)) return false;
-      if (dueFilter === 'upcoming' && (d.status === 'paid' || d.dueDate < todayStr)) return false;
+      if (dueFilter === 'overdue' && (d.status === 'paid' || !d.dueDate || d.dueDate >= todayStr)) return false;
+      if (dueFilter === 'this_week' && (d.status === 'paid' || !d.dueDate || d.dueDate < todayStr || d.dueDate > weekLimit)) return false;
+      if (dueFilter === 'upcoming' && (d.status === 'paid' || !d.dueDate || d.dueDate < todayStr)) return false;
 
       return true;
     }).sort((first, second) => {
       if (sortBy === 'amount') return (second.amount - second.paidAmount) - (first.amount - first.paidAmount);
-      if (sortBy === 'recent') return new Date(second.startDate || second.dueDate).getTime() - new Date(first.startDate || first.dueDate).getTime();
-      const firstPriority = first.status !== 'paid' && first.dueDate < getLocalDateString() ? 1 : 0;
-      const secondPriority = second.status !== 'paid' && second.dueDate < getLocalDateString() ? 1 : 0;
-      return secondPriority - firstPriority || first.dueDate.localeCompare(second.dueDate);
+      if (sortBy === 'recent') return new Date(second.startDate || second.dueDate || '').getTime() - new Date(first.startDate || first.dueDate || '').getTime();
+      const firstPriority = first.status !== 'paid' && first.dueDate && first.dueDate < getLocalDateString() ? 1 : 0;
+      const secondPriority = second.status !== 'paid' && second.dueDate && second.dueDate < getLocalDateString() ? 1 : 0;
+      return secondPriority - firstPriority || (first.dueDate || '').localeCompare(second.dueDate || '');
     });
   }, [nonProjectDebts, activeTab, searchTerm, statusFilter, categoryFilter, dueFilter, sortBy]);
 
@@ -710,7 +702,7 @@ export default function DebtsManager({
     }).sort((first, second) => {
       if (sortBy === 'amount') return second.remAmount - first.remAmount;
       if (sortBy === 'recent') return new Date(second.latestActivity?.date || 0).getTime() - new Date(first.latestActivity?.date || 0).getTime();
-      const overdueCount = (account: { debts: Debt[] }) => account.debts.filter(debt => debt.status !== 'paid' && debt.dueDate < getLocalDateString()).length;
+      const overdueCount = (account: { debts: Debt[] }) => account.debts.filter(debt => debt.status !== 'paid' && !!debt.dueDate && debt.dueDate < getLocalDateString()).length;
       return overdueCount(second) - overdueCount(first) || second.remAmount - first.remAmount;
     });
   }, [filteredDebts, sortBy]);
@@ -1200,8 +1192,8 @@ export default function DebtsManager({
 
                     {(() => {
                       const today = getLocalDateString();
-                      const overdueItems = acc.debts.filter(debt => debt.status !== 'paid' && debt.dueDate < today).length;
-                      const nextDue = acc.debts.filter(debt => debt.status !== 'paid' && debt.dueDate >= today).sort((first, second) => first.dueDate.localeCompare(second.dueDate))[0];
+                      const overdueItems = acc.debts.filter(debt => debt.status !== 'paid' && !!debt.dueDate && debt.dueDate < today).length;
+                      const nextDue = acc.debts.filter(debt => debt.status !== 'paid' && !!debt.dueDate && debt.dueDate >= today).sort((first, second) => (first.dueDate || '').localeCompare(second.dueDate || ''))[0];
                       return (
                         <div className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-[10px] font-bold ${overdueItems > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200/70' : 'bg-slate-50 text-slate-600 border border-slate-100'}`}>
                           <span className="inline-flex items-center gap-1.5">
@@ -1309,7 +1301,7 @@ export default function DebtsManager({
                           {acc.debts.map((debt, index) => {
                             const remaining = debt.amount - debt.paidAmount;
                             const percentage = Math.min(Math.round((debt.paidAmount / debt.amount) * 100), 100);
-                            const isOverdue = debt.status !== 'paid' && debt.dueDate < getLocalDateString();
+                            const isOverdue = debt.status !== 'paid' && !!debt.dueDate && debt.dueDate < getLocalDateString();
 
                             return (
                               <div
@@ -1337,7 +1329,7 @@ export default function DebtsManager({
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-0.5">
                                       <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">{debt.category}</span>
-                                      <span>تاريخ الاستحقاق: <strong className="text-slate-700">{formatDate(debt.dueDate)}</strong></span>
+                                      <span>تاريخ الاستحقاق: <strong className="text-slate-700">{debt.dueDate ? formatDate(debt.dueDate) : 'غير محدد'}</strong></span>
                                       {isOverdue && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 font-black text-amber-800"><AlertTriangle className="w-3 h-3" /> متأخر</span>}
                                     </div>
                                   </div>
@@ -1882,16 +1874,15 @@ export default function DebtsManager({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-slate-500 font-semibold">تاريخ الاستحقاق للسداد</label>
+                  <label className="block text-slate-500 font-semibold">تاريخ الاستحقاق للسداد (اختياري)</label>
                   <input
                     type="date"
-                    required
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 dark:text-slate-100"
                   />
                   <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="add-debt-due-date-formatted-preview">
-                    {dueDate ? formatDate(dueDate) : 'لم يتم اختيار تاريخ'}
+                    {dueDate ? formatDate(dueDate) : 'اختياري - لم يُحدد'}
                   </div>
                 </div>
               </div>
@@ -2054,16 +2045,15 @@ export default function DebtsManager({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-slate-500 font-semibold">تاريخ الاستحقاق</label>
+                  <label className="block text-slate-500 font-semibold">تاريخ الاستحقاق (اختياري)</label>
                   <input
                     type="date"
-                    required
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 focus:bg-white text-slate-800 dark:text-slate-100"
                   />
                   <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="edit-debt-due-date-formatted-preview">
-                    {dueDate ? formatDate(dueDate) : 'لم يتم اختيار تاريخ'}
+                    {dueDate ? formatDate(dueDate) : 'اختياري - لم يُحدد'}
                   </div>
                 </div>
               </div>
@@ -2685,7 +2675,7 @@ export default function DebtsManager({
                                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
                                     <span>الفئة: <strong className="text-slate-600">{debt.category}</strong></span>
                                     <span>تاريخ البدء: <strong className="text-slate-600">{formatDate(debt.startDate)}</strong></span>
-                                    <span>الاستحقاق: <strong className="text-slate-600">{formatDate(debt.dueDate)}</strong></span>
+                                    <span>الاستحقاق: <strong className="text-slate-600">{debt.dueDate ? formatDate(debt.dueDate) : 'غير محدد'}</strong></span>
                                   </div>
                                 </div>
 
@@ -3124,7 +3114,7 @@ export default function DebtsManager({
                             </td>
                             <td className="p-2.5 font-bold">{d.description || d.category}</td>
                             <td className="p-2.5 text-slate-600 dark:text-slate-400 font-semibold">{d.guarantor || '-'}</td>
-                            <td className="p-2.5 text-slate-600 dark:text-slate-400">{formatDate(d.dueDate)}</td>
+                            <td className="p-2.5 text-slate-600 dark:text-slate-400">{d.dueDate ? formatDate(d.dueDate) : '-'}</td>
                             <td className="p-2.5 font-bold">{formatCurrency(d.amount, currency)}</td>
                             <td className="p-2.5 text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(d.paidAmount, currency)}</td>
                             <td className="p-2.5 text-rose-600 dark:text-rose-400 font-bold">{formatCurrency(rem, currency)}</td>

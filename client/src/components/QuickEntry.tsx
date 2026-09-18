@@ -85,17 +85,13 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
         setErrorMessage('الرجاء إدخال اسم الشخص الطرف الآخر في الدين.');
         return;
       }
-      if (!debtDueDate) {
-        setErrorMessage('الرجاء تحديد تاريخ استحقاق السداد.');
-        return;
-      }
 
       onAddDebt({
         type: debtType,
         personName: personName.trim(),
         amount: Number(amount),
         startDate: debtStartDate,
-        dueDate: debtDueDate,
+        dueDate: debtDueDate.trim() || undefined,
         category: debtCategory,
         description: description.trim(),
         projectId: projectId || undefined,
@@ -393,7 +389,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
 
                 <div className="space-y-1.5">
                   <label htmlFor="quick-debt-due-date" className="text-[11px] font-black text-slate-500 flex items-center gap-1 justify-end">
-                    <span>تاريخ الاستحقاق (السداد)</span>
+                    <span>تاريخ الاستحقاق (السداد) (اختياري)</span>
                     <Calendar className="w-3 h-3 text-rose-500" />
                   </label>
                   <input
@@ -404,7 +400,7 @@ export default function QuickEntry({ projects = [], currency, onAddDebt, onAddEx
                     id="quick-debt-due-date"
                   />
                   <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="quick-debt-due-date-formatted-preview">
-                    {debtDueDate ? formatDate(debtDueDate) : 'لم يتم اختيار تاريخ'}
+                    {debtDueDate ? formatDate(debtDueDate) : 'اختياري - لم يُحدد'}
                   </div>
                 </div>
               </div>

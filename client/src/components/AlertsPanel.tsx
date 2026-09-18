@@ -134,7 +134,7 @@ export default function AlertsPanel({
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
-                          <span>تاريخ الاستحقاق: {formatDate(matchedDebt.dueDate)}</span>
+                          <span>تاريخ الاستحقاق: {matchedDebt.dueDate ? formatDate(matchedDebt.dueDate) : 'غير محدد'}</span>
                         </span>
                       </div>
                     )}

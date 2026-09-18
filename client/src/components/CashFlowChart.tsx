@@ -56,7 +56,7 @@ export default function CashFlowChart({ debts, currency }: CashFlowChartProps) {
       // Exclude project-specific debts since we want general debts
       if (debt.projectId) return;
 
-      const debtMonth = getYearMonth(debt.startDate || debt.dueDate);
+      const debtMonth = getYearMonth(debt.startDate || debt.dueDate || '');
       if (!debtMonth) return;
 
       if (!monthMap[debtMonth]) {

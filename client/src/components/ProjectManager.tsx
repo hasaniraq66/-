@@ -280,7 +280,7 @@ export default function ProjectManager({
       type: debtType,
       personName: debtPerson,
       amount: Number(debtAmount),
-      dueDate: debtDueDate || getLocalDateString(),
+      dueDate: debtDueDate.trim() || undefined,
       startDate: getLocalDateString(),
       category: 'عمل',
       description: `[مشروع: ${projects.find(p => p.id === selectedProjectId)?.name || ''}] ${debtDesc}`,
@@ -314,7 +314,7 @@ export default function ProjectManager({
     setEditingDebtObj(debt);
     setEditDebtAmount(debt.amount);
     setEditDebtPerson(debt.personName);
-    setEditDebtDueDate(debt.dueDate);
+    setEditDebtDueDate(debt.dueDate || '');
     setEditDebtDesc(debt.description || '');
     setEditDebtType(debt.type);
   };
@@ -342,7 +342,7 @@ export default function ProjectManager({
       ...editingDebtObj,
       amount: Number(editDebtAmount),
       personName: editDebtPerson,
-      dueDate: editDebtDueDate,
+      dueDate: editDebtDueDate.trim() || undefined,
       description: editDebtDesc,
       type: editDebtType,
       status: Number(editDebtAmount) <= editingDebtObj.paidAmount ? 'paid' : editingDebtObj.paidAmount > 0 ? 'partial' : 'unpaid'
@@ -1151,7 +1151,7 @@ export default function ProjectManager({
                                       <h4 className="font-extrabold text-slate-800 text-xs truncate">{debt.personName}</h4>
                                     </div>
                                     <p className="text-[10px] text-slate-400 line-clamp-1">{debt.description || 'بلا وصف'}</p>
-                                    <p className="text-[9px] text-slate-500">ميعاد الاستحقاق: {formatDate(debt.dueDate)}</p>
+                                    <p className="text-[9px] text-slate-500">ميعاد الاستحقاق: {debt.dueDate ? formatDate(debt.dueDate) : 'غير محدد'}</p>
                                   </div>
                                 </div>
 
@@ -1378,7 +1378,7 @@ export default function ProjectManager({
                                       <div className="space-y-0.5 text-right">
                                         <p className="font-bold text-slate-800">{debt.personName}</p>
                                         <p className="text-[10px] text-slate-400">
-                                          {debt.type === 'to_others' ? 'دين علينا' : 'دين لنا'} • يستحق: {formatDate(debt.dueDate)}
+                                          {debt.type === 'to_others' ? 'دين علينا' : 'دين لنا'} • يستحق: {debt.dueDate ? formatDate(debt.dueDate) : 'غير محدد'}
                                         </p>
                                       </div>
                                       <span className={`font-extrabold px-2.5 py-1 rounded-md ${
@@ -1884,16 +1884,15 @@ export default function ProjectManager({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-slate-500">تاريخ الاستحقاق والوفاء</label>
+                <label className="block text-slate-500">تاريخ الاستحقاق والوفاء (اختياري)</label>
                 <input
                   type="date"
-                  required
                   value={debtDueDate}
                   onChange={(e) => setDebtDueDate(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                 />
                 <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="project-debt-due-date-formatted-preview">
-                  {debtDueDate ? formatDate(debtDueDate) : 'لم يتم اختيار تاريخ'}
+                  {debtDueDate ? formatDate(debtDueDate) : 'اختياري - لم يُحدد'}
                 </div>
               </div>
 
@@ -2077,16 +2076,15 @@ export default function ProjectManager({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-slate-500">تاريخ الاستحقاق</label>
+                  <label className="block text-slate-500">تاريخ الاستحقاق (اختياري)</label>
                   <input
                     type="date"
-                    required
                     value={editDebtDueDate}
                     onChange={(e) => setEditDebtDueDate(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-800 dark:text-slate-100 font-bold"
                   />
                   <div className="text-[10px] text-rose-600 font-extrabold text-right mt-1" id="project-edit-debt-due-date-formatted-preview">
-                    {editDebtDueDate ? formatDate(editDebtDueDate) : 'لم يتم اختيار تاريخ'}
+                    {editDebtDueDate ? formatDate(editDebtDueDate) : 'اختياري - لم يُحدد'}
                   </div>
                 </div>
               </div>
